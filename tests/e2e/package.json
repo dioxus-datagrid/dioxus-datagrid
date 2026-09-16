@@ -1,0 +1,13 @@
+{
+  "name": "dioxus-datagrid-e2e",
+  "private": true,
+  "description": "Playwright tests against the playground, which renders the shipped data_grid component.",
+  "scripts": {
+    "test": "playwright test",
+    "test:chromium": "playwright test --project=chromium"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0"
+  }
+}

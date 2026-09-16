@@ -1,0 +1,66 @@
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playground-in-sync:
+    name: playground matches registry
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The playground carries a copy of the registry component so Playwright
+      # tests what users receive. Fail if someone edited one without the other.
+      - run: bash scripts/sync-playground-component.sh
+      - name: Assert no drift
+        run: |
+          if ! git diff --exit-code -- playground/; then
+            echo "::error::playground/ is out of date. Run scripts/sync-playground-component.sh and commit the result."
+            exit 1
+          fi
+
+  playwright:
+    name: playwright (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Install dx
+        run: cargo install dioxus-cli --version 0.7.10 --locked
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/e2e/package-lock.json
+      - name: Install Playwright
+        working-directory: tests/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps ${{ matrix.browser }}
+      # playwright.config.ts builds and serves the playground itself.
+      - name: Run tests
+        working-directory: tests/e2e
+        run: npx playwright test --project=${{ matrix.browser }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: tests/e2e/playwright-report/
+          retention-days: 7
