@@ -4,9 +4,9 @@ Stand: 2026-09-16. Werkzeuge: `rustc 1.96.1`, `cargo 1.96.1`, `dx 0.7.10 (57d679
 `git 2.47.1`, `node 22.23.1`.
 
 Jeder Punkt nennt Befehl oder Quelle. Der Spike unter `playground/src/spike.rs` ist live gegen
-Chromium gelaufen; die gemessenen Werte stehen jeweils dabei. In Phase 3 wurde er aus dem
-Playground entfernt, der seitdem die Registry-Komponente rendert; der Code liegt im Commit
-`e13db57`.
+Chromium gelaufen; die gemessenen Werte stehen jeweils dabei — siehe aber die Korrektur zu
+`onscroll` in Abschnitt 3. In Phase 3 wurde er aus dem Playground entfernt, der seitdem die
+Registry-Komponente rendert; der Code liegt im Commit `e13db57`.
 
 ---
 
@@ -56,6 +56,10 @@ Wichtig: `scroll` bubbelt im DOM nicht. Dioxus weiß das — `dioxus-core-types-
 führt `"scroll" => false`, und der Interpreter hängt nicht-bubbelnde Listener direkt an das Element
 (`createListener` in `dioxus-interpreter-js-0.7.10/src/ts/core.ts`). Ein `onscroll` an einem
 inneren Container funktioniert daher korrekt.
+
+> **Korrektur (Phase 4).** Im Spike wurde das Scroll-Event per `dispatchEvent(new Event("scroll"))`
+> ausgelöst. Belegt war damit, dass `ScrollData` die richtigen Werte liefert, nicht dass das Event
+> bei echtem Scrollen feuert. Das ist seit Phase 4 mit Playwright belegt; siehe ADR-0016.
 
 **Konsequenz:** Die Virtualisierung in Phase 4 braucht kein `document::eval`. Das offizielle
 `VirtualList` benutzt zwar eines, aber nur wegen variabler Zeilenhöhen (Scroll-Korrektur,

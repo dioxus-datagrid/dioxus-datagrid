@@ -90,6 +90,10 @@ fn Users() -> Element {
 }
 ```
 
+For large data sets, set `row_height` and `height` instead of `page_size`: only the rows in view
+are rendered, while the scrollbar, keyboard navigation and `aria-rowcount` still cover every row.
+[`examples/virtualized`](examples/virtualized) shows 100,000 rows built directly on the primitives.
+
 The installed [`docs.md`](registry/data_grid/docs.md) lists every prop and column option.
 
 ## Headless usage

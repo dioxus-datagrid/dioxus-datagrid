@@ -335,3 +335,54 @@ Namen: der Sortierpfeil aus `::after` wurde Teil des Accessible Name („Name▲
 `aria-sort` trägt die Information. Ausgewählte Zeilen bekommen zusätzlich einen Akzentbalken in
 `--focused-border-color`, weil sich der Hintergrund allein im hellen Theme kaum abhebt — sichtbar
 geworden erst im README-Screenshot.
+
+---
+
+## ADR-0015 — Virtualisierung: `GridRoot` als Scroll-Container, Bereich abgeleitet statt gespeichert
+
+**Kontext.** Phase 4 fordert `VirtualGridBody` mit fester Zeilenhöhe, Overscan, korrektem
+`aria-rowindex` und erhaltenem Fokus beim Scrollen — plattformneutral, also über `onscroll`,
+`onresize` und `MountedData` (ADR-0001), ohne `web-sys` und ohne `document::eval`.
+
+**Entscheidung.**
+
+- **`GridRoot` ist der Scroll-Container** und meldet `scroll_top`, `scroll_left` und die
+  Viewport-Höhe an den Handle; `GridHeader` meldet seine Höhe. Die Registry-Komponente scrollt
+  deshalb nicht mehr über einen Wrapper (`.dg-scroll`), sondern über `.dg` selbst — die
+  Scroll-Events eines Wrappers sähe das Grid nie.
+- **Der gerenderte Bereich wird bei jeder Abfrage aus Scroll-Position, Zeilenhöhe und Overscan
+  berechnet**, nicht nach dem Rendern gespeichert. Die erste Fassung schrieb ihn in einem Effect
+  zurück. Das hinkte einen Render hinterher, und in dieser Lücke galt eine eben per `Ctrl+End`
+  angesprungene Zeile als „nicht gerendert" — worauf das Root den Fokus parkte und der Zelle
+  wieder wegnahm. Playwright fand das: kleine Schritte gingen, große Sprünge nicht.
+- **Die Scroll-Mathematik liegt im Core** (`reveal_scroll_top`, `rows_per_viewport`), mit
+  Property-Test, dass eine so gescrollte Zeile immer ganz sichtbar und gerendert ist.
+- **Scrollen ist `Instant`, nicht `Smooth`** (Dioxus-Default). Bei gehaltener Pfeiltaste liefe ein
+  weiches Scrollen dem Renderbereich hinterher.
+- **`scroll_left` wird mitgeführt**, weil `MountedData::scroll` beide Achsen zugleich setzt und
+  horizontales Scrollen sonst bei jeder Tastennavigation zurückspränge.
+- **Fokus-Stellvertretung am Root**, beschrieben in `docs/ACCESSIBILITY.md`. Ein
+  `focus_pending`-Flag ersetzt die reine Nonce-Logik: eine Zelle übernimmt den Fokus auch dann,
+  wenn sie erst nach der Bewegung eingehängt wird, eine beim normalen Scrollen neu eingehängte Zelle
+  dagegen nicht.
+
+**Annahmen, dokumentiert an `VirtualGridBody`.** Alle Zeilen exakt `row_height` hoch; der Header
+ist sticky oder fehlt. Variable Zeilenhöhen bleiben Nicht-Ziel (`PLAN.md` Abschnitt 1).
+
+**Alternative.** *Die fokussierte Zeile immer zusätzlich rendern, auch außerhalb des Fensters.*
+Verworfen: bräche das Akzeptanzkriterium „nie mehr als sichtbare Zeilen + 2 × Overscan" und
+bräuchte absolute Positionierung außerhalb des Subgrid-Layouts.
+
+---
+
+## ADR-0016 — Layout-abhängiges Verhalten nur mit echtem Rendering prüfen
+
+**Kontext.** Beim Debuggen lieferten `onscroll` und `onresize` im In-App-Browser keinerlei Events
+— auch an einem Minimal-Spike ohne jede Bibliothekslogik. Der Browser-Bereich war ausgeblendet, und
+ein nicht gezeichnetes Fenster führt keinen Rendering-Schritt aus; genau dort feuern Scroll-Events
+und ResizeObserver-Callbacks. Derselbe Spike in Playwright: 1 Scroll, 2 Resizes, wie erwartet.
+
+**Entscheidung.** Alles, was von Layout, Scrollen, Größenänderung oder Fokus abhängt, wird mit
+Playwright gegen echtes Rendering geprüft, nicht im In-App-Browser. Nebenbefund für
+`docs/VERIFICATION.md`: dort war `onscroll` in Phase 0 per `dispatchEvent` ausgelöst worden — belegt
+waren also die Werte, nicht dass das Event bei echtem Scrollen feuert. Das ist erst jetzt belegt.

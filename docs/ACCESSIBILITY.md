@@ -107,20 +107,52 @@ der DOM-Fokus noch auf der vorherigen Zelle, also holt ihn die neu fokussierte Z
 Suchfeld reißt, zählt `GridHandle` einen Nonce mit, der nur bei *absichtlicher* Fokusbewegung
 hochgezählt wird.
 
+## Virtualisierung
+
+Mit `VirtualGridBody` liegen nur die sichtbaren Zeilen plus Overscan im DOM. Für Hilfstechnologie
+ändert sich dadurch nichts an der Zählung:
+
+- `aria-rowcount` beschreibt weiterhin alle gefilterten Zeilen, `aria-rowindex` jeder gerenderten
+  Zeile zählt vom Anfang der Daten. Zeile 50.000 wird als 50.001 angesagt, egal wie wenige Zeilen im
+  DOM stehen.
+- `PageUp` / `PageDown` bewegen um die Zeilen, die ganz in den Viewport passen, statt um die ganze
+  Datenmenge.
+- Tastaturnavigation scrollt die fokussierte Zeile um das nötige Minimum in den Sichtbereich; eine
+  Zeile unter dem Rand wird zur untersten sichtbaren, keine springt nach oben.
+
+### Fokus, wenn die fokussierte Zeile verschwindet
+
+Scrollt man per Maus oder Touch von der fokussierten Zeile weg, verlässt ihre Zelle das DOM. Ein
+Browser, dessen fokussiertes Element entfernt wird, setzt den Fokus auf die Seite zurück — die
+nächste Pfeiltaste ginge dann ins Leere. Deshalb:
+
+1. **Das Grid-Root übernimmt den Fokus** (`tabindex="-1"`, programmatisch), solange die fokussierte
+   Zeile nicht gerendert ist. Das Root trägt die Tastenbelegung, die nächste Pfeiltaste setzt also
+   an der fokussierten Zeile fort und scrollt zurück.
+2. **Das Root wird zum Tab-Stopp** (`tabindex="0"`), solange keine Zelle den Roving-`tabindex`
+   tragen kann. Es bleibt bei genau einem Tab-Stopp.
+3. **Tabbt man zurück ins Grid**, scrollt das Root zur fokussierten Zeile und gibt den Fokus an
+   deren Zelle weiter.
+
+Die Fokusübergabe während eines Sprungs (etwa `Ctrl+End` über 100.000 Zeilen) ist abgesichert:
+Solange eine Fokusbewegung aussteht, parkt das Root den Fokus nicht, sonst würde es ihn der gerade
+eingerückten Zelle wieder wegnehmen.
+
 ## Automatisiert geprüft
 
 - **Markup:** SSR-Tests in `crates/dioxus-datagrid/tests/aria.rs`.
 - **Verhalten im Browser:** Playwright in `tests/e2e/data-grid.spec.ts` gegen den Playground —
   Sortieren per Klick und Tastatur, Filter, Suche, Paging, alle drei Selection-Modi,
   Tastaturnavigation, und dass der DOM-Fokus tatsächlich der Navigation folgt.
+- **Virtualisierung:** `tests/e2e/virtualization.spec.ts` mit 100.000 Zeilen — DOM-Obergrenze,
+  `aria-rowindex` tief in den Daten, Pfeiltasten und `PageDown` über den Viewport-Rand,
+  `Ctrl+End` bis Zeile 100.001, Fokus nach Wegscrollen und beim Zurücktabben.
 - **`axe`:** `@axe-core/playwright` über die ganze Komponente, im hellen **und** im dunklen Theme,
   ohne Befund. Der erste Lauf fand zu schwachen Kontrast bei gedämpftem Text (3,61:1); behoben,
   siehe ADR-0014.
 
 ## Was noch fehlt
 
-- **Virtualisierung (Phase 4).** `aria-rowindex` ist bereits so ausgelegt, dass ein virtuelles
-  Fenster korrekt zählt; getestet ist das erst mit Phase 4.
 - **Spalten-Resizing (Phase 5).** Das Resize-Handle braucht eine Tastaturalternative
   (`aria-valuenow` an einem `separator`-Element, Pfeiltasten zum Verbreitern).
 - **Screenreader-Praxistest.** Markup, Verhalten und axe sind automatisiert geprüft, ein

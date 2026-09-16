@@ -6,6 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Virtualization: `VirtualGridBody` renders only the rows in view plus overscan, with fixed row
+  heights, for data sets in the hundreds of thousands. `aria-rowindex` stays tied to the data.
+- Keyboard navigation in a virtualized grid scrolls the focused row into view by the minimum amount,
+  and `PageUp` / `PageDown` move by one viewport.
+- The grid root parks keyboard focus when the focused row scrolls out of the DOM, and hands it back
+  to that row when the user tabs in again.
+- `datagrid-core`: `reveal_scroll_top` and `rows_per_viewport`.
+- `dioxus-datagrid`: `GridHandle` layout tracking (`Layout`, `rendered_range`, `reveal_focus`).
+- `data_grid` component: `row_height` and `height` props.
+
+### Changed
+
+- `GridRoot` is now the scroll container, reporting scroll position and size through `onscroll` and
+  `onresize`. In the `data_grid` component the grid element scrolls instead of a wrapper.
+- `GridRoot` carries `tabindex="-1"` so it can hold focus programmatically; it becomes the tab stop
+  only while the focused cell is not rendered.
+
 ## [0.1.0] - 2026-09-16
 
 The first release.
