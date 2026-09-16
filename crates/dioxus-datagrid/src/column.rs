@@ -18,6 +18,7 @@ pub type HeaderRenderer = Rc<dyn Fn() -> Element>;
 /// [`filter_by`](Column::filter_by) takes part in neither filtering nor search.
 ///
 /// ```
+/// use dioxus::prelude::*;
 /// use dioxus_datagrid::Column;
 ///
 /// #[derive(Clone, PartialEq)]
