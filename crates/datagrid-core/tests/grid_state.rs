@@ -114,6 +114,30 @@ fn column_widths_are_replaced_not_appended() {
 }
 
 #[test]
+fn set_page_size_turns_paging_on_off_and_resets_the_page() {
+    let mut state = GridState::new();
+
+    state.set_page_size(Some(10));
+    assert_eq!(state.page.map(|page| page.size), Some(10));
+
+    state.set_page(3);
+    // A different size makes the old index meaningless.
+    state.set_page_size(Some(25));
+    assert_eq!(
+        state.page.map(|page| (page.index, page.size)),
+        Some((0, 25))
+    );
+
+    // The same size is not a change and keeps the current page.
+    state.set_page(2);
+    state.set_page_size(Some(25));
+    assert_eq!(state.page.map(|page| page.index), Some(2));
+
+    state.set_page_size(None);
+    assert!(state.page.is_none());
+}
+
+#[test]
 fn set_page_on_unpaged_state_is_a_no_op() {
     let mut state = GridState::new();
     state.set_page(5);

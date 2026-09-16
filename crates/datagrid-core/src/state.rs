@@ -167,6 +167,18 @@ impl GridState {
         }
     }
 
+    /// Turns paging on with the given page size, or off with `None`.
+    ///
+    /// Returns to the first page when the size actually changes, because the old
+    /// index points at different rows under a different size.
+    pub fn set_page_size(&mut self, size: Option<usize>) {
+        let current = self.page.map(|page| page.size);
+        if current == size {
+            return;
+        }
+        self.page = size.map(PageState::new);
+    }
+
     /// Shows or hides a column at runtime.
     pub fn set_column_hidden(&mut self, column: impl Into<ColumnId>, hidden: bool) {
         let column = column.into();

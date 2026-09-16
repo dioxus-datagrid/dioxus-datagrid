@@ -106,7 +106,10 @@ pub struct GridHandle<T: GridRow + 'static> {
     /// cell knows to pull DOM focus to itself. Without it every re-render would
     /// drag focus back into the grid.
     focus_nonce: Signal<u64>,
-    mode: SelectionMode,
+    /// A signal rather than a plain value so that a change reaches every copy of
+    /// the handle. As a plain field, cells rendered before the change would keep
+    /// click handlers that still select in the old mode.
+    mode: Signal<SelectionMode>,
     view: Memo<View>,
 }
 
@@ -120,7 +123,10 @@ impl<T: GridRow> Copy for GridHandle<T> {}
 
 impl<T: GridRow> PartialEq for GridHandle<T> {
     fn eq(&self, other: &Self) -> bool {
-        self.state == other.state && self.view == other.view && self.focus == other.focus
+        self.state == other.state
+            && self.view == other.view
+            && self.focus == other.focus
+            && self.mode == other.mode
     }
 }
 
@@ -174,12 +180,31 @@ where
     // once, rather than a fresh one on every render.
     let data = use_hook(move || data.into_read_signal());
     let columns = use_hook(move || columns.into_read_signal());
-    let mode = options.selection;
 
-    let state = use_signal(|| options.into_state());
-    let selection = use_signal(Selection::new);
+    let requested_mode = options.selection;
+    let requested_page_size = options.page_size;
+
+    let mut mode = use_signal(|| requested_mode);
+    let mut page_size = use_signal(|| requested_page_size);
+    let mut state = use_signal(|| options.into_state());
+    let mut selection = use_signal(Selection::new);
     let focus = use_signal(CellFocus::default);
     let focus_nonce = use_signal(|| 0_u64);
+
+    // Options are plain values, so a component re-rendering with different ones
+    // would otherwise be ignored after the first render. This is the pattern
+    // `use_reactive` uses internally: compare against the last seen value and
+    // write only on an actual change.
+    if *mode.peek() != requested_mode {
+        mode.set(requested_mode);
+        // A multi-row selection is not valid in single or no-selection mode, and
+        // silently keeping part of it would be arbitrary.
+        selection.write().clear();
+    }
+    if *page_size.peek() != requested_page_size {
+        page_size.set(requested_page_size);
+        state.write().set_page_size(requested_page_size);
+    }
 
     let view = use_memo(move || {
         let rows = data.read();
@@ -380,7 +405,7 @@ impl<T: GridRow> GridHandle<T> {
     /// How rows can be selected.
     #[must_use]
     pub fn selection_mode(&self) -> SelectionMode {
-        self.mode
+        *self.mode.read()
     }
 
     /// Whether a row is selected.
@@ -403,19 +428,19 @@ impl<T: GridRow> GridHandle<T> {
 
     /// Selects a row, replacing the selection in single-selection mode.
     pub fn select(&mut self, key: T::Key) {
-        let mode = self.mode;
+        let mode = *self.mode.read();
         self.selection.write().select(key, mode);
     }
 
     /// Toggles a row's selection.
     pub fn toggle_select(&mut self, key: T::Key) {
-        let mode = self.mode;
+        let mode = *self.mode.read();
         self.selection.write().toggle(key, mode);
     }
 
     /// Extends the selection from the anchor to `key`, in display order.
     pub fn extend_select(&mut self, key: T::Key) {
-        let mode = self.mode;
+        let mode = *self.mode.read();
         let ordered = self.visible_keys();
         self.selection.write().extend_to(&ordered, key, mode);
     }
