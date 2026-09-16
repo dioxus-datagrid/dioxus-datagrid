@@ -3,9 +3,32 @@
 use crate::Column;
 use datagrid_core::{
     CellFocus, ColumnId, ColumnSpec, GridRow, GridState, NavKey, Selection, SelectionMode,
-    SortDirection, View, compute_view, navigate,
+    SortDirection, View, compute_view, navigate, reveal_scroll_top, rows_per_viewport,
+    visible_range,
 };
+use dioxus::html::ScrollBehavior;
+use dioxus::html::geometry::PixelsVector2D;
 use dioxus::prelude::*;
+use std::ops::Range;
+use std::rc::Rc;
+
+/// The measured geometry of the grid's scroll container, in CSS pixels.
+///
+/// Kept up to date by [`GridRoot`](crate::primitives::GridRoot) from `onscroll`
+/// and `onresize`; nothing here comes from `web-sys`.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Layout {
+    /// How far the container is scrolled down.
+    pub scroll_top: f64,
+    /// How far the container is scrolled right. Tracked because scrolling
+    /// programmatically sets both axes at once.
+    pub scroll_left: f64,
+    /// The container's visible height.
+    pub viewport_height: f64,
+    /// The height of the header row group, which sticks to the top of the
+    /// viewport and hides whatever body rows are beneath it.
+    pub header_height: f64,
+}
 
 /// How a grid behaves, passed once to [`use_grid`].
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -110,6 +133,26 @@ pub struct GridHandle<T: GridRow + 'static> {
     /// the handle. As a plain field, cells rendered before the change would keep
     /// click handlers that still select in the old mode.
     mode: Signal<SelectionMode>,
+    /// Set while a focus move is waiting for its cell to take DOM focus. A cell
+    /// that mounts later — because the move scrolled it into the rendered range —
+    /// still claims focus, but a cell that merely remounts during ordinary
+    /// scrolling does not.
+    focus_pending: Signal<bool>,
+    /// Whether DOM focus is somewhere inside the grid.
+    focus_within: Signal<bool>,
+    /// Set just before the grid focuses its own root, so the root's focus handler
+    /// can tell that apart from a user tabbing in.
+    root_focus_is_internal: Signal<bool>,
+    root: Signal<Option<Rc<MountedData>>>,
+    layout: Signal<Layout>,
+    /// Row height and overscan of a mounted virtualized body.
+    ///
+    /// Stored as configuration rather than as the rendered range, so the range is
+    /// always derived from the current scroll position. A stored range lags a
+    /// render behind a scroll, and during that lag a freshly focused row counts
+    /// as not rendered — enough for the grid to park focus on its root right
+    /// after the cell took it.
+    virtual_body: Signal<Option<(f64, usize)>>,
     view: Memo<View>,
 }
 
@@ -190,6 +233,12 @@ where
     let mut selection = use_signal(Selection::new);
     let focus = use_signal(CellFocus::default);
     let focus_nonce = use_signal(|| 0_u64);
+    let focus_pending = use_signal(|| false);
+    let focus_within = use_signal(|| false);
+    let root_focus_is_internal = use_signal(|| false);
+    let root = use_signal(|| None::<Rc<MountedData>>);
+    let layout = use_signal(Layout::default);
+    let virtual_body = use_signal(|| None::<(f64, usize)>);
 
     // Options are plain values, so a component re-rendering with different ones
     // would otherwise be ignored after the first render. This is the pattern
@@ -224,6 +273,12 @@ where
         focus,
         focus_nonce,
         mode,
+        focus_pending,
+        focus_within,
+        root_focus_is_internal,
+        root,
+        layout,
+        virtual_body,
         view,
     }
 }
@@ -482,7 +537,198 @@ impl<T: GridRow> GridHandle<T> {
     /// Moves the focus directly, without the keyboard.
     pub fn set_focus(&mut self, focus: CellFocus) {
         self.focus.set(focus);
+        self.request_focus_pull();
+    }
+
+    /// Asks the focused cell to take DOM focus, without moving the focus.
+    pub fn request_focus_pull(&mut self) {
+        self.focus_pending.set(true);
         *self.focus_nonce.write() += 1;
+    }
+
+    /// Whether a focus move is still waiting for its cell to take DOM focus.
+    #[must_use]
+    pub fn focus_pending(&self) -> bool {
+        *self.focus_pending.read()
+    }
+
+    /// Marks the pending focus move as done. Called by the cell that took focus.
+    pub fn complete_focus_pull(&mut self) {
+        if *self.focus_pending.peek() {
+            self.focus_pending.set(false);
+        }
+    }
+
+    /// Records whether DOM focus is inside the grid.
+    pub fn set_focus_within(&mut self, within: bool) {
+        if *self.focus_within.peek() != within {
+            self.focus_within.set(within);
+        }
+    }
+
+    /// Whether DOM focus is inside the grid.
+    #[must_use]
+    pub fn focus_within(&self) -> bool {
+        *self.focus_within.read()
+    }
+
+    /// Whether the focused cell currently exists in the DOM.
+    ///
+    /// Always true for a non-virtualized grid. For a virtualized one, the focused
+    /// row may have scrolled out of the rendered window, in which case the grid
+    /// root stands in as the tab stop.
+    #[must_use]
+    pub fn focus_is_rendered(&self) -> bool {
+        let row = self.focus.read().row;
+        match (row.checked_sub(1), self.rendered_range()) {
+            // The header is never virtualized away.
+            (None, _) | (_, None) => true,
+            (Some(body_row), Some(range)) => range.contains(&body_row),
+        }
+    }
+
+    // -- layout and virtualization -----------------------------------------------
+
+    /// The measured scroll container geometry.
+    #[must_use]
+    pub fn layout(&self) -> Layout {
+        *self.layout.read()
+    }
+
+    /// Records a scroll event from the grid's scroll container.
+    pub fn record_scroll(&mut self, scroll_top: f64, scroll_left: f64, viewport_height: f64) {
+        let current = *self.layout.peek();
+        let next = Layout {
+            scroll_top,
+            scroll_left,
+            viewport_height,
+            ..current
+        };
+        if next != current {
+            self.layout.set(next);
+        }
+    }
+
+    /// Records the scroll container's visible height.
+    pub fn record_viewport_height(&mut self, height: f64) {
+        if self.layout.peek().viewport_height != height {
+            self.layout.write().viewport_height = height;
+        }
+    }
+
+    /// Records the height of the sticky header.
+    pub fn record_header_height(&mut self, height: f64) {
+        if self.layout.peek().header_height != height {
+            self.layout.write().header_height = height;
+        }
+    }
+
+    /// Remembers the scroll container, so the grid can scroll and focus it.
+    pub fn set_root(&mut self, root: Rc<MountedData>) {
+        self.root.set(Some(root));
+    }
+
+    /// The fixed row height of a mounted virtualized body, if there is one.
+    #[must_use]
+    pub fn row_height(&self) -> Option<f64> {
+        (*self.virtual_body.read()).map(|(row_height, _)| row_height)
+    }
+
+    /// Registers a virtualized body's row height and overscan, or clears them
+    /// with `None` when it unmounts.
+    pub fn set_virtual_body(&mut self, config: Option<(f64, usize)>) {
+        if *self.virtual_body.peek() != config {
+            self.virtual_body.set(config);
+        }
+    }
+
+    /// The body rows in the DOM, or `None` when every row is rendered.
+    ///
+    /// Derived from the current scroll position on every call, so it cannot lag
+    /// behind a scroll the way a stored range would.
+    #[must_use]
+    pub fn rendered_range(&self) -> Option<Range<usize>> {
+        let (row_height, overscan) = (*self.virtual_body.read())?;
+        Some(self.virtual_range(row_height, overscan))
+    }
+
+    /// The part of the viewport that shows body rows: its height minus the
+    /// sticky header.
+    #[must_use]
+    pub fn body_viewport_height(&self) -> f64 {
+        let layout = self.layout();
+        (layout.viewport_height - layout.header_height).max(0.0)
+    }
+
+    /// Which body rows a virtualized body with this row height and overscan
+    /// should render right now.
+    #[must_use]
+    pub fn virtual_range(&self, row_height: f64, overscan: usize) -> Range<usize> {
+        let total = self.view.read().indices.len();
+        let scroll_top = self.layout().scroll_top;
+        visible_range(
+            scroll_top,
+            self.body_viewport_height(),
+            row_height,
+            total,
+            overscan,
+        )
+    }
+
+    /// Scrolls the focused row into view, if the grid is virtualized and it is
+    /// not already fully visible.
+    ///
+    /// Updates the recorded scroll position immediately rather than waiting for
+    /// the scroll event, so the row is rendered in the same pass and its cell can
+    /// take focus straight away.
+    pub fn reveal_focus(&mut self) {
+        let Some((row_height, _)) = *self.virtual_body.peek() else {
+            return;
+        };
+        let Some(body_row) = self.focus.peek().row.checked_sub(1) else {
+            return;
+        };
+        let layout = *self.layout.peek();
+        let body_viewport = (layout.viewport_height - layout.header_height).max(0.0);
+
+        let Some(scroll_top) =
+            reveal_scroll_top(body_row, row_height, body_viewport, layout.scroll_top)
+        else {
+            return;
+        };
+
+        self.layout.write().scroll_top = scroll_top;
+        if let Some(root) = self.root.peek().clone() {
+            let target = PixelsVector2D::new(layout.scroll_left, scroll_top);
+            spawn(async move {
+                // Instant, not smooth: with a key held down, a smooth scroll would
+                // lag behind the rows being rendered for the new position.
+                let _ = root.scroll(target, ScrollBehavior::Instant).await;
+            });
+        }
+    }
+
+    /// Moves DOM focus to the grid root, without it counting as the user
+    /// entering the grid.
+    pub fn focus_root(&mut self) {
+        if let Some(root) = self.root.peek().clone() {
+            self.root_focus_is_internal.set(true);
+            spawn(async move {
+                let _ = root.set_focus(true).await;
+            });
+        }
+    }
+
+    /// Whether the root's most recent focus came from [`focus_root`], clearing
+    /// the flag.
+    ///
+    /// [`focus_root`]: GridHandle::focus_root
+    pub fn take_internal_root_focus(&mut self) -> bool {
+        let internal = *self.root_focus_is_internal.peek();
+        if internal {
+            self.root_focus_is_internal.set(false);
+        }
+        internal
     }
 
     /// How many rows the keyboard can reach: the header row, plus the rows on
@@ -507,11 +753,15 @@ impl<T: GridRow> GridHandle<T> {
     pub fn move_focus(&mut self, key: NavKey) {
         let rows = self.focusable_row_count();
         let cols = self.visible_column_count();
-        // Paging already limits how many rows are on screen, so a page key moves
-        // across the whole page. Phase 4 will narrow this to the virtual window.
-        let page_rows = rows.max(1);
+        // A virtualized grid pages by what fits in the viewport. Otherwise paging
+        // already limits the rows on screen, so a page key crosses the whole page.
+        let page_rows = match (*self.virtual_body.peek()).map(|(row_height, _)| row_height) {
+            Some(row_height) => rows_per_viewport(self.body_viewport_height(), row_height),
+            None => rows.max(1),
+        };
         let moved = navigate(self.focus(), key, rows, cols, page_rows);
         self.set_focus(moved);
+        self.reveal_focus();
     }
 
     /// Counts how often the focus has been moved deliberately.

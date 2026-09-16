@@ -8,7 +8,9 @@
 
 use datagrid_core::{GridRow, GridState, SelectionMode, SortState};
 use dioxus::prelude::*;
-use dioxus_datagrid::primitives::{GridBody, GridHeader, GridPagination, GridRoot};
+use dioxus_datagrid::primitives::{
+    GridBody, GridHeader, GridPagination, GridRoot, VirtualGridBody,
+};
 use dioxus_datagrid::{Column, GridOptions, use_grid};
 
 #[derive(Clone, PartialEq)]
@@ -287,8 +289,22 @@ fn exactly_one_cell_is_tabbable() {
         1,
         "exactly one element may be tabbable: {html}"
     );
-    // Two header cells and ten body cells, minus the one that is tabbable.
-    assert_eq!(count(&html, r#"tabindex="-1""#), 11);
+    // Two header cells and ten body cells, minus the one that is tabbable, plus
+    // the root, which is focusable from script but not a tab stop.
+    assert_eq!(count(&html, r#"tabindex="-1""#), 12);
+}
+
+#[test]
+fn the_root_is_not_a_tab_stop_while_the_focused_cell_is_rendered() {
+    let html = render(Setup::builder().build());
+
+    let root_start = html.find(r#"role="grid""#).unwrap();
+    let root_tag_end = root_start + html[root_start..].find('>').unwrap();
+    let root_tag = &html[root_start..root_tag_end];
+    assert!(
+        root_tag.contains(r#"tabindex="-1""#),
+        "a second tab stop on the root would make Tab land on the grid twice: {root_tag}"
+    );
 }
 
 #[test]
@@ -336,4 +352,52 @@ fn filtering_narrows_the_rendered_rows_and_the_rowcount() {
     // adam, Carol and Mia contain an "a".
     assert_eq!(count(&html, r#"role="row""#), 4, "header plus three rows");
     assert!(html.contains(r#"aria-rowcount="4""#));
+}
+
+#[test]
+fn a_virtual_body_renders_a_window_and_pads_for_the_rest() {
+    #[component]
+    fn Virtual() -> Element {
+        let rows = use_signal(|| {
+            (1..=100)
+                .map(|id| User {
+                    id,
+                    name: format!("user {id}"),
+                    age: 20 + id % 50,
+                })
+                .collect::<Vec<_>>()
+        });
+        let cols = use_hook(columns);
+        let grid = use_grid(rows, cols, GridOptions::default());
+        rsx! {
+            GridRoot { grid,
+                GridHeader { grid }
+                VirtualGridBody { grid, row_height: 30.0, overscan: 4 }
+            }
+        }
+    }
+
+    let mut dom = VirtualDom::new(Virtual);
+    dom.rebuild_in_place();
+    let html = dioxus_ssr::render(&dom);
+
+    // Server-side there is no viewport, so only the overscan is rendered — but
+    // the grid still describes every row.
+    assert_eq!(
+        count(&html, r#"role="row""#),
+        1 + 4,
+        "header plus overscan: {html}"
+    );
+    assert!(html.contains(r#"aria-rowcount="101""#));
+    assert!(html.contains(r#"aria-rowindex="2""#));
+    assert!(html.contains(r#"aria-rowindex="5""#));
+    assert!(!html.contains(r#"aria-rowindex="6""#));
+
+    // The 96 rows not rendered are accounted for below the window, so the
+    // scrollbar reflects all 100.
+    assert!(
+        html.contains("padding-top: 0px; padding-bottom: 2880px;"),
+        "{html}"
+    );
+    assert!(html.contains("height: 30px;"));
 }

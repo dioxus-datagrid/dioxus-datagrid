@@ -9,7 +9,9 @@
 //! [`GridRow`](datagrid_core::GridRow) trait you implement on your row type.
 
 use crate::GridHandle;
-use datagrid_core::{CellFocus, GridRow as GridRowKey, NavKey, SelectionMode, SortDirection};
+use datagrid_core::{
+    CellFocus, GridRow as GridRowKey, NavKey, SelectionMode, SortDirection, offset_of, total_height,
+};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -104,12 +106,53 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
         }
     };
 
+    // In a virtualized grid the focused row can scroll out of the DOM. If it had
+    // DOM focus, the browser drops focus to the page, and the next arrow key would
+    // go nowhere. Catch that and park focus on the root, which carries the key
+    // bindings and, when the user navigates, scrolls back to the focused row.
+    //
+    // Not while a focus move is pending: that move is about to bring its cell into
+    // the DOM and hand it focus, and parking now would snatch focus straight back.
+    use_effect(move || {
+        if grid.focus_within() && !grid.focus_pending() && !grid.focus_is_rendered() {
+            grid.focus_root();
+        }
+    });
+
+    // The root is the tab stop only while the focused cell is not in the DOM;
+    // otherwise that cell is, and the root must not add a second one. It stays
+    // programmatically focusable either way.
+    let root_tabindex = if grid.focus_is_rendered() { "-1" } else { "0" };
+
     rsx! {
         div {
             role: "grid",
             aria_rowcount: "{row_count}",
             aria_colcount: "{column_count}",
             aria_multiselectable: matches!(grid.selection_mode(), SelectionMode::Multi).then_some("true"),
+            tabindex: root_tabindex,
+            onmounted: move |event| grid.set_root(event.data()),
+            onscroll: move |event| {
+                let data = event.data();
+                grid.record_scroll(data.scroll_top(), data.scroll_left(), f64::from(data.client_height()));
+            },
+            onresize: move |event| {
+                if let Ok(size) = event.data().get_content_box_size() {
+                    grid.record_viewport_height(size.height);
+                }
+            },
+            onfocusin: move |_| grid.set_focus_within(true),
+            onfocusout: move |_| grid.set_focus_within(false),
+            onfocus: move |_| {
+                // Our own parking move is not the user entering the grid.
+                if grid.take_internal_root_focus() {
+                    return;
+                }
+                // Tabbed in while the focused row was scrolled away: bring it
+                // back and hand focus to its cell.
+                grid.reveal_focus();
+                grid.request_focus_pull();
+            },
             onkeydown,
             ..attributes,
             {children}
@@ -123,10 +166,20 @@ pub fn GridHeader<T: GridRowKey + PartialEq + 'static>(
     grid: GridHandle<T>,
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
 ) -> Element {
+    let mut grid = grid;
     let columns = grid.visible_columns();
 
     rsx! {
-        div { role: "rowgroup", ..attributes,
+        div {
+            role: "rowgroup",
+            // A virtualized body needs to know how much of the viewport the
+            // sticky header covers.
+            onresize: move |event| {
+                if let Ok(size) = event.data().get_border_box_size() {
+                    grid.record_header_height(size.height);
+                }
+            },
+            ..attributes,
             div { role: "row", aria_rowindex: "1",
                 for (index , column) in columns.into_iter().enumerate() {
                     GridHeaderCell {
@@ -169,8 +222,7 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
     };
 
     let focused = grid.focus() == CellFocus::new(0, column_index);
-    let element = use_signal(|| None::<Rc<MountedData>>);
-    use_focus_pull(grid, focused, element);
+    let onmounted = use_focus_pull(grid, CellFocus::new(0, column_index));
 
     let onclick = move |event: MouseEvent| {
         if !sortable {
@@ -193,7 +245,7 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
                 None => "none",
             },
             "data-sort-priority": priority.map(|value| value.to_string()),
-            onmounted: move |event| element.clone().set(Some(event.data())),
+            onmounted,
             onclick,
             ..attributes,
             {column.render_header()}
@@ -213,6 +265,76 @@ pub fn GridBody<T: GridRowKey + PartialEq + 'static>(
         div { role: "rowgroup", ..attributes,
             for row_index in 0..row_count {
                 GridRow { key: "{row_index}", grid, row_index }
+            }
+        }
+    }
+}
+
+/// A body row group that renders only the rows in and near the viewport.
+///
+/// A drop-in replacement for [`GridBody`] for large data sets. Rows outside the
+/// window are represented by padding above and below, so the scrollbar still
+/// reflects every row.
+///
+/// # Requirements
+///
+/// - **Every row is exactly `row_height` pixels tall.** The primitive sets the
+///   height on each row; content that does not fit is clipped. Variable row
+///   heights are not supported.
+/// - **[`GridRoot`] is the scroll container.** Give it a height and
+///   `overflow: auto`. It reports scroll position and size to the grid.
+/// - **The header is sticky**, or absent. Rows beneath a sticky header are
+///   treated as hidden; a header that scrolls away with the rows would make the
+///   window lag behind by the header's height.
+///
+/// Keyboard navigation scrolls the focused row into view, and `PageUp` and
+/// `PageDown` move by one viewport. `aria-rowindex` stays correct for every
+/// rendered row because it counts from the full view, not the window.
+#[component]
+pub fn VirtualGridBody<T: GridRowKey + PartialEq + 'static>(
+    grid: GridHandle<T>,
+    /// The fixed height of every row, in CSS pixels.
+    row_height: f64,
+    /// Extra rows rendered above and below the viewport, so fast scrolling does
+    /// not expose blank space before the next render.
+    #[props(default = 5)]
+    overscan: usize,
+    #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
+) -> Element {
+    let mut grid = grid;
+
+    // Registered so keyboard navigation can page by viewport, scroll rows into
+    // view, and tell whether the focused row is in the DOM. The setter compares
+    // first, since an unconditional write during render would loop.
+    grid.set_virtual_body(Some((row_height, overscan)));
+    use_drop(move || grid.set_virtual_body(None));
+
+    // A memo, so a scroll event that stays within the same rows — most of them —
+    // does not re-render the body.
+    let range = use_memo(use_reactive!(
+        |row_height, overscan| grid.virtual_range(row_height, overscan)
+    ));
+
+    let total = grid.view().read().indices.len();
+    let window = range();
+    let (start, end) = (window.start, window.end);
+    let padding_top = offset_of(start, row_height);
+    let padding_bottom = total_height(total.saturating_sub(end), row_height);
+
+    rsx! {
+        div {
+            role: "rowgroup",
+            style: "padding-top: {padding_top}px; padding-bottom: {padding_bottom}px;",
+            "data-virtual-start": "{start}",
+            "data-virtual-end": "{end}",
+            ..attributes,
+            for row_index in start..end {
+                GridRow {
+                    key: "{row_index}",
+                    grid,
+                    row_index,
+                    style: "height: {row_height}px; box-sizing: border-box; overflow: hidden;",
+                }
             }
         }
     }
@@ -278,8 +400,7 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
     // Focus coordinates count the header as row 0.
     let focus_row = row_index + 1;
     let focused = grid.focus() == CellFocus::new(focus_row, column_index);
-    let element = use_signal(|| None::<Rc<MountedData>>);
-    use_focus_pull(grid, focused, element);
+    let onmounted = use_focus_pull(grid, CellFocus::new(focus_row, column_index));
 
     let content = {
         let data = grid.data();
@@ -305,7 +426,7 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
             role: "gridcell",
             aria_colindex: "{column_index + 1}",
             tabindex: if focused { "0" } else { "-1" },
-            onmounted: move |event| element.clone().set(Some(event.data())),
+            onmounted,
             onclick,
             ..attributes,
             {content}
@@ -313,30 +434,54 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
     }
 }
 
-/// Pulls DOM focus onto the element once the grid says the focus moved.
+/// Pulls DOM focus onto the cell at `at` while a focus move is pending.
 ///
 /// The roving tabindex alone only decides what `Tab` reaches; after an arrow key
 /// the browser still has focus on the previous cell, so the newly focused cell
-/// has to claim it. The nonce is what keeps this from firing on every re-render
-/// and yanking focus away from, say, the search box.
+/// has to claim it. It does so only while the grid reports a pending move, which
+/// keeps ordinary re-renders — and rows remounting as a virtualized grid scrolls
+/// — from yanking focus away from, say, the search box.
+///
+/// Returns the `onmounted` handler for the cell. A cell that a focus move
+/// scrolled into the rendered window mounts after the move, so it has to claim
+/// focus on mount as well as from the effect.
 fn use_focus_pull<T: GridRowKey + 'static>(
     grid: GridHandle<T>,
-    focused: bool,
-    element: Signal<Option<Rc<MountedData>>>,
-) {
+    at: CellFocus,
+) -> impl FnMut(MountedEvent) + 'static {
+    let mut element = use_signal(|| None::<Rc<MountedData>>);
+
     use_effect(move || {
-        let nonce = grid.focus_nonce();
-        if !focused || nonce == 0 {
+        // Read, so the effect re-runs whenever the focus or the pending flag
+        // changes. The coordinate comes from the signal rather than a value
+        // captured at first render.
+        let should_take = grid.focus() == at && grid.focus_pending();
+        let _ = grid.focus_nonce();
+        if !should_take {
             return;
         }
         // Peeked, not read: subscribing to the element would re-run this on
-        // every mount and defeat the nonce.
-        if let Some(element) = element.peek().clone() {
+        // every mount.
+        if let Some(target) = element.peek().clone() {
+            let mut grid = grid;
+            grid.complete_focus_pull();
             spawn(async move {
-                let _ = element.set_focus(true).await;
+                let _ = target.set_focus(true).await;
             });
         }
     });
+
+    move |event: MountedEvent| {
+        let target = event.data();
+        element.set(Some(target.clone()));
+        let mut grid = grid;
+        if grid.focus() == at && grid.focus_pending() {
+            grid.complete_focus_pull();
+            spawn(async move {
+                let _ = target.set_focus(true).await;
+            });
+        }
+    }
 }
 
 /// Page controls for a paged grid. Renders nothing when paging is off.

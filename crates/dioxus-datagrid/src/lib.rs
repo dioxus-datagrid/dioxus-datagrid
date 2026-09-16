@@ -75,7 +75,7 @@ mod grid;
 pub mod primitives;
 
 pub use column::{CellRenderer, Column, HeaderRenderer};
-pub use grid::{GridHandle, GridOptions, IntoReadSignal, use_grid};
+pub use grid::{GridHandle, GridOptions, IntoReadSignal, Layout, use_grid};
 
 // Re-exported so callers need only one dependency for the common path. The
 // `GridRow` trait deliberately keeps its name here; the row *component* lives in
