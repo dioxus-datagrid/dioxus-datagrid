@@ -1714,6 +1714,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "example-basic"
+version = "0.1.0"
+dependencies = [
+ "datagrid-core",
+ "dioxus",
+ "dioxus-datagrid",
+]
+
+[[package]]
 name = "exr"
 version = "1.74.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
