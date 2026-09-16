@@ -177,3 +177,57 @@ Beide zusammen lägen plausibel bei 50–60 ms. Keine Variante ist sicher unter 
 sich Sortierung, Filter oder Daten ändern — nicht beim Scrollen und nicht beim Paginieren.
 ADR-0001 sorgt dafür, dass Scrollen die Virtualisierungs-Mathematik benutzt, die Zeit dafür liegt
 im Mikrosekundenbereich.
+
+---
+
+## ADR-0008 — Geliehene Sortierschlüssel (`SortValue<'a>`)
+
+**Kontext.** Umsetzung von Option 1 aus ADR-0007, entschieden von Marius, bevor Phase 2 den
+`Column<T>`-Builder darauf aufbaut. `SortValue::Text(String)` wird zu `SortValue::Text(&'a str)`,
+`SortKeyFn<T>` wird higher-ranked über die Zeilen-Lebensdauer.
+
+**API.** Ein einzelnes generisches `sort_by` kann nicht gleichzeitig geliehene und besitzende
+Rückgaben annehmen — der Rückgabetyp müsste von `'a` abhängen, was ohne GATs nicht ausdrückbar ist.
+Statt einer Trait-Akrobatik gibt es drei benannte Methoden, alle im Spike gegen den Compiler
+geprüft:
+
+```rust
+ColumnSpec::new("name").sort_by_text(|u: &User| u.name.as_str())   // geliehener Text
+ColumnSpec::new("age").sort_by_value(|u: &User| u.age)             // Zahlen, Bools, Options davon
+ColumnSpec::new("x").sort_by(|u: &User| u.nick.as_deref().into())  // allgemein, SortValue<'a>
+```
+
+**Was es gebracht hat.** 111 ms → **91 ms** (−18 %) im Kriteriumsfall. Deutlich weniger als die in
+ADR-0007 geschätzten ~18 ms Allokationsersparnis vermuten ließen.
+
+**Warum weniger als erhofft.** `SortValue` bleibt **24 Byte** statt der erhofften 16: bei fünf
+Varianten reicht der Zeiger-Niche von `&str` nicht, um den Diskriminanten unterzubringen. Und ein
+`&'a str` zeigt weiterhin in den einzeln allokierten `String` jeder Zeile — die Streuung im Speicher
+bleibt also, gespart wird nur das Allozieren.
+
+**Was wir zusätzlich probiert und wieder verworfen haben.** Option 2 aus ADR-0007, die Text-Arena:
+Schlüsseltext in einen zusammenhängenden Puffer kopieren, im Schlüssel nur `(start, len)` halten
+(16 statt 24 Byte). Gemessen **23 % langsamer** (91 → 128 ms).
+
+Entscheidend war der Nebenbefund: auch der **rein numerische** Fall wurde um 27 % langsamer
+(30 → 42 ms), obwohl dort nie Text angefasst wird. Die Sortierung ist also **nicht** durch
+Speicherlokalität begrenzt, sondern durch die Arbeit pro Vergleich — womit die Grundannahme hinter
+der Arena widerlegt ist. Sie wurde zurückgenommen; der Kommentar an `sort_packed` hält das fest,
+damit es niemand erneut probiert.
+
+**Stand.** Kriteriumsfall (2 Textspalten, 100k): **91 ms** gegen ein Ziel von 50 ms.
+
+| Fall | vorher | jetzt |
+|---|---|---|
+| 2 numerische Spalten | 32 ms | **30 ms** ✅ |
+| 1 numerisch + 1 Text | 71 ms | 67 ms |
+| 1 Textspalte | 87 ms | 82 ms |
+| 2 Textspalten (Kriterium) | 111 ms | **91 ms** ❌ |
+
+Insgesamt seit dem Ausgangsstand **12× schneller** (1089 → 91 ms).
+
+**Offen.** Die 50 ms sind mit beiden vorgeschlagenen Hebeln nicht erreicht, und der zweite war
+kontraproduktiv. Die verbleibende Grenze liegt bei ~30 ms für einen rein numerischen Sort — also
+in der Vergleichs- und Sortierarbeit selbst, nicht im Umgang mit Text. Ein weiterer Anlauf müsste
+dort ansetzen (etwa spezialisierte Komparatoren pro Spaltentyp statt eines Enum-Matches pro
+Vergleich) und gehört gemessen, nicht geraten.

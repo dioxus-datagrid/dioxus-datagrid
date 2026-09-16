@@ -66,12 +66,12 @@ fn rows(count: usize) -> Vec<Row> {
 fn columns() -> Vec<ColumnSpec<Row>> {
     vec![
         ColumnSpec::new("department")
-            .sort_by(|row: &Row| row.department.clone())
+            .sort_by_text(|row: &Row| row.department.as_str())
             .filter_by(|row: &Row| row.department.clone()),
         ColumnSpec::new("name")
-            .sort_by(|row: &Row| row.name.clone())
+            .sort_by_text(|row: &Row| row.name.as_str())
             .filter_by(|row: &Row| row.name.clone()),
-        ColumnSpec::new("age").sort_by(|row: &Row| row.age),
+        ColumnSpec::new("age").sort_by_value(|row: &Row| row.age),
     ]
 }
 

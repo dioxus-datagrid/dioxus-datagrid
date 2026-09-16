@@ -58,9 +58,9 @@ pub fn sample_rows() -> Vec<User> {
 pub fn sample_columns() -> Vec<ColumnSpec<User>> {
     vec![
         ColumnSpec::new("name")
-            .sort_by(|user: &User| user.name.clone())
+            .sort_by_text(|user: &User| user.name.as_str())
             .filter_by(|user: &User| user.name.clone()),
-        ColumnSpec::new("age").sort_by(|user: &User| user.age),
+        ColumnSpec::new("age").sort_by_value(|user: &User| user.age),
         ColumnSpec::new("email").filter_by(|user: &User| user.email.clone()),
     ]
 }

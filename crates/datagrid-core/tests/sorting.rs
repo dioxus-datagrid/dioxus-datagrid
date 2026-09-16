@@ -16,7 +16,7 @@ fn none_sorts_after_every_other_value() {
         SortValue::Bool(true),
         SortValue::Int(i64::MAX),
         SortValue::Float(f64::INFINITY),
-        SortValue::Text("zzz".into()),
+        SortValue::Text("zzz"),
     ];
     for value in values {
         assert_eq!(
@@ -54,8 +54,8 @@ fn floats_use_total_cmp_so_nan_is_ordered() {
 
 #[test]
 fn text_is_case_insensitive_by_default() {
-    let lower = SortValue::Text("adam".into());
-    let upper = SortValue::Text("Zoe".into());
+    let lower = SortValue::Text("adam");
+    let upper = SortValue::Text("Zoe");
     assert_eq!(lower.cmp(&upper), Ordering::Less);
 
     // Case-sensitive collation orders uppercase first instead.
@@ -67,8 +67,8 @@ fn text_is_case_insensitive_by_default() {
 
 #[test]
 fn values_differing_only_in_case_are_ordered_not_equal() {
-    let lower = SortValue::Text("abc".into());
-    let upper = SortValue::Text("ABC".into());
+    let lower = SortValue::Text("abc");
+    let upper = SortValue::Text("ABC");
 
     // They must not compare Equal, otherwise Ord and PartialEq would disagree
     // with each other and the order would stop being total.
@@ -83,8 +83,8 @@ fn ord_and_eq_agree() {
         SortValue::Bool(false),
         SortValue::Int(1),
         SortValue::Float(1.0),
-        SortValue::Text("a".into()),
-        SortValue::Text("A".into()),
+        SortValue::Text("a"),
+        SortValue::Text("A"),
     ];
     for left in &values {
         for right in &values {
@@ -118,7 +118,7 @@ fn sorting_is_stable_for_equal_keys() {
     let rows: Vec<User> = (0..10)
         .map(|i| User::new(i, &format!("user{i}"), 40))
         .collect();
-    let columns = vec![ColumnSpec::new("age").sort_by(|user: &User| user.age)];
+    let columns = vec![ColumnSpec::new("age").sort_by_value(|user: &User| user.age)];
 
     let mut state = GridState::new();
     state.sort = vec![SortState::asc("age")];
@@ -131,8 +131,8 @@ fn sorting_is_stable_for_equal_keys() {
 fn multi_sort_follows_priority_order() {
     let rows = sample_rows();
     let columns = vec![
-        ColumnSpec::new("age").sort_by(|user: &User| user.age),
-        ColumnSpec::new("name").sort_by(|user: &User| user.name.clone()),
+        ColumnSpec::new("age").sort_by_value(|user: &User| user.age),
+        ColumnSpec::new("name").sort_by_text(|user: &User| user.name.as_str()),
     ];
 
     let mut state = GridState::new();
@@ -161,8 +161,8 @@ fn multi_sort_follows_priority_order() {
 fn reversing_the_primary_column_keeps_the_secondary_ascending() {
     let rows = sample_rows();
     let columns = vec![
-        ColumnSpec::new("age").sort_by(|user: &User| user.age),
-        ColumnSpec::new("name").sort_by(|user: &User| user.name.clone()),
+        ColumnSpec::new("age").sort_by_value(|user: &User| user.age),
+        ColumnSpec::new("name").sort_by_text(|user: &User| user.name.as_str()),
     ];
 
     let mut state = GridState::new();
@@ -196,7 +196,7 @@ fn sort_entries_for_unknown_or_unsortable_columns_are_skipped() {
     let columns = vec![
         // Deliberately has no sort key.
         ColumnSpec::new("email").filter_by(|user: &User| user.email.clone()),
-        ColumnSpec::new("name").sort_by(|user: &User| user.name.clone()),
+        ColumnSpec::new("name").sort_by_text(|user: &User| user.name.as_str()),
     ];
 
     let mut state = GridState::new();
@@ -220,7 +220,9 @@ fn descending_puts_missing_values_first() {
         User::new(2, "missing", 20),
         User::new(3, "also", 30).with_nickname("other"),
     ];
-    let columns = vec![ColumnSpec::new("nickname").sort_by(|user: &User| user.nickname.clone())];
+    // `Option<String>` borrows via `as_deref`, which yields `Option<&str>`.
+    let columns =
+        vec![ColumnSpec::new("nickname").sort_by(|user: &User| user.nickname.as_deref().into())];
 
     // Ascending: nicknames in order, then the row that has none.
     let mut state = GridState::new();

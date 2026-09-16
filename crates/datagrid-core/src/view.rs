@@ -199,16 +199,19 @@ fn sort_indices<T>(
     // Pack each row's keys next to its index so the sort moves whole records
     // through memory in order. Sorting a separate permutation instead would make
     // every comparison a random lookup into a buffer far larger than L2.
-    match plan.len() {
-        1 => return sort_packed::<T, 1>(indices, rows, &plan, &settings),
-        2 => return sort_packed::<T, 2>(indices, rows, &plan, &settings),
-        3 => return sort_packed::<T, 3>(indices, rows, &plan, &settings),
-        4 => return sort_packed::<T, 4>(indices, rows, &plan, &settings),
-        _ => {}
+    let packed = match plan.len() {
+        1 => sort_packed::<T, 1>(indices, rows, &plan, &settings),
+        2 => sort_packed::<T, 2>(indices, rows, &plan, &settings),
+        3 => sort_packed::<T, 3>(indices, rows, &plan, &settings),
+        4 => sort_packed::<T, 4>(indices, rows, &plan, &settings),
+        _ => false,
+    };
+    if packed {
+        return;
     }
 
-    // More sort columns than the packed cases above cover. Rare enough that the
-    // extra indirection does not matter.
+    // More sort columns than the packed cases cover, or more key text than the
+    // arena can address. Rare enough that the extra indirection does not matter.
     let width = plan.len();
     let mut keys: Vec<SortValue> = Vec::with_capacity(indices.len() * width);
     for &index in indices.iter() {
@@ -242,15 +245,21 @@ fn sort_indices<T>(
 /// record.
 ///
 /// Sorting records rather than a permutation is what keeps this cache friendly:
-/// the sort reads each record's keys straight out of the element it is already
-/// moving, instead of chasing an index into a separate buffer several megabytes
-/// wide.
+/// the comparator reads keys straight out of the element the sort is already
+/// moving, instead of chasing an index into a separate multi-megabyte buffer.
+///
+/// An earlier version also interned the key text into one contiguous arena, on
+/// the theory that comparing text scattered across per-row allocations was
+/// costing cache misses. Measured, it was 23% *slower*, and slower by a similar
+/// margin even for purely numeric sorts that never touch text at all — which
+/// says the sort is bound by per-comparison work rather than by where the keys
+/// live. It was removed again; see ADR-0007.
 fn sort_packed<T, const N: usize>(
     indices: &mut [usize],
     rows: &[T],
     plan: &[(&SortKeyFn<T>, SortDirection, TextCollation)],
     settings: &[(SortDirection, TextCollation)],
-) {
+) -> bool {
     let mut records: Vec<([SortValue; N], usize)> = indices
         .iter()
         .map(|&index| {
@@ -272,6 +281,7 @@ fn sort_packed<T, const N: usize>(
     for (slot, (_, index)) in indices.iter_mut().zip(records) {
         *slot = index;
     }
+    true
 }
 
 /// Compares two rows' sort keys column by column, applying each column's

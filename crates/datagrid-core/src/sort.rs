@@ -37,8 +37,27 @@ pub enum TextCollation {
 /// `PartialEq` is defined as "compares equal", so it follows the rules above
 /// rather than deriving structural equality. In particular `Float(f64::NAN)`
 /// equals itself, and `Int(1)` equals `Float(1.0)`.
-#[derive(Clone, Debug)]
-pub enum SortValue {
+///
+/// # Borrowing
+///
+/// [`Text`](SortValue::Text) borrows from the row rather than owning a
+/// `String`. Sorting a large grid extracts one key per row per sort column, and
+/// owning them meant an allocation each — hundreds of thousands of them for a
+/// six-figure row count, for values thrown away as soon as the sort finished.
+///
+/// The cost is that a sort key has to *exist* in the row; it cannot be computed
+/// on the fly. In practice that is rarely a real constraint:
+///
+/// - Sorting by a formatted value (a date, a currency amount) should sort by the
+///   underlying number anyway, which orders correctly where the formatted text
+///   would not.
+/// - A label for an enum can be returned as `&'static str`, which coerces here.
+/// - Sorting by something like `"last, first"` is a two-column sort, which is
+///   what [`GridState::sort`](crate::GridState::sort) is for.
+///
+/// Where a computed key is genuinely needed, store it on the row.
+#[derive(Clone, Copy, Debug)]
+pub enum SortValue<'a> {
     /// No value — sorts last in ascending order.
     None,
     /// A boolean; `false` sorts before `true`.
@@ -47,11 +66,12 @@ pub enum SortValue {
     Int(i64),
     /// A floating point number, ordered by [`f64::total_cmp`].
     Float(f64),
-    /// Text, compared according to the column's [`TextCollation`].
-    Text(String),
+    /// Text borrowed from the row, compared according to the column's
+    /// [`TextCollation`].
+    Text(&'a str),
 }
 
-impl SortValue {
+impl<'a> SortValue<'a> {
     /// Compares two values using an explicit [`TextCollation`].
     ///
     /// [`Ord::cmp`] delegates here with [`TextCollation::CaseInsensitive`].
@@ -162,51 +182,51 @@ fn compare_folded_unicode(a: &str, b: &str) -> Ordering {
         .cmp(b.chars().flat_map(char::to_lowercase))
 }
 
-impl Ord for SortValue {
+impl Ord for SortValue<'_> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.cmp_with(other, TextCollation::CaseInsensitive)
     }
 }
 
-impl PartialOrd for SortValue {
+impl PartialOrd for SortValue<'_> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl PartialEq for SortValue {
+impl PartialEq for SortValue<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == Ordering::Equal
     }
 }
 
-impl Eq for SortValue {}
+impl Eq for SortValue<'_> {}
 
-impl From<String> for SortValue {
-    fn from(value: String) -> Self {
+impl<'a> From<&'a str> for SortValue<'a> {
+    fn from(value: &'a str) -> Self {
         Self::Text(value)
     }
 }
 
-impl From<&str> for SortValue {
-    fn from(value: &str) -> Self {
-        Self::Text(value.to_owned())
+impl<'a> From<&'a String> for SortValue<'a> {
+    fn from(value: &'a String) -> Self {
+        Self::Text(value.as_str())
     }
 }
 
-impl From<bool> for SortValue {
+impl From<bool> for SortValue<'_> {
     fn from(value: bool) -> Self {
         Self::Bool(value)
     }
 }
 
-impl From<f64> for SortValue {
+impl From<f64> for SortValue<'_> {
     fn from(value: f64) -> Self {
         Self::Float(value)
     }
 }
 
-impl From<f32> for SortValue {
+impl From<f32> for SortValue<'_> {
     fn from(value: f32) -> Self {
         Self::Float(f64::from(value))
     }
@@ -216,7 +236,7 @@ impl From<f32> for SortValue {
 macro_rules! impl_from_int {
     ($($ty:ty),* $(,)?) => {
         $(
-            impl From<$ty> for SortValue {
+            impl From<$ty> for SortValue<'_> {
                 fn from(value: $ty) -> Self {
                     Self::Int(i64::from(value))
                 }
@@ -234,7 +254,7 @@ impl_from_int!(i8, i16, i32, i64, u8, u16, u32);
 macro_rules! impl_from_wide_int {
     ($($ty:ty),* $(,)?) => {
         $(
-            impl From<$ty> for SortValue {
+            impl From<$ty> for SortValue<'_> {
                 fn from(value: $ty) -> Self {
                     #[allow(clippy::cast_precision_loss)]
                     i64::try_from(value).map_or_else(|_| Self::Float(value as f64), Self::Int)
@@ -246,9 +266,9 @@ macro_rules! impl_from_wide_int {
 
 impl_from_wide_int!(u64, usize, i128, u128);
 
-impl<V> From<Option<V>> for SortValue
+impl<'a, V> From<Option<V>> for SortValue<'a>
 where
-    V: Into<SortValue>,
+    V: Into<SortValue<'a>>,
 {
     fn from(value: Option<V>) -> Self {
         value.map_or(Self::None, Into::into)

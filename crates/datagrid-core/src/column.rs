@@ -64,10 +64,13 @@ impl PartialEq<&str> for ColumnId {
     }
 }
 
-/// Extracts the value a column sorts by.
+/// Extracts the value a column sorts by, borrowed from the row.
+///
+/// Higher-ranked over the row's lifetime so the returned
+/// [`SortValue`] can point into the row instead of owning a copy of it.
 ///
 /// [`Rc`] rather than `Arc` because a Dioxus `VirtualDom` is single-threaded.
-pub type SortKeyFn<T> = Rc<dyn Fn(&T) -> SortValue>;
+pub type SortKeyFn<T> = Rc<dyn for<'a> Fn(&'a T) -> SortValue<'a>>;
 
 /// Extracts the text a column filters and searches on.
 pub type FilterTextFn<T> = Rc<dyn Fn(&T) -> String>;
@@ -132,11 +135,63 @@ impl<T> ColumnSpec<T> {
         }
     }
 
-    /// Makes the column sortable by the given key.
+    /// Makes the column sortable by a key borrowed from the row.
+    ///
+    /// This is the general form. For the two common cases prefer
+    /// [`sort_by_text`](ColumnSpec::sort_by_text), which takes a plain `&str`,
+    /// or [`sort_by_value`](ColumnSpec::sort_by_value), which takes anything
+    /// that does not borrow.
+    ///
+    /// ```
+    /// # use datagrid_core::{ColumnSpec, SortValue};
+    /// struct Task { title: String, done: bool }
+    ///
+    /// let column = ColumnSpec::new("status").sort_by(|task: &Task| {
+    ///     // A `&'static str` borrows for long enough to be returned here.
+    ///     SortValue::Text(if task.done { "done" } else { "open" })
+    /// });
+    /// ```
     #[must_use]
-    pub fn sort_by<V>(mut self, key: impl Fn(&T) -> V + 'static) -> Self
+    pub fn sort_by<F>(mut self, key: F) -> Self
     where
-        V: Into<SortValue>,
+        F: for<'a> Fn(&'a T) -> SortValue<'a> + 'static,
+    {
+        self.sort_key = Some(Rc::new(key));
+        self
+    }
+
+    /// Makes the column sortable by text borrowed from the row.
+    ///
+    /// ```
+    /// # use datagrid_core::ColumnSpec;
+    /// struct User { name: String }
+    ///
+    /// let column = ColumnSpec::new("name").sort_by_text(|user: &User| user.name.as_str());
+    /// ```
+    #[must_use]
+    pub fn sort_by_text<F>(mut self, key: F) -> Self
+    where
+        F: for<'a> Fn(&'a T) -> &'a str + 'static,
+    {
+        self.sort_key = Some(Rc::new(move |row| SortValue::Text(key(row))));
+        self
+    }
+
+    /// Makes the column sortable by a value that does not borrow from the row —
+    /// a number, a boolean, or an [`Option`] of one.
+    ///
+    /// ```
+    /// # use datagrid_core::ColumnSpec;
+    /// struct User { age: u32, score: Option<f64> }
+    ///
+    /// let age = ColumnSpec::new("age").sort_by_value(|user: &User| user.age);
+    /// let score = ColumnSpec::new("score").sort_by_value(|user: &User| user.score);
+    /// ```
+    #[must_use]
+    pub fn sort_by_value<V, F>(mut self, key: F) -> Self
+    where
+        F: Fn(&T) -> V + 'static,
+        V: for<'a> Into<SortValue<'a>>,
     {
         self.sort_key = Some(Rc::new(move |row: &T| key(row).into()));
         self

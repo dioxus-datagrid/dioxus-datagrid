@@ -127,7 +127,7 @@ fn column_filters_still_apply_to_hidden_columns() {
 #[test]
 fn search_is_ignored_when_no_column_is_searchable() {
     let rows = sample_rows();
-    let columns = vec![ColumnSpec::new("age").sort_by(|user: &User| user.age)];
+    let columns = vec![ColumnSpec::new("age").sort_by_value(|user: &User| user.age)];
     let mut state = GridState::new();
     state.set_search("anything");
 

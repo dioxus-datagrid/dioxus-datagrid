@@ -24,9 +24,9 @@ struct Row {
 fn columns() -> Vec<ColumnSpec<Row>> {
     vec![
         ColumnSpec::new("label")
-            .sort_by(|row: &Row| row.label.clone())
+            .sort_by_text(|row: &Row| row.label.as_str())
             .filter_by(|row: &Row| row.label.clone()),
-        ColumnSpec::new("score").sort_by(|row: &Row| row.score),
+        ColumnSpec::new("score").sort_by_value(|row: &Row| row.score),
     ]
 }
 
