@@ -24,6 +24,10 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      # --all-features turns on the playground's desktop feature, which builds
+      # against the system WebView.
+      - name: Install Linux WebView dependencies
+        run: ./scripts/install-linux-webview-deps.sh
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo test --workspace --all-features
@@ -35,6 +39,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Install Linux WebView dependencies
+        run: ./scripts/install-linux-webview-deps.sh
       - run: cargo doc --no-deps --workspace --all-features
         env:
           RUSTDOCFLAGS: -D warnings
@@ -63,10 +69,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install Linux WebView dependencies
         if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev \
-            libayatana-appindicator3-dev librsvg2-dev
+        run: ./scripts/install-linux-webview-deps.sh
       - run: cargo check -p playground --no-default-features --features desktop
 
   no-web-sys:
