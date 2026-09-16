@@ -59,6 +59,11 @@ sortiert werden kann.
 Zusätzlich für Styling, ohne a11y-Bedeutung: `data-sortable`, `data-sorted` und
 `data-sort-priority` (Position innerhalb einer Mehrspaltensortierung, `0` = primär).
 
+Die Registry-Komponente zeigt die Richtung zusätzlich als Pfeil per CSS-`::after`. Der steht als
+`content: "▲" / ""` mit leerem Alternativtext: ohne ihn würde der Pfeil Teil des Accessible Name,
+und ein Screenreader läse „Name, black up-pointing triangle". Aufgefallen ist das, weil Playwright
+den Header nach dem Sortieren nicht mehr über seinen Namen fand.
+
 ### Selektion
 
 - `aria-multiselectable="true"` am Root **nur** bei `SelectionMode::Multi`.
@@ -102,13 +107,21 @@ der DOM-Fokus noch auf der vorherigen Zelle, also holt ihn die neu fokussierte Z
 Suchfeld reißt, zählt `GridHandle` einen Nonce mit, der nur bei *absichtlicher* Fokusbewegung
 hochgezählt wird.
 
+## Automatisiert geprüft
+
+- **Markup:** SSR-Tests in `crates/dioxus-datagrid/tests/aria.rs`.
+- **Verhalten im Browser:** Playwright in `tests/e2e/data-grid.spec.ts` gegen den Playground —
+  Sortieren per Klick und Tastatur, Filter, Suche, Paging, alle drei Selection-Modi,
+  Tastaturnavigation, und dass der DOM-Fokus tatsächlich der Navigation folgt.
+- **`axe`:** `@axe-core/playwright` über die ganze Komponente, im hellen **und** im dunklen Theme,
+  ohne Befund. Der erste Lauf fand zu schwachen Kontrast bei gedämpftem Text (3,61:1); behoben,
+  siehe ADR-0014.
+
 ## Was noch fehlt
 
 - **Virtualisierung (Phase 4).** `aria-rowindex` ist bereits so ausgelegt, dass ein virtuelles
   Fenster korrekt zählt; getestet ist das erst mit Phase 4.
 - **Spalten-Resizing (Phase 5).** Das Resize-Handle braucht eine Tastaturalternative
   (`aria-valuenow` an einem `separator`-Element, Pfeiltasten zum Verbreitern).
-- **Screenreader-Praxistest.** Bisher ist nur das gerenderte Markup geprüft. Ein Durchlauf mit
-  NVDA und VoiceOver steht aus.
-- **`axe`-Prüfung.** Ab Phase 3 läuft `@axe-core/playwright` gegen das Playground, wie in
-  `dioxus-components`.
+- **Screenreader-Praxistest.** Markup, Verhalten und axe sind automatisiert geprüft, ein
+  Durchlauf mit NVDA und VoiceOver steht aber aus. axe findet keine Probleme der Ansage-Qualität.

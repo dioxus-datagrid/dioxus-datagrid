@@ -4,7 +4,9 @@ Stand: 2026-09-16. Werkzeuge: `rustc 1.96.1`, `cargo 1.96.1`, `dx 0.7.10 (57d679
 `git 2.47.1`, `node 22.23.1`.
 
 Jeder Punkt nennt Befehl oder Quelle. Der Spike unter `playground/src/spike.rs` ist live gegen
-Chromium gelaufen; die gemessenen Werte stehen jeweils dabei.
+Chromium gelaufen; die gemessenen Werte stehen jeweils dabei. In Phase 3 wurde er aus dem
+Playground entfernt, der seitdem die Registry-Komponente rendert; der Code liegt im Commit
+`e13db57`.
 
 ---
 
@@ -187,6 +189,14 @@ cargo check                                          grün
 
 Der CLI weist danach selbst darauf hin, dass `mod components;` von Hand in `main.rs` gehört.
 
+> **Korrektur (Phase 3).** Geprüft war hier nur die `--path`-Form. Die `--git`-Form verhält sich
+> anders: der CLI klont das Repo und liest `component.json` **im Repo-Root**. Mit dem Manifest
+> allein unter `registry/` schlug `dx components list --git
+> https://github.com/dioxus-datagrid/dioxus-datagrid` mit „Failed to open component manifest"
+> fehl. Behoben durch ein Root-Manifest, das `registry` als Member führt — der CLI löst Members
+> rekursiv auf. Der Smoke-Test läuft seitdem gegen das Repo-Root, also genau den Einstiegspunkt,
+> den `--git` benutzt. Siehe ADR-0009.
+
 Nebenbefund: `globalAssets` werden nach Dateiname ins Zielverzeichnis kopiert und müssen innerhalb
 des Registry-Roots liegen. Zwei Komponenten mit gleichnamigem Asset überschreiben sich also
 gegenseitig — relevant für Phase 3, wenn wir das offizielle Theme mitliefern wollen.
@@ -204,10 +214,9 @@ veröffentlicht wird erst nach expliziter Freigabe.
 - **Mobile-Verifikation steht aus.** Der Spike lief auf Chromium und ist für Desktop nur
   Compile-geprüft. Android-Emulator / iOS-Simulator hängen an der offenen Entscheidung in
   `PLAN.md` Abschnitt 9.
-- **`registry/data_grid` ist ein Phase-0-Stub.** Er existiert nur, damit der Smoke-Test die
-  Mechanik prüfen kann; die echte Komponente kommt in Phase 3.
-- **`cargoDependencies` des Stubs zeigt auf `dioxus`, nicht auf `dioxus-datagrid`.** Solange
-  unsere Crates weder veröffentlicht noch das Repo gepusht ist, lässt sich weder die
-  `version`- noch die `git`-Form auflösen. Umstellung in Phase 3.
-- **CI ist noch nie remote gelaufen** — die Workflows sind angelegt, aber ohne GitHub-Remote
-  ungetestet. Der Owner steht in `PLAN.md` Abschnitt 9 noch offen.
+- ~~`registry/data_grid` ist ein Phase-0-Stub.~~ Erledigt in Phase 3.
+- ~~`cargoDependencies` des Stubs zeigt auf `dioxus`.~~ Erledigt in Phase 3: die Komponente hängt
+  per `git` an `dioxus-datagrid`; nach einer Veröffentlichung auf crates.io wird daraus die
+  `version`-Form.
+- ~~CI ist noch nie remote gelaufen.~~ Läuft seit dem ersten Push auf
+  `github.com/dioxus-datagrid/dioxus-datagrid`.

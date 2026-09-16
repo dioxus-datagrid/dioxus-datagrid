@@ -231,3 +231,107 @@ kontraproduktiv. Die verbleibende Grenze liegt bei ~30 ms für einen rein numeri
 in der Vergleichs- und Sortierarbeit selbst, nicht im Umgang mit Text. Ein weiterer Anlauf müsste
 dort ansetzen (etwa spezialisierte Komparatoren pro Spaltentyp statt eines Enum-Matches pro
 Vergleich) und gehört gemessen, nicht geraten.
+
+---
+
+## ADR-0009 — Registry-Root-Manifest für `--git`
+
+**Kontext.** Die Phase-0-Verifikation hatte nur `dx components add --path ./registry` geprüft.
+`--git` klont dagegen das ganze Repo und liest `component.json` im Repo-Root
+(`ComponentRegistry::resolve` → `read_component(repo_dir)`). Unser Manifest lag nur unter
+`registry/`, der dokumentierte Installationsweg schlug also fehl — gemessen, nicht vermutet.
+
+**Entscheidung.** Ein zusätzliches `component.json` im Repo-Root mit `members: ["registry"]`.
+`discover_components` löst Members rekursiv auf und filtert virtuelle Komponenten heraus, sodass
+`registry/component.json` und die Struktur aus `PLAN.md` Abschnitt 2 unverändert bleiben.
+Der Smoke-Test läuft seitdem mit `--path <repo root>`, also exakt dem Einstiegspunkt von `--git`.
+
+**Alternativen.** *Komponenten ins Repo-Root verschieben* — verworfen, weicht ohne Not von
+Abschnitt 2 und ADR-0003 ab. *`registry/component.json` löschen und nur das Root-Manifest
+führen* — verworfen, weil `--path ./registry` für lokale Entwicklung bequem bleibt.
+
+---
+
+## ADR-0010 — Theme mitliefern, beide Stylesheets aus der Komponente laden
+
+**Kontext.** Offen aus ADR-0004. Die Komponente stylt ausschließlich über dx-components-Variablen;
+ohne `dx-components-theme.css` wäre sie farblos. Nicht jedes Projekt hat bereits eine offizielle
+Komponente installiert.
+
+**Entscheidung.** `registry/assets/dx-components-theme.css` ist eine unveränderte Kopie des
+offiziellen Themes (MIT OR Apache-2.0, mit Herkunftsvermerk), deklariert als `globalAsset` wie bei
+den offiziellen Komponenten. `component.rs` verlinkt das Theme und das eigene `style.css` selbst.
+Hat ein Projekt das Theme schon, überschreibt `dx components add` die Datei mit identischem Inhalt,
+und der doppelte `<link>` löst auf dieselbe gehashte Asset-URL auf.
+
+**Alternative.** *Nur eigenes CSS mit `var(--x, fallback)`* — verworfen, weil die Fallbacks
+hartcodierte Farbwerte wären, die `CLAUDE.md` ausschließt.
+
+**Bekannte Grenze.** `asset!("/src/components/data_grid/style.css")` setzt das Standard-
+`components_dir` voraus. Die offiziellen Komponenten haben dieselbe Annahme
+(`#[css_module("/src/components/…")]`); `docs.md` nennt sie.
+
+---
+
+## ADR-0011 — Der Playground trägt eine Kopie der Komponente
+
+**Kontext.** Playwright soll die Komponente testen, die Nutzer bekommen. Wir trennen
+Registry-Quelle und Playground (ADR-0003), und `dx components add` im Playground würde dessen
+`Cargo.toml` auf eine `git`-Abhängigkeit an unser eigenes Repo umschreiben statt den Workspace-Pfad
+zu nutzen.
+
+**Entscheidung.** `scripts/sync-playground-component.sh` kopiert `component.rs`, `mod.rs`,
+`style.css` und das Theme nach `playground/`, mit „@generated"-Kopfzeile. Die Kopie ist committet,
+damit der Workspace aus einem frischen Clone baut. Der CI-Job `playground-in-sync` führt das Skript
+aus und schlägt bei einem Diff fehl. Den echten `dx components add`-Weg deckt weiterhin der
+Smoke-Test ab.
+
+**Alternativen.** *`#[path]`-Include aus `registry/`* — verworfen, weil `asset!` relativ zum
+einbindenden Crate auflöst und das Stylesheet dann nicht fände. *Generiert und gitignored* —
+verworfen, weil `cargo check --workspace` dann ohne vorherigen Skriptlauf bricht.
+
+---
+
+## ADR-0012 — Grid-Optionen reagieren auf Änderungen
+
+**Kontext.** Playwright hat gezeigt, dass ein Wechsel von `selection` oder `page_size` am
+`DataGrid` wirkungslos blieb. `use_grid` las beide nur beim ersten Rendern, und der Modus lag als
+Plain-Wert im `Copy`-Handle — Zellen, die vor dem Wechsel gerendert wurden, behielten Klick-Handler
+mit dem alten Modus. Ein `key` am `DataGrid` im Playground hat keinen Remount ausgelöst.
+
+**Entscheidung.** Der Modus ist ein `Signal` im Handle und Teil von `PartialEq`. `use_grid`
+vergleicht Modus und Seitengröße bei jedem Rendern mit dem zuletzt gesehenen Wert und schreibt nur
+bei echter Änderung — dasselbe Muster, das `use_reactive` intern verwendet
+(`dioxus-hooks-0.7.10/src/use_reactive.rs`). Ein Moduswechsel leert die Auswahl, weil eine
+Mehrfachauswahl im Single- oder None-Modus ungültig wäre. `GridState::set_page_size` setzt bei
+geänderter Größe auf Seite 1 zurück.
+
+**Alternative.** *Remount per `key` beim Aufrufer* — verworfen: verlagert einen Fehler der
+Bibliothek auf jeden Nutzer und hat im Test ohnehin nicht funktioniert.
+
+---
+
+## ADR-0013 — Spaltenfilter außerhalb von `role="grid"`
+
+**Kontext.** Der Plan fordert Filtern in Playwright; die Komponente hatte nur die globale Suche.
+Die naheliegende Filterzeile unter den Spaltenköpfen läge innerhalb des Grids.
+
+**Entscheidung.** `column_filters: true` rendert die Eingaben über dem Grid, nicht darin. Eine
+Filterzeile im Grid würde bei `aria-rowcount` mitzählen und jedes `aria-rowindex` verschieben, und
+Eingabefelder in `gridcell`s kollidieren mit der Pfeiltastennavigation, die die Pfeiltasten für
+sich beansprucht. Jede Eingabe trägt ein `aria-label` („Filter Name").
+
+---
+
+## ADR-0014 — Kontrast und Accessible Name aus axe und Playwright
+
+**Kontext.** `@axe-core/playwright` meldete genau eine Regel: `color-contrast`. Gedämpfter Text in
+`--secondary-color-5` erreicht auf dem hellen Hintergrund 3,61:1 statt der geforderten 4,5:1.
+Unabhängig davon fanden die Playwright-Tests die Header nach dem Sortieren nicht mehr über ihren
+Namen: der Sortierpfeil aus `::after` wurde Teil des Accessible Name („Name▲").
+
+**Entscheidung.** Gedämpfter Text nutzt `--secondary-color-3`. Der Pfeil verwendet
+`content: "▲" / ""`, dessen leerer Alternativtext ihn aus dem Accessible Name nimmt;
+`aria-sort` trägt die Information. Ausgewählte Zeilen bekommen zusätzlich einen Akzentbalken in
+`--focused-border-color`, weil sich der Hintergrund allein im hellen Theme kaum abhebt — sichtbar
+geworden erst im README-Screenshot.
