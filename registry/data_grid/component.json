@@ -11,7 +11,7 @@
   "cargoDependencies": [
     {
       "name": "dioxus-datagrid",
-      "git": "https://github.com/dioxus-datagrid/dioxus-datagrid"
+      "version": "0.1"
     }
   ],
   "globalAssets": [

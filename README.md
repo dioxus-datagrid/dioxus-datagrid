@@ -6,8 +6,8 @@ and mobile.
 
 ![The data_grid component, sorted by department with two rows selected](docs/screenshot.png)
 
-> **Status:** pre-release. Nothing is on crates.io yet, so the component currently pulls the crate
-> from this repository.
+[![crates.io](https://img.shields.io/crates/v/dioxus-datagrid.svg)](https://crates.io/crates/dioxus-datagrid)
+[![docs.rs](https://docs.rs/dioxus-datagrid/badge.svg)](https://docs.rs/dioxus-datagrid)
 
 ## How it is put together
 

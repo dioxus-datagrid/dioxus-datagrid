@@ -66,13 +66,13 @@ if ! grep -q "dioxus-datagrid" "$fixture/Cargo.toml"; then
   exit 1
 fi
 
-# Point the git dependency at this checkout. Without it the fixture would build
-# against whatever is on the default branch, so the smoke test would pass or
-# fail for reasons unrelated to the working tree.
-echo "==> Redirecting the git dependency to this checkout"
+# Point the crates.io dependency at this checkout. Without it the fixture would
+# build against the last published release, so the smoke test would pass or fail
+# for reasons unrelated to the working tree.
+echo "==> Redirecting the crates.io dependency to this checkout"
 cat >> "$fixture/Cargo.toml" <<EOF
 
-[patch."https://github.com/dioxus-datagrid/dioxus-datagrid"]
+[patch.crates-io]
 # Relative, because Git Bash spells absolute paths as /c/..., which Cargo on
 # Windows cannot read. Relative paths in [patch] resolve against this file.
 dioxus-datagrid = { path = "../../../crates/dioxus-datagrid" }
