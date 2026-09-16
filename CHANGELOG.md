@@ -6,7 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-The first release, 0.1.0, is being prepared. Everything below is part of it.
+## [0.1.0] - 2026-09-16
+
+The first release.
 
 ### Added
 
@@ -40,4 +42,5 @@ The first release, 0.1.0, is being prepared. Everything below is part of it.
 - The `data_grid` component, installable with `dx components add data_grid`, styled entirely with
   the dx-components theme variables, with optional search, per-column filters and paging.
 
-[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/commits/main
+[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/releases/tag/v0.1.0
