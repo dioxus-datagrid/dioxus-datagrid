@@ -1,0 +1,27 @@
+[package]
+name = "dioxus-datagrid"
+version = "0.1.0"
+description = "Headless, accessible data grid hooks and unstyled primitives for Dioxus 0.7."
+keywords = ["dioxus", "datagrid", "table", "components", "gui"]
+categories = ["gui", "wasm"]
+readme = "README.md"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+datagrid-core.workspace = true
+dioxus.workspace = true
+serde = { workspace = true, optional = true }
+
+[features]
+default = []
+serde = ["dep:serde", "datagrid-core/serde"]
+
+[dev-dependencies]
+dioxus-ssr.workspace = true
+
+[lints]
+workspace = true

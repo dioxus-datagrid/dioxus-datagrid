@@ -1,0 +1,6 @@
+/* Phase 0 placeholder for the data grid's global stylesheet.
+ * Phase 3 replaces this with styling built on the dx-components theme variables.
+ */
+.dg-root {
+  color: var(--secondary-color-4, inherit);
+}

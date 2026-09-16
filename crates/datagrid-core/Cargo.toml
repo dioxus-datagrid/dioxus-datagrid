@@ -1,0 +1,25 @@
+[package]
+name = "datagrid-core"
+version = "0.1.0"
+description = "Framework-agnostic sorting, filtering, paging, selection and virtualization logic for data grids."
+keywords = ["datagrid", "table", "sorting", "filtering", "virtualization"]
+categories = ["gui", "data-structures"]
+readme = "README.md"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde = { workspace = true, optional = true }
+
+[features]
+default = []
+serde = ["dep:serde"]
+
+[dev-dependencies]
+proptest = "1.7"
+
+[lints]
+workspace = true

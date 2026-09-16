@@ -1,0 +1,8 @@
+[application]
+name = "consumer-app"
+
+# Phase 0 verification: this is how a project points `dx components add` at a
+# custom registry instead of the built-in DioxusLabs one.
+[components]
+registry = { path = "../../../registry" }
+components_dir = "src/components"

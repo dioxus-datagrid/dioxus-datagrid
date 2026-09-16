@@ -1,0 +1,13 @@
+# Normalize line endings in the repository to LF.
+* text=auto eol=lf
+
+# Shell scripts must keep LF even on Windows checkouts — CRLF breaks the
+# shebang and `set -euo pipefail` on Linux CI.
+*.sh text eol=lf
+
+# Binary-ish assets: never touch.
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary

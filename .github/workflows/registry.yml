@@ -1,0 +1,28 @@
+name: Registry
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: dx components add
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install dx
+        run: cargo install dioxus-cli --version 0.7.10 --locked
+      # Proves the distribution path: a project that knows nothing about this
+      # repo adds the component from our registry and still compiles.
+      - run: bash scripts/registry-smoke.sh

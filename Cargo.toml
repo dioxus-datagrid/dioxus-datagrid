@@ -1,0 +1,43 @@
+[workspace]
+resolver = "3"
+members = ["crates/datagrid-core", "crates/dioxus-datagrid", "playground"]
+# The consumer fixture must look like a foreign project to `dx components add`.
+exclude = ["tests/fixtures/consumer-app"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/dioxus-datagrid/dioxus-datagrid"
+authors = ["Marius Linnartz"]
+
+[workspace.dependencies]
+datagrid-core = { version = "0.1.0", path = "crates/datagrid-core" }
+dioxus-datagrid = { version = "0.1.0", path = "crates/dioxus-datagrid" }
+
+dioxus = "0.7.10"
+dioxus-ssr = "0.7.10"
+serde = { version = "1.0", features = ["derive"] }
+
+[workspace.lints.rust]
+missing_docs = "warn"
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+# Library code must not panic; tests opt out locally with `#![allow(...)]`.
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+indexing_slicing = "warn"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+[profile.dev]
+debug = 0
+
+[profile.dev.build-override]
+opt-level = 3
+codegen-units = 1
