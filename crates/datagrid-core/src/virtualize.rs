@@ -101,3 +101,74 @@ pub fn total_height(total_rows: usize, row_height: f64) -> f64 {
 pub fn offset_of(index: usize, row_height: f64) -> f64 {
     total_height(index, row_height)
 }
+
+/// How many whole rows fit in the viewport; what `PageUp` and `PageDown` move by.
+///
+/// Never less than one, so paging always makes progress even in a viewport
+/// shorter than a row.
+#[must_use]
+pub fn rows_per_viewport(viewport_height: f64, row_height: f64) -> usize {
+    if !row_height.is_finite() || row_height <= 0.0 || !viewport_height.is_finite() {
+        return 1;
+    }
+    to_index((viewport_height / row_height).floor(), usize::MAX).max(1)
+}
+
+/// The scroll position that brings row `index` fully into view, or `None` when
+/// it already is.
+///
+/// Scrolls as little as possible: a row above the viewport is aligned to the
+/// top, a row below it to the bottom. That is what keyboard navigation wants —
+/// moving down one row past the edge should nudge the view by one row, not jump
+/// the focused row to the top.
+///
+/// All values are in the body's coordinate space. With a sticky header, pass the
+/// viewport height minus the header height; the header covers that part of the
+/// viewport and rows beneath it are not visible.
+///
+/// # Examples
+///
+/// ```
+/// use datagrid_core::reveal_scroll_top;
+///
+/// // 20px rows, 100px viewport scrolled to 200px: rows 10..15 are visible.
+/// assert_eq!(reveal_scroll_top(12, 20.0, 100.0, 200.0), None);
+/// // Row 15 is just below: scroll so it becomes the last visible row.
+/// assert_eq!(reveal_scroll_top(15, 20.0, 100.0, 200.0), Some(220.0));
+/// // Row 3 is above: scroll so it becomes the first visible row.
+/// assert_eq!(reveal_scroll_top(3, 20.0, 100.0, 200.0), Some(60.0));
+/// ```
+#[must_use]
+pub fn reveal_scroll_top(
+    index: usize,
+    row_height: f64,
+    viewport_height: f64,
+    scroll_top: f64,
+) -> Option<f64> {
+    if !row_height.is_finite() || row_height <= 0.0 {
+        return None;
+    }
+    let scroll_top = if scroll_top.is_finite() {
+        scroll_top.max(0.0)
+    } else {
+        0.0
+    };
+    let viewport_height = if viewport_height.is_finite() {
+        viewport_height.max(0.0)
+    } else {
+        0.0
+    };
+
+    let top = offset_of(index, row_height);
+    let bottom = top + row_height;
+
+    if top < scroll_top {
+        Some(top)
+    } else if bottom > scroll_top + viewport_height {
+        // In a viewport shorter than one row, showing the row's top beats
+        // showing its bottom.
+        Some((bottom - viewport_height).max(0.0).min(top))
+    } else {
+        None
+    }
+}

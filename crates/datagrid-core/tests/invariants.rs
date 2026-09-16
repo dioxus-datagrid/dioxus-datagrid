@@ -247,3 +247,28 @@ proptest! {
         }
     }
 }
+
+proptest! {
+    /// After scrolling to the position `reveal_scroll_top` asks for, the row is
+    /// fully inside the viewport and inside the range `visible_range` renders.
+    #[test]
+    fn a_revealed_row_is_visible_and_rendered(
+        index in 0_usize..10_000,
+        row_height in 1.0_f64..100.0,
+        viewport_height in 100.0_f64..2_000.0,
+        scroll_top in 0.0_f64..1_000_000.0,
+    ) {
+        let scroll_top = datagrid_core::reveal_scroll_top(index, row_height, viewport_height, scroll_top)
+            .unwrap_or(scroll_top);
+
+        let top = index as f64 * row_height;
+        prop_assert!(top >= scroll_top - 1e-6, "row top {top} above viewport at {scroll_top}");
+        prop_assert!(
+            top + row_height <= scroll_top + viewport_height + 1e-6,
+            "row bottom below viewport"
+        );
+
+        let range = visible_range(scroll_top, viewport_height, row_height, 10_000, 0);
+        prop_assert!(range.contains(&index), "{index} not in rendered range {range:?}");
+    }
+}

@@ -2,7 +2,7 @@
 
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
-use datagrid_core::{offset_of, total_height, visible_range};
+use datagrid_core::{offset_of, reveal_scroll_top, rows_per_viewport, total_height, visible_range};
 
 #[test]
 fn returns_the_rows_intersecting_the_viewport() {
@@ -89,4 +89,52 @@ fn spacers_above_and_below_add_up_to_the_total_height() {
     // If these three do not sum to the total, the scrollbar lies about the
     // size of the data.
     assert!((above + rendered + below - total_height(total_rows, row_height)).abs() < f64::EPSILON);
+}
+
+#[test]
+fn rows_per_viewport_counts_whole_rows_and_never_returns_zero() {
+    assert_eq!(rows_per_viewport(100.0, 20.0), 5);
+    // A partial row does not count as a page step.
+    assert_eq!(rows_per_viewport(119.0, 20.0), 5);
+    // Paging must always move, even in a viewport shorter than a row.
+    assert_eq!(rows_per_viewport(5.0, 20.0), 1);
+    assert_eq!(rows_per_viewport(100.0, 0.0), 1);
+    assert_eq!(rows_per_viewport(f64::NAN, 20.0), 1);
+}
+
+#[test]
+fn reveal_leaves_a_visible_row_alone() {
+    // Rows 10..15 are fully visible at 200px in a 100px viewport.
+    for index in 10..15 {
+        assert_eq!(reveal_scroll_top(index, 20.0, 100.0, 200.0), None);
+    }
+}
+
+#[test]
+fn reveal_scrolls_by_the_minimum_amount() {
+    // One row past the bottom edge nudges the view by exactly one row.
+    assert_eq!(reveal_scroll_top(15, 20.0, 100.0, 200.0), Some(220.0));
+    // One row above the top edge nudges it back by one row.
+    assert_eq!(reveal_scroll_top(9, 20.0, 100.0, 200.0), Some(180.0));
+}
+
+#[test]
+fn reveal_handles_partially_visible_rows() {
+    // Scrolled to 210px, row 10 is half hidden above the viewport.
+    assert_eq!(reveal_scroll_top(10, 20.0, 100.0, 210.0), Some(200.0));
+    // And row 15 is half hidden below it.
+    assert_eq!(reveal_scroll_top(15, 20.0, 100.0, 210.0), Some(220.0));
+}
+
+#[test]
+fn reveal_prefers_the_top_of_a_row_taller_than_the_viewport() {
+    assert_eq!(reveal_scroll_top(5, 50.0, 20.0, 0.0), Some(250.0));
+}
+
+#[test]
+fn reveal_is_safe_with_degenerate_input() {
+    assert_eq!(reveal_scroll_top(5, 0.0, 100.0, 0.0), None);
+    assert_eq!(reveal_scroll_top(5, f64::NAN, 100.0, 0.0), None);
+    assert_eq!(reveal_scroll_top(0, 20.0, 100.0, f64::NAN), None);
+    assert_eq!(reveal_scroll_top(0, 20.0, 100.0, -50.0), None);
 }

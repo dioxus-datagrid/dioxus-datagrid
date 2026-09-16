@@ -75,7 +75,9 @@ pub use selection::{Selection, SelectionMode};
 pub use sort::{SortDirection, SortState, SortValue, TextCollation};
 pub use state::{GridState, PageState};
 pub use view::{View, compute_view};
-pub use virtualize::{offset_of, total_height, visible_range};
+pub use virtualize::{
+    offset_of, reveal_scroll_top, rows_per_viewport, total_height, visible_range,
+};
 
 /// A row the grid can identify across sorting, filtering and paging.
 ///
