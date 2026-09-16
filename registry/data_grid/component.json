@@ -9,9 +9,12 @@
     "component.json"
   ],
   "cargoDependencies": [
-    "dioxus"
+    {
+      "name": "dioxus-datagrid",
+      "git": "https://github.com/dioxus-datagrid/dioxus-datagrid"
+    }
   ],
   "globalAssets": [
-    "../assets/dx-datagrid-theme.css"
+    "../assets/dx-components-theme.css"
   ]
 }

@@ -1,0 +1,7 @@
+{
+  "name": "dioxus-datagrid",
+  "description": "Registry root. `dx components add --git` reads this file at the top of the repository; the components themselves are listed in registry/component.json.",
+  "members": [
+    "registry"
+  ]
+}
