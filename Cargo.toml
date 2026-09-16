@@ -18,8 +18,8 @@ repository = "https://github.com/dioxus-datagrid/dioxus-datagrid"
 authors = ["Marius Linnartz"]
 
 [workspace.dependencies]
-datagrid-core = { version = "0.1.0", path = "crates/datagrid-core" }
-dioxus-datagrid = { version = "0.1.0", path = "crates/dioxus-datagrid" }
+datagrid-core = { version = "0.2.0", path = "crates/datagrid-core" }
+dioxus-datagrid = { version = "0.2.0", path = "crates/dioxus-datagrid" }
 
 dioxus = "0.7.10"
 dioxus-ssr = "0.7.10"

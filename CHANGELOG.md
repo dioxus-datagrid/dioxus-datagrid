@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-16
+
 ### Added
 
 - Virtualization: `VirtualGridBody` renders only the rows in view plus overscan, with fixed row
@@ -61,5 +63,6 @@ The first release.
 - The `data_grid` component, installable with `dx components add data_grid`, styled entirely with
   the dx-components theme variables, with optional search, per-column filters and paging.
 
-[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/releases/tag/v0.1.0
