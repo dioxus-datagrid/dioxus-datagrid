@@ -15,6 +15,11 @@ fixture="$repo_root/tests/fixtures/consumer-app"
 # and reads component.json at its top level, so that is the entry point users hit.
 registry="$repo_root"
 
+# SMOKE_PUBLISHED=1 builds against the crates on crates.io instead of this
+# checkout. Run it right after publishing: it proves that what users install
+# from the default branch compiles against what they download.
+published="${SMOKE_PUBLISHED:-0}"
+
 echo "==> Resetting the consumer fixture"
 rm -rf "$fixture/src/components" "$fixture/assets" "$fixture/Cargo.lock"
 # `dx components add` and the patch section below both edit Cargo.toml, so the
@@ -66,6 +71,13 @@ if ! grep -q "dioxus-datagrid" "$fixture/Cargo.toml"; then
   exit 1
 fi
 
+if [[ "$published" == "1" ]]; then
+  echo "==> Compiling the consumer app against crates.io"
+  cargo check --manifest-path "$fixture/Cargo.toml"
+  echo "==> Registry smoke test passed (published crates)"
+  exit 0
+fi
+
 # Point the crates.io dependency at this checkout. Without it the fixture would
 # build against the last published release, so the smoke test would pass or fail
 # for reasons unrelated to the working tree.
@@ -80,6 +92,15 @@ datagrid-core = { path = "../../../crates/datagrid-core" }
 EOF
 
 echo "==> Compiling the consumer app"
-cargo check --manifest-path "$fixture/Cargo.toml"
+log="$fixture/target/smoke-check.log"
+mkdir -p "$fixture/target"
+cargo check --manifest-path "$fixture/Cargo.toml" 2>&1 | tee "$log"
+# Cargo skips a patch whose version does not satisfy the requirement and quietly
+# builds against crates.io instead. Then component.json asks for a different
+# dioxus-datagrid than this checkout, and the check above tested the wrong crate.
+if grep -q "was not used in the crate graph" "$log"; then
+  echo "FAIL: component.json requires a dioxus-datagrid version this checkout does not provide" >&2
+  exit 1
+fi
 
 echo "==> Registry smoke test passed"
