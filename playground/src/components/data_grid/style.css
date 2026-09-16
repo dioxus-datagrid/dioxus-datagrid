@@ -48,15 +48,19 @@
 }
 
 /* Horizontal overflow scrolls inside the grid rather than the page. */
-.dg-scroll {
-  overflow-x: auto;
+.dg-frame {
+  overflow: hidden;
   border: 1px solid var(--primary-color-6);
   border-radius: 0.625rem;
 }
 
+/* The grid root is the scroll container on both axes. A virtualized body reads
+ * the scroll position from this element, so the scrolling must happen here
+ * rather than on a wrapper. With a height set, the sticky header stays put. */
 .dg {
   display: grid;
-  min-width: max-content;
+  overflow: auto;
+  align-content: start;
   grid-template-columns: var(--dg-template, minmax(6rem, auto));
 }
 

@@ -68,6 +68,46 @@ fn employees() -> Vec<Employee> {
         .collect()
 }
 
+/// Rows for the virtualized mode: deterministic, so a test can predict what row
+/// n contains, and varied enough that sorting and searching do real work.
+fn many_employees(count: u32) -> Vec<Employee> {
+    const FIRST: [&str; 8] = ["Ada", "Ben", "Cleo", "Dan", "Eva", "Finn", "Greta", "Hans"];
+    const LAST: [&str; 6] = ["Bauer", "Fischer", "Kaufmann", "Weber", "Vogel", "Lang"];
+    const DEPARTMENTS: [&str; 6] = [
+        "engineering",
+        "sales",
+        "support",
+        "finance",
+        "legal",
+        "research",
+    ];
+
+    (1..=count)
+        .map(|id| {
+            let index = id as usize;
+            let first = FIRST[index % FIRST.len()];
+            let last = LAST[(index / FIRST.len()) % LAST.len()];
+            Employee {
+                id,
+                name: format!("{first} {last} {id}"),
+                email: format!(
+                    "{}.{}.{id}@example.com",
+                    first.to_lowercase(),
+                    last.to_lowercase()
+                ),
+                department: DEPARTMENTS[index % DEPARTMENTS.len()].to_owned(),
+                age: 20 + id % 45,
+            }
+        })
+        .collect()
+}
+
+/// Row count for the virtualized mode, matching `PLAN.md` phase 4.
+const MANY: u32 = 100_000;
+/// Fixed row height for the virtualized mode. Tall enough for the component's
+/// cell padding, so no row content is clipped.
+const ROW_HEIGHT: f64 = 40.0;
+
 fn columns() -> Vec<Column<Employee>> {
     vec![
         Column::new("name", "Name")
@@ -91,11 +131,12 @@ fn columns() -> Vec<Column<Employee>> {
 
 #[component]
 fn App() -> Element {
-    let rows = use_signal(employees);
+    let mut rows = use_signal(employees);
     let cols = use_hook(columns);
 
     let mut selection = use_signal(|| SelectionMode::Multi);
     let mut paged = use_signal(|| true);
+    let mut virtualized = use_signal(|| false);
     let mut selected = use_signal(Vec::<u32>::new);
 
     rsx! {
@@ -139,10 +180,25 @@ fn App() -> Element {
                     input {
                         r#type: "checkbox",
                         "data-testid": "toggle-paging",
-                        checked: paged(),
+                        checked: paged() && !virtualized(),
+                        disabled: virtualized(),
                         onchange: move |event| paged.set(event.checked()),
                     }
                     "Paged (5 per page)"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
+                        "data-testid": "toggle-virtualized",
+                        checked: virtualized(),
+                        onchange: move |event| {
+                            let on = event.checked();
+                            virtualized.set(on);
+                            rows.set(if on { many_employees(MANY) } else { employees() });
+                        },
+                    }
+                    "Virtualized ({MANY} rows)"
                 }
 
                 output { "data-testid": "selected-keys", class: "selected",
@@ -153,7 +209,9 @@ fn App() -> Element {
             DataGrid {
                 data: rows,
                 columns: cols,
-                page_size: paged().then_some(5),
+                page_size: (paged() && !virtualized()).then_some(5),
+                row_height: virtualized().then_some(ROW_HEIGHT),
+                height: virtualized().then(|| "480px".to_owned()),
                 selection: selection(),
                 column_filters: true,
                 search_placeholder: "Search all columns",

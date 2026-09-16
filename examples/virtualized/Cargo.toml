@@ -1,0 +1,21 @@
+[package]
+name = "example-virtualized"
+version = "0.1.0"
+publish = false
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+dioxus.workspace = true
+datagrid-core.workspace = true
+dioxus-datagrid.workspace = true
+
+[features]
+default = ["web"]
+web = ["dioxus/web"]
+desktop = ["dioxus/desktop"]
+mobile = ["dioxus/mobile"]
+
+[lints.rust]
+unsafe_code = "forbid"

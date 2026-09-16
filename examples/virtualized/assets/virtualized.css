@@ -1,0 +1,73 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+.page {
+  max-width: 56rem;
+  padding: 1.5rem;
+  margin: 0 auto;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-block-end: 0.75rem;
+}
+
+/* GridRoot is the scroll container: a fixed height and overflow are required
+ * for VirtualGridBody to know what is in view. */
+.grid {
+  display: grid;
+  overflow: auto;
+  height: 70vh;
+  align-content: start;
+  border: 1px solid #d4d4d4;
+  border-radius: 0.5rem;
+  grid-template-columns: 96px 1fr 1fr 96px;
+}
+
+.head,
+.body,
+.grid [role="row"] {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+
+/* The header must be sticky: rows beneath it are treated as hidden. */
+.grid [role="columnheader"] {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.5rem 0.75rem;
+  background: Canvas;
+  border-bottom: 1px solid #d4d4d4;
+  font-weight: 600;
+}
+
+/* Rows are exactly 32px (the ROW_HEIGHT constant); content must fit. */
+.grid [role="gridcell"] {
+  overflow: hidden;
+  padding: 0 0.75rem;
+  align-content: center;
+  border-bottom: 1px solid #eee;
+  font-size: 0.875rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.grid [role="row"][data-selected="true"] [role="gridcell"] {
+  background: color-mix(in srgb, Highlight 18%, transparent);
+}
+
+.grid [role="columnheader"]:focus-visible,
+.grid [role="gridcell"]:focus-visible {
+  outline: 2px solid Highlight;
+  outline-offset: -2px;
+}

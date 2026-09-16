@@ -81,6 +81,30 @@ fn Users() -> Element {
 | `search_placeholder` | `"Search"` | Placeholder for the search box. |
 | `empty_message` | `"No matching rows"` | Shown when nothing matches. |
 | `on_selection_change` | — | Fires with the selected keys whenever they change. |
+| `column_filters` | `false` | Shows a filter input for every filterable column. |
+| `row_height` | `None` | Virtualizes the grid: only rows in view are rendered, each exactly this many pixels tall. |
+| `height` | `None` | A CSS height, such as `"480px"`, that the grid scrolls within. |
+
+## Large data sets
+
+For tens of thousands of rows, set `row_height` and `height` and leave out `page_size`:
+
+```rust
+DataGrid {
+    data: measurements,
+    columns,
+    row_height: 40.0,
+    height: "70vh",
+}
+```
+
+The grid then renders only the rows in view plus a few above and below, while
+the scrollbar and `aria-rowcount` still reflect every row. Keyboard navigation
+scrolls to the focused row, and `PageUp` / `PageDown` move by one screen.
+
+Every row is exactly `row_height` pixels tall and taller content is clipped, so
+pick a height that fits your cells. With the default styling, 40 pixels fits one
+line of text.
 
 ## Columns
 

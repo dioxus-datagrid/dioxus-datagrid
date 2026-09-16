@@ -1,6 +1,12 @@
 [workspace]
 resolver = "3"
-members = ["crates/datagrid-core", "crates/dioxus-datagrid", "playground", "examples/basic"]
+members = [
+    "crates/datagrid-core",
+    "crates/dioxus-datagrid",
+    "playground",
+    "examples/basic",
+    "examples/virtualized",
+]
 # The consumer fixture must look like a foreign project to `dx components add`.
 exclude = ["tests/fixtures/consumer-app"]
 

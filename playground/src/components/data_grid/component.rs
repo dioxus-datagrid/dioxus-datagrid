@@ -10,7 +10,7 @@
 
 use dioxus::prelude::*;
 use dioxus_datagrid::primitives::{
-    GridBody, GridColumnFilter, GridHeader, GridPagination, GridRoot, GridSearch,
+    GridBody, GridColumnFilter, GridHeader, GridPagination, GridRoot, GridSearch, VirtualGridBody,
 };
 use dioxus_datagrid::{Column, ColumnWidth, GridOptions, GridRow, SelectionMode, use_grid};
 
@@ -45,6 +45,14 @@ pub struct DataGridProps<T: GridRow + PartialEq + 'static> {
     /// Called whenever the set of selected rows changes.
     #[props(default)]
     pub on_selection_change: Option<EventHandler<Vec<T::Key>>>,
+    /// Renders only the rows in view, for large data sets. Every row is then
+    /// exactly this many pixels tall. Needs `height`, and is usually combined
+    /// with no `page_size`.
+    #[props(default)]
+    pub row_height: Option<f64>,
+    /// A CSS height for the grid, such as `"480px"`. The grid scrolls within it.
+    #[props(default)]
+    pub height: Option<String>,
     #[props(extends = GlobalAttributes)]
     pub attributes: Vec<Attribute>,
 }
@@ -78,6 +86,10 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
     });
 
     let is_empty = grid.filtered_len() == 0;
+    let height_style = props
+        .height
+        .as_deref()
+        .map_or_else(String::new, |height| format!("height: {height};"));
 
     // Every row is a CSS subgrid of this one track definition, so the header and
     // the cells stay aligned without anyone measuring anything.
@@ -129,10 +141,19 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
                 }
             }
 
-            div { class: "dg-scroll",
-                GridRoot { grid, class: "dg", style: "--dg-template: {template};",
+            div { class: "dg-frame",
+                // The grid root is the scroll container: a virtualized body reads
+                // its scroll position from there.
+                GridRoot {
+                    grid,
+                    class: "dg",
+                    style: "--dg-template: {template}; {height_style}",
                     GridHeader { grid, class: "dg-head" }
-                    GridBody { grid, class: "dg-body" }
+                    if let Some(row_height) = props.row_height {
+                        VirtualGridBody { grid, row_height, class: "dg-body" }
+                    } else {
+                        GridBody { grid, class: "dg-body" }
+                    }
                 }
             }
 
