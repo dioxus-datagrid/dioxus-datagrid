@@ -479,3 +479,25 @@ nichts selbst (`PLAN.md` Phase 5). Das Beispiel steht im Playground: `localStora
 `document::eval` im Anwendungscode. Eine gespeicherte Breite wird beim Anwenden auf die
 Mindestbreite begrenzt, und `set_column_width` ignoriert nicht-endliche Werte, die JSON nicht
 darstellen kann — sonst würde der Zustand den Round-Trip nicht überstehen.
+
+---
+
+## ADR-0019 — Release 0.3.0 nach Phase 5, Phase 6 wird 0.4.0
+
+**Kontext.** `PLAN.md` sieht 0.3.0 erst nach Phase 6 vor, mit Phase 5 als „Teil 1". Die
+Registry-Komponente auf dem Default-Branch hängt aber an der veröffentlichten Crate-Version
+(`component.json` → `dioxus-datagrid = "0.3"`), und `dx components add --git` installiert genau
+diesen Stand. Nutzt die Komponente Crate-APIs, die noch nicht veröffentlicht sind, kompiliert die
+Installation nicht — das ist bei 0.2.0 schon einmal aufgefallen, und der CI-Job gegen crates.io
+belegt es für Phase 5 (`is_column_visible`, `column_width`, `GridHeader::resizable` fehlen in 0.2.0).
+
+**Entscheidung.** Phase 5 wird als 0.3.0 veröffentlicht, bevor sie gepusht wird. Phase 6
+(serverseitige Daten) wird 0.4.0. Mit dem Nutzer abgestimmt.
+
+**Folge für künftige Phasen.** Eine Phase, die die Registry-Komponente an neue Crate-APIs bindet,
+endet mit einem Release. Reihenfolge wie bei 0.2.0: Versionen anheben, veröffentlichen, mit
+`SMOKE_PUBLISHED=1` gegen crates.io prüfen, dann pushen und taggen.
+
+**Alternativen.**
+- *Commits bis nach Phase 6 lokal halten.* Verworfen: eine ganze Phase ungesichert und ohne CI.
+- *Ohne Release pushen.* Verworfen: die dokumentierte Installation wäre bis dahin kaputt.
