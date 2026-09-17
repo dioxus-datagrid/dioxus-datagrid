@@ -75,12 +75,12 @@ mod grid;
 pub mod primitives;
 
 pub use column::{CellRenderer, Column, HeaderRenderer};
-pub use grid::{GridHandle, GridOptions, IntoReadSignal, Layout, use_grid};
+pub use grid::{COLUMN_RESIZE_STEP, GridHandle, GridOptions, IntoReadSignal, Layout, use_grid};
 
 // Re-exported so callers need only one dependency for the common path. The
 // `GridRow` trait deliberately keeps its name here; the row *component* lives in
 // [`primitives`] to avoid the collision.
 pub use datagrid_core::{
-    CellFocus, ColumnId, ColumnWidth, GridRow, GridState, NavKey, SelectionMode, SortDirection,
-    SortValue, TextCollation, View,
+    CellFocus, ColumnId, ColumnWidth, DEFAULT_MIN_COLUMN_WIDTH, GridRow, GridState, NavKey,
+    SelectionMode, SortDirection, SortValue, TextCollation, View,
 };

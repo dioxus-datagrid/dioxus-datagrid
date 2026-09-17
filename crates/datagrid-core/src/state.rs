@@ -209,6 +209,12 @@ impl GridState {
         }
     }
 
+    /// Forgets an interactively chosen width, so the column falls back to its
+    /// own [`width`](crate::ColumnSpec::width).
+    pub fn reset_column_width(&mut self, column: &ColumnId) {
+        self.column_widths.retain(|(id, _)| id != column);
+    }
+
     /// The interactively chosen width for a column, if any.
     #[must_use]
     pub fn column_width(&self, column: &ColumnId) -> Option<f32> {

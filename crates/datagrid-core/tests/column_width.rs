@@ -75,3 +75,19 @@ fn a_non_finite_width_is_not_recorded() {
     state.set_column_width("name", f32::NAN);
     assert_eq!(state.column_width(&"name".into()), Some(200.0));
 }
+
+#[test]
+fn columns_are_resizable_unless_opted_out() {
+    assert!(column().resizable);
+    assert!(!column().resizable(false).resizable);
+}
+
+#[test]
+fn resetting_a_width_falls_back_to_the_column_width() {
+    let column = column().width(ColumnWidth::Px(100.0));
+    let mut state = GridState::new();
+    state.set_column_width("name", 240.0);
+    state.reset_column_width(&"name".into());
+    assert_eq!(column.effective_width(&state), ColumnWidth::Px(100.0));
+    assert!(state.column_widths.is_empty());
+}

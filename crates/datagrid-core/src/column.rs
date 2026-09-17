@@ -116,6 +116,8 @@ pub struct ColumnSpec<T> {
     /// Lower bound for interactive resizing, in CSS pixels. `None` means
     /// [`DEFAULT_MIN_COLUMN_WIDTH`].
     pub min_width: Option<f32>,
+    /// Whether the user may change this column's width. `true` by default.
+    pub resizable: bool,
     /// Whether the column is shown by default.
     ///
     /// This is the column's own setting. Runtime visibility also depends on
@@ -136,6 +138,7 @@ impl<T> ColumnSpec<T> {
             filter_text: None,
             width: ColumnWidth::Auto,
             min_width: None,
+            resizable: true,
             visible: true,
             collation: TextCollation::CaseInsensitive,
         }
@@ -221,6 +224,13 @@ impl<T> ColumnSpec<T> {
     #[must_use]
     pub const fn min_width(mut self, min_width: f32) -> Self {
         self.min_width = Some(min_width);
+        self
+    }
+
+    /// Sets whether the user may change this column's width.
+    #[must_use]
+    pub const fn resizable(mut self, resizable: bool) -> Self {
+        self.resizable = resizable;
         self
     }
 
@@ -310,6 +320,7 @@ impl<T> Clone for ColumnSpec<T> {
             filter_text: self.filter_text.clone(),
             width: self.width,
             min_width: self.min_width,
+            resizable: self.resizable,
             visible: self.visible,
             collation: self.collation,
         }
@@ -324,6 +335,7 @@ impl<T> fmt::Debug for ColumnSpec<T> {
             .field("filterable", &self.is_filterable())
             .field("width", &self.width)
             .field("min_width", &self.min_width)
+            .field("resizable", &self.resizable)
             .field("visible", &self.visible)
             .field("collation", &self.collation)
             .finish()
@@ -348,6 +360,7 @@ impl<T> PartialEq for ColumnSpec<T> {
         self.id == other.id
             && self.width == other.width
             && self.min_width == other.min_width
+            && self.resizable == other.resizable
             && self.visible == other.visible
             && self.collation == other.collation
             && same_closure(self.sort_key.as_ref(), other.sort_key.as_ref())

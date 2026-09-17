@@ -8,7 +8,7 @@
 //! is called `GridRow`, which would collide with the
 //! [`GridRow`](datagrid_core::GridRow) trait you implement on your row type.
 
-use crate::GridHandle;
+use crate::{COLUMN_RESIZE_STEP, GridHandle};
 use datagrid_core::{
     CellFocus, GridRow as GridRowKey, NavKey, SelectionMode, SortDirection, offset_of, total_height,
 };
@@ -141,6 +141,23 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
                     grid.record_viewport_height(size.height);
                 }
             },
+            "data-resizing": grid.resizing_column().is_some().then_some("true"),
+            // Column resizing: a ColumnResizeHandle starts the drag, the root
+            // follows it, because the pointer leaves a narrow handle at once.
+            onpointermove: move |event| {
+                if grid.resizing_column().is_none() {
+                    return;
+                }
+                // Released outside the grid, where the pointerup never reached us.
+                if event.data().held_buttons().is_empty() {
+                    grid.end_column_resize();
+                    return;
+                }
+                grid.update_column_resize(event.data().client_coordinates().x);
+            },
+            onpointerdown: move |_| grid.forget_resize_click(),
+            onpointerup: move |_| grid.end_column_resize(),
+            onpointercancel: move |_| grid.end_column_resize(),
             onfocusin: move |_| grid.set_focus_within(true),
             onfocusout: move |_| grid.set_focus_within(false),
             onfocus: move |_| {
@@ -164,6 +181,9 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
 #[component]
 pub fn GridHeader<T: GridRowKey + PartialEq + 'static>(
     grid: GridHandle<T>,
+    /// Renders a [`ColumnResizeHandle`] in every resizable column's header.
+    #[props(default)]
+    resizable: bool,
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
 ) -> Element {
     let mut grid = grid;
@@ -186,6 +206,7 @@ pub fn GridHeader<T: GridRowKey + PartialEq + 'static>(
                         key: "{column.id()}",
                         grid,
                         column_index: index,
+                        resizable,
                     }
                 }
             }
@@ -199,6 +220,10 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
     grid: GridHandle<T>,
     /// Position among the visible columns, zero-based.
     column_index: usize,
+    /// Renders a [`ColumnResizeHandle`] if the column is resizable, and enables
+    /// `Alt+ArrowLeft` / `Alt+ArrowRight` to resize from the keyboard.
+    #[props(default)]
+    resizable: bool,
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
 ) -> Element {
     let mut grid = grid;
@@ -221,11 +246,35 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
         (false, _) => None,
     };
 
+    let show_handle = resizable && column.spec().resizable;
+    let measured_id = id.clone();
+    let resize_id = id.clone();
+
+    // The keyboard alternative to dragging. Handled here rather than on the root
+    // so it only exists where a handle does, and stopped from bubbling so the
+    // root does not also treat the arrow as navigation.
+    let onkeydown = move |event: KeyboardEvent| {
+        let data = event.data();
+        if !show_handle || !data.modifiers().alt() {
+            return;
+        }
+        let delta = match data.key() {
+            Key::ArrowLeft => -COLUMN_RESIZE_STEP,
+            Key::ArrowRight => COLUMN_RESIZE_STEP,
+            _ => return,
+        };
+        grid.resize_column_by(&resize_id, delta);
+        event.prevent_default();
+        event.stop_propagation();
+    };
+
     let focused = grid.focus() == CellFocus::new(0, column_index);
     let onmounted = use_focus_pull(grid, CellFocus::new(0, column_index));
 
     let onclick = move |event: MouseEvent| {
-        if !sortable {
+        // The click that ends a resize drag lands here when the pointer is
+        // released over the header; it is not a request to sort.
+        if grid.take_resize_click() || !sortable {
             return;
         }
         grid.set_focus(CellFocus::new(0, column_index));
@@ -245,10 +294,79 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
                 None => "none",
             },
             "data-sort-priority": priority.map(|value| value.to_string()),
+            "aria-keyshortcuts": show_handle.then_some("Alt+ArrowLeft Alt+ArrowRight"),
             onmounted,
             onclick,
+            onkeydown,
+            onresize: move |event| {
+                if let Ok(size) = event.data().get_border_box_size() {
+                    grid.record_column_width(&measured_id, size.width);
+                }
+            },
             ..attributes,
             {column.render_header()}
+            if show_handle {
+                ColumnResizeHandle { grid, column_index }
+            }
+        }
+    }
+}
+
+/// A drag handle that resizes its column.
+///
+/// Rendered by [`GridHeaderCell`] when `resizable` is set; use it directly only
+/// when building a header of your own. Place it inside the header cell, usually
+/// absolutely positioned along its end edge.
+///
+/// Only the drag starts here. The pointer is followed by [`GridRoot`], because
+/// Dioxus has no pointer capture and a handle a few pixels wide would lose the
+/// pointer after the first move. A resize therefore ends when the pointer leaves
+/// the grid with the button released.
+///
+/// # Requirements
+///
+/// - **`touch-action: none`** on the handle, or a touch drag scrolls the page
+///   instead of resizing.
+///
+/// Carries `aria-hidden`: it is a pointer affordance only. Keyboard users resize
+/// with `Alt+ArrowLeft` / `Alt+ArrowRight` on the header cell, which announces
+/// those keys through `aria-keyshortcuts`. Double-clicking resets the width.
+///
+/// Renders `data-resize-handle` for styling, and `data-resizing` while dragging.
+#[component]
+pub fn ColumnResizeHandle<T: GridRowKey + PartialEq + 'static>(
+    grid: GridHandle<T>,
+    /// Position among the visible columns, zero-based.
+    column_index: usize,
+    #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
+) -> Element {
+    let mut grid = grid;
+    let columns = grid.visible_columns();
+    let Some(column) = columns.get(column_index) else {
+        return rsx! {};
+    };
+    let id = column.id().clone();
+    let reset_id = id.clone();
+    let active = grid.resizing_column().as_ref() == Some(&id);
+
+    rsx! {
+        div {
+            aria_hidden: "true",
+            "data-resize-handle": "",
+            "data-resizing": active.then_some("true"),
+            onpointerdown: move |event: PointerEvent| {
+                // No text selection and no focus change while dragging, and the
+                // header underneath must not see a press it would treat as its own.
+                event.prevent_default();
+                event.stop_propagation();
+                grid.start_column_resize(&id, event.client_coordinates().x);
+            },
+            onclick: move |event: MouseEvent| event.stop_propagation(),
+            ondoubleclick: move |event: MouseEvent| {
+                event.stop_propagation();
+                grid.reset_column_width(&reset_id);
+            },
+            ..attributes,
         }
     }
 }

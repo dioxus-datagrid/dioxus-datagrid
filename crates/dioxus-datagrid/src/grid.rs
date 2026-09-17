@@ -2,9 +2,9 @@
 
 use crate::Column;
 use datagrid_core::{
-    CellFocus, ColumnId, ColumnSpec, GridRow, GridState, NavKey, Selection, SelectionMode,
-    SortDirection, View, compute_view, navigate, reveal_scroll_top, rows_per_viewport,
-    visible_range,
+    CellFocus, ColumnId, ColumnSpec, ColumnWidth, GridRow, GridState, NavKey, Selection,
+    SelectionMode, SortDirection, View, compute_view, navigate, reveal_scroll_top,
+    rows_per_viewport, visible_range,
 };
 use dioxus::html::ScrollBehavior;
 use dioxus::html::geometry::PixelsVector2D;
@@ -115,6 +115,19 @@ impl<T: PartialEq + 'static> IntoReadSignal<T> for Memo<T> {
     }
 }
 
+/// How far one key press resizes a column, in CSS pixels.
+pub const COLUMN_RESIZE_STEP: f32 = 16.0;
+
+/// A column resize in progress: where the pointer went down and how wide the
+/// column was at that moment. Every move is measured from here rather than
+/// accumulated, so dropped or coalesced pointer events cannot make it drift.
+#[derive(Clone, Debug, PartialEq)]
+struct ColumnResize {
+    column: ColumnId,
+    start_x: f64,
+    start_width: f64,
+}
+
 /// A handle to a grid's state and derived view.
 ///
 /// `Copy`, because everything it holds is a signal. Pass it around freely; it is
@@ -153,6 +166,15 @@ pub struct GridHandle<T: GridRow + 'static> {
     /// as not rendered — enough for the grid to park focus on its root right
     /// after the cell took it.
     virtual_body: Signal<Option<(f64, usize)>>,
+    /// Rendered header cell widths, as reported by their `onresize`. A drag
+    /// starts from the width the column actually has, which for an `Auto` or
+    /// `Fraction` column only layout knows.
+    measured_widths: Signal<Vec<(ColumnId, f64)>>,
+    /// The column resize in progress, if any.
+    resize: Signal<Option<ColumnResize>>,
+    /// Set when a resize ends, so the click that follows the release is not
+    /// taken for a click on the header underneath.
+    resize_click: Signal<bool>,
     view: Memo<View>,
 }
 
@@ -239,6 +261,9 @@ where
     let root = use_signal(|| None::<Rc<MountedData>>);
     let layout = use_signal(Layout::default);
     let virtual_body = use_signal(|| None::<(f64, usize)>);
+    let measured_widths = use_signal(Vec::new);
+    let resize = use_signal(|| None::<ColumnResize>);
+    let resize_click = use_signal(|| false);
 
     // Options are plain values, so a component re-rendering with different ones
     // would otherwise be ignored after the first render. This is the pattern
@@ -279,6 +304,9 @@ where
         root,
         layout,
         virtual_body,
+        measured_widths,
+        resize,
+        resize_click,
         view,
     }
 }
@@ -451,8 +479,183 @@ impl<T: GridRow> GridHandle<T> {
     }
 
     /// Shows or hides a column at runtime.
+    ///
+    /// Refuses to hide the last visible column: a grid without columns has no
+    /// cell to hold focus and would drop out of the tab order entirely.
     pub fn set_column_hidden(&mut self, column: impl Into<ColumnId>, hidden: bool) {
+        let column = column.into();
+        if hidden && self.is_column_visible(&column) && self.visible_column_count() <= 1 {
+            return;
+        }
         self.state.write().set_column_hidden(column, hidden);
+    }
+
+    /// Whether a column is currently shown, taking both its definition and the
+    /// runtime state into account. Unknown ids are not visible.
+    #[must_use]
+    pub fn is_column_visible(&self, column: &ColumnId) -> bool {
+        let state = self.state.read();
+        self.columns
+            .read()
+            .iter()
+            .any(|entry| entry.id() == column && entry.spec().is_visible(&state.hidden_columns))
+    }
+
+    // -- column widths -------------------------------------------------------
+
+    /// The width to lay a column out with: a width chosen by resizing, clamped
+    /// to the column's minimum, or else the column's own width.
+    #[must_use]
+    pub fn column_width(&self, column: &Column<T>) -> ColumnWidth {
+        column.spec().effective_width(&self.state.read())
+    }
+
+    /// Sets a column's width, clamped to its minimum. Ignores unknown columns
+    /// and columns that are not resizable.
+    pub fn set_column_width(&mut self, column: &ColumnId, width: f32) {
+        let clamped = {
+            let columns = self.columns.peek();
+            let Some(spec) = columns
+                .iter()
+                .map(Column::spec)
+                .find(|spec| &spec.id == column && spec.resizable)
+            else {
+                return;
+            };
+            spec.clamp_width(width)
+        };
+        if self.state.peek().column_width(column) != Some(clamped) {
+            self.state.write().set_column_width(column.clone(), clamped);
+        }
+    }
+
+    /// Returns a column to the width it was defined with.
+    pub fn reset_column_width(&mut self, column: &ColumnId) {
+        if self.state.peek().column_width(column).is_some() {
+            self.state.write().reset_column_width(column);
+        }
+    }
+
+    /// Records the rendered width of a column's header cell.
+    pub fn record_column_width(&mut self, column: &ColumnId, width: f64) {
+        let known = self
+            .measured_widths
+            .peek()
+            .iter()
+            .find(|(id, _)| id == column)
+            .map(|(_, measured)| *measured);
+        match known {
+            Some(measured) if measured == width => {}
+            Some(_) => {
+                if let Some(entry) = self
+                    .measured_widths
+                    .write()
+                    .iter_mut()
+                    .find(|(id, _)| id == column)
+                {
+                    entry.1 = width;
+                }
+            }
+            None => self.measured_widths.write().push((column.clone(), width)),
+        }
+    }
+
+    /// The width a column has right now: the one set by resizing, else the one
+    /// last measured, else its fixed width. `None` before an `Auto` or
+    /// `Fraction` column has been laid out.
+    #[must_use]
+    pub fn current_column_width(&self, column: &ColumnId) -> Option<f64> {
+        let defined = self
+            .columns
+            .peek()
+            .iter()
+            .find(|entry| entry.id() == column)
+            .map(|entry| entry.spec().effective_width(&self.state.peek()));
+        // A resized or fixed width is authoritative; a measurement may still
+        // describe the layout from before it was applied.
+        if let Some(ColumnWidth::Px(width)) = defined {
+            return Some(f64::from(width));
+        }
+        self.measured_widths
+            .peek()
+            .iter()
+            .find(|(id, _)| id == column)
+            .map(|(_, width)| *width)
+    }
+
+    /// Widens (positive `delta`) or narrows a column by `delta` pixels, starting
+    /// from its current width. The keyboard alternative to dragging.
+    pub fn resize_column_by(&mut self, column: &ColumnId, delta: f32) {
+        if let Some(width) = self.current_column_width(column) {
+            #[allow(clippy::cast_possible_truncation)]
+            self.set_column_width(column, width as f32 + delta);
+        }
+    }
+
+    /// Starts resizing a column from a pointer at `client_x`.
+    ///
+    /// Does nothing for a column that is not resizable or not yet laid out.
+    pub fn start_column_resize(&mut self, column: &ColumnId, client_x: f64) {
+        let resizable = self
+            .columns
+            .peek()
+            .iter()
+            .any(|entry| entry.id() == column && entry.spec().resizable);
+        if !resizable {
+            return;
+        }
+        if let Some(start_width) = self.current_column_width(column) {
+            self.resize.set(Some(ColumnResize {
+                column: column.clone(),
+                start_x: client_x,
+                start_width,
+            }));
+        }
+    }
+
+    /// Follows the pointer during a resize. A no-op when none is in progress.
+    pub fn update_column_resize(&mut self, client_x: f64) {
+        let Some(resize) = self.resize.peek().clone() else {
+            return;
+        };
+        let width = resize.start_width + (client_x - resize.start_x);
+        #[allow(clippy::cast_possible_truncation)]
+        self.set_column_width(&resize.column, width as f32);
+    }
+
+    /// Ends the resize in progress, keeping the width it reached.
+    pub fn end_column_resize(&mut self) {
+        if self.resize.peek().is_some() {
+            self.resize.set(None);
+            self.resize_click.set(true);
+        }
+    }
+
+    /// Whether the click being handled is the one that ended a resize, clearing
+    /// the flag. A header checks this before sorting.
+    pub fn take_resize_click(&mut self) -> bool {
+        let pending = *self.resize_click.peek();
+        if pending {
+            self.resize_click.set(false);
+        }
+        pending
+    }
+
+    /// Discards a resize click that never arrived, because the pointer was
+    /// released somewhere without a click handler. Called on the next press.
+    pub fn forget_resize_click(&mut self) {
+        if *self.resize_click.peek() {
+            self.resize_click.set(false);
+        }
+    }
+
+    /// The column being resized right now, if any.
+    #[must_use]
+    pub fn resizing_column(&self) -> Option<ColumnId> {
+        self.resize
+            .read()
+            .as_ref()
+            .map(|resize| resize.column.clone())
     }
 
     // -- selection -----------------------------------------------------------
@@ -529,9 +732,17 @@ impl<T: GridRow> GridHandle<T> {
     // -- focus ---------------------------------------------------------------
 
     /// Which cell currently holds focus, in view coordinates.
+    ///
+    /// Clamped to the cells that exist right now. Filtering can remove the
+    /// focused row and hiding a column can remove the focused column; without
+    /// the clamp no cell would carry `tabindex="0"` and the grid would drop out
+    /// of the tab order.
     #[must_use]
     pub fn focus(&self) -> CellFocus {
-        *self.focus.read()
+        let focus = *self.focus.read();
+        let last_row = self.focusable_row_count().saturating_sub(1);
+        let last_col = self.visible_column_count().saturating_sub(1);
+        CellFocus::new(focus.row.min(last_row), focus.col.min(last_col))
     }
 
     /// Moves the focus directly, without the keyboard.
@@ -579,7 +790,7 @@ impl<T: GridRow> GridHandle<T> {
     /// root stands in as the tab stop.
     #[must_use]
     pub fn focus_is_rendered(&self) -> bool {
-        let row = self.focus.read().row;
+        let row = self.focus().row;
         match (row.checked_sub(1), self.rendered_range()) {
             // The header is never virtualized away.
             (None, _) | (_, None) => true,
@@ -685,7 +896,7 @@ impl<T: GridRow> GridHandle<T> {
         let Some((row_height, _)) = *self.virtual_body.peek() else {
             return;
         };
-        let Some(body_row) = self.focus.peek().row.checked_sub(1) else {
+        let Some(body_row) = self.focus().row.checked_sub(1) else {
             return;
         };
         let layout = *self.layout.peek();

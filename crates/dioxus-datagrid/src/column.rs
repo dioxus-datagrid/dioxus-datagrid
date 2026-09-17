@@ -132,6 +132,14 @@ impl<T> Column<T> {
         self
     }
 
+    /// Sets whether the user may change this column's width. Columns are
+    /// resizable by default, wherever the header renders resize handles.
+    #[must_use]
+    pub fn resizable(mut self, resizable: bool) -> Self {
+        self.spec = self.spec.resizable(resizable);
+        self
+    }
+
     /// Sets the text collation used when sorting this column.
     #[must_use]
     pub fn collation(mut self, collation: TextCollation) -> Self {

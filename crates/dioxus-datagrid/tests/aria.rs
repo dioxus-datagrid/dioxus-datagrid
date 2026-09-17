@@ -401,3 +401,68 @@ fn a_virtual_body_renders_a_window_and_pads_for_the_rest() {
     );
     assert!(html.contains("height: 30px;"));
 }
+
+/// Renders a header with resize handles, where `age` opts out of resizing.
+fn render_resizable() -> String {
+    #[component]
+    fn Resizable() -> Element {
+        let rows = use_signal(users);
+        let cols = use_hook(|| {
+            let mut columns = columns();
+            let age = columns.remove(1).resizable(false);
+            columns.push(age);
+            columns
+        });
+        let grid = use_grid(rows, cols, GridOptions::default());
+        rsx! {
+            GridRoot { grid,
+                GridHeader { grid, resizable: true }
+                GridBody { grid }
+            }
+        }
+    }
+
+    let mut dom = VirtualDom::new(Resizable);
+    dom.rebuild_in_place();
+    dioxus_ssr::render(&dom)
+}
+
+#[test]
+fn resizable_headers_render_a_hidden_handle_and_announce_the_keys() {
+    let html = render_resizable();
+
+    // One handle, for the resizable column only.
+    assert_eq!(count(&html, "data-resize-handle"), 1, "{html}");
+    assert_eq!(
+        count(&html, r#"aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight""#),
+        1,
+        "{html}"
+    );
+    // The handle is a pointer affordance; keyboard users get the shortcuts.
+    assert!(
+        html.contains(r#"aria-hidden="true" data-resize-handle"#),
+        "{html}"
+    );
+    // No resize in progress.
+    assert!(!html.contains("data-resizing"), "{html}");
+}
+
+#[test]
+fn headers_without_resizable_render_no_handles() {
+    let html = render(Setup::builder().build());
+    assert!(!html.contains("data-resize-handle"));
+    assert!(!html.contains("aria-keyshortcuts"));
+}
+
+#[test]
+fn a_hidden_column_leaves_the_counts_and_indices_contiguous() {
+    let mut state = GridState::new();
+    state.set_column_hidden("name", true);
+    let html = render(Setup::builder().state(Some(state)).build());
+
+    assert!(html.contains(r#"aria-colcount="1""#), "{html}");
+    assert!(!html.contains(r#"aria-colindex="2""#), "{html}");
+    assert!(!html.contains(">Name<"), "{html}");
+    // The remaining column still holds the tab stop.
+    assert_eq!(count(&html, r#"tabindex="0""#), 1, "{html}");
+}
