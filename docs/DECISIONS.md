@@ -544,3 +544,32 @@ Fehlerzustand in den Primitives und das Verwerfen veralteter Antworten.
 **Tests.** `crates/dioxus-datagrid/tests/remote.rs` treibt eine echte `VirtualDom` auf Tokio mit
 pausierter Zeit: simulierte Latenzen sind exakt, die Tests laufen in Millisekunden. Zusätzlich
 prüft Playwright `examples/server` im Browser, einschließlich des abgebrochenen langsamen Requests.
+
+---
+
+## ADR-0021 — Fullstack-Beispiel mit SQLite
+
+**Kontext.** `examples/server` simuliert den Server im Prozess. Offen blieb, wie ein echter Server
+eine `GridQuery` beantwortet — und was dabei sicherheitsrelevant ist.
+
+**Entscheidung.** `examples/fullstack`: eine Dioxus-Server-Funktion (`#[post("/api/employees")]`)
+fragt eine SQLite-Datenbank im Speicher ab.
+
+- **`rusqlite` mit `bundled`, nur im Beispiel und nur hinter dem `server`-Feature.** Die Crates
+  bekommen keine Datenbank-Abhängigkeit, und der WASM-Client-Build sieht `rusqlite` nie. Mit dem
+  Nutzer abgestimmt. `bundled` kompiliert SQLite mit, damit das Beispiel ohne installierte
+  Bibliothek auf allen drei CI-Betriebssystemen baut.
+- **Eine feste Spaltenliste ist die Sicherheitsgrenze.** Spalten-IDs kommen vom Client und werden
+  nur nachgeschlagen, nie ins SQL eingesetzt; unbekannte IDs werden ignoriert, wie lokal im Grid.
+  Filter- und Suchtext gehen ausschließlich als gebundene Parameter, `%`, `_` und `\\` darin
+  werden für `LIKE` maskiert. Getestet mit feindseligen IDs und Texten.
+- **Das SQL muss exakt wie das Grid antworten.** Ein Test vergleicht Zeilen und Gesamtzahl der
+  SQL-Abfrage mit `compute_view` über dieselben Daten, für Sortierung, Suche, Filter und Paging.
+  `COLLATE NOCASE` entspricht der Standard-Sortierung ohne Groß-/Kleinschreibung, `id` als letzter
+  Sortierschlüssel der stabilen Sortierung — und verhindert, dass Zeilen zwischen Seiten springen.
+- **Ein `Mutex` um eine Verbindung** statt Pool und `spawn_blocking`: genug für ein Beispiel, im
+  Code als Vereinfachung benannt.
+
+**Folge für die CI.** Das Beispiel ist Workspace-Mitglied; `--all-features` baut es mit `server`
+und vereinigt die Dioxus-Features workspace-weit. Clippy und Tests laufen damit ohne Befund.
+Playwright startet das Beispiel mit `dx run` als dritten Server.

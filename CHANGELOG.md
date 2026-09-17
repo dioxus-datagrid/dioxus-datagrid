@@ -17,6 +17,8 @@ All notable changes to this project are documented here. The format follows
 - `datagrid-core`: `GridQuery`, `Page`, the `DataSource` trait, `RequestTracker` and
   `DEFAULT_REMOTE_PAGE_SIZE`.
 - `examples/server`: a simulated server with adjustable latency and a request log.
+- `examples/fullstack`: a Dioxus server function answering grid queries from SQLite, with the
+  translation of `GridQuery` into SQL and a column allow-list.
 
 ### Changed
 

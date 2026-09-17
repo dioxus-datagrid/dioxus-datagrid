@@ -154,7 +154,11 @@ rsx! {
 ```
 
 The same primitives render it. [`examples/server`](examples/server) runs against a simulated server
-with adjustable latency.
+with adjustable latency; [`examples/fullstack`](examples/fullstack) queries SQLite through a Dioxus
+server function and shows how a `GridQuery` becomes SQL.
+
+Column ids in a query come from the client. Map them to SQL through a fixed list of allowed columns
+and bind all filter text as parameters — never build SQL from the ids or text directly.
 
 ## Accessibility
 
