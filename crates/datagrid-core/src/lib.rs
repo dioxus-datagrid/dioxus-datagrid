@@ -63,6 +63,7 @@
 
 mod column;
 mod navigate;
+mod remote;
 mod selection;
 mod sort;
 mod state;
@@ -73,6 +74,9 @@ pub use column::{
     ColumnId, ColumnSpec, ColumnWidth, DEFAULT_MIN_COLUMN_WIDTH, FilterTextFn, SortKeyFn,
 };
 pub use navigate::{CellFocus, NavKey, navigate};
+pub use remote::{
+    DEFAULT_REMOTE_PAGE_SIZE, DataSource, GridQuery, Page, RequestId, RequestTracker,
+};
 pub use selection::{Selection, SelectionMode};
 pub use sort::{SortDirection, SortState, SortValue, TextCollation};
 pub use state::{GridState, PageState};
