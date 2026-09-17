@@ -192,7 +192,15 @@ impl GridState {
     }
 
     /// Records an interactively chosen column width, in CSS pixels.
+    ///
+    /// A non-finite width is ignored: it would be no usable layout, and JSON
+    /// has no representation for it, so the state would stop round tripping.
+    /// Clamping to the column's minimum happens when the width is applied, in
+    /// [`ColumnSpec::effective_width`](crate::ColumnSpec::effective_width).
     pub fn set_column_width(&mut self, column: impl Into<ColumnId>, width: f32) {
+        if !width.is_finite() {
+            return;
+        }
         let column = column.into();
         if let Some(entry) = self.column_widths.iter_mut().find(|(id, _)| *id == column) {
             entry.1 = width;

@@ -272,3 +272,60 @@ proptest! {
         prop_assert!(range.contains(&index), "{index} not in rendered range {range:?}");
     }
 }
+
+/// Any state the grid can reach, built through the same helpers the UI uses.
+#[cfg(feature = "serde")]
+fn arb_state() -> impl Strategy<Value = GridState> {
+    (
+        arb_sort(),
+        "[aAbB]{0,2}",
+        prop::option::of("[aAbB]{0,2}"),
+        prop::option::of((0_usize..5, 1_usize..8)),
+        prop::sample::subsequence(vec!["label", "score", "unknown-column"], 0..=3),
+        prop::collection::vec(
+            (
+                prop::sample::select(vec!["label", "score", "unknown-column"]),
+                0.0_f32..500.0,
+            ),
+            0..3,
+        ),
+    )
+        .prop_map(|(sort, filter, search, page, hidden, widths)| {
+            let mut state = GridState {
+                sort,
+                page: page.map(|(index, size)| PageState { index, size }),
+                ..GridState::new()
+            };
+            state.set_filter("label", filter);
+            if let Some(search) = search {
+                state.search = Some(search);
+            }
+            for column in hidden {
+                state.set_column_hidden(column, true);
+            }
+            for (column, width) in widths {
+                state.set_column_width(column, width);
+            }
+            state
+        })
+}
+
+#[cfg(feature = "serde")]
+proptest! {
+    /// Phase 5 acceptance: state that went through storage shows the same rows
+    /// in the same order as the state it was saved from.
+    #[test]
+    fn a_serde_round_trip_yields_the_identical_view(
+        rows in arb_rows(40),
+        state in arb_state(),
+    ) {
+        let json = serde_json::to_string(&state).unwrap();
+        let restored: GridState = serde_json::from_str(&json).unwrap();
+
+        prop_assert_eq!(&restored, &state);
+        prop_assert_eq!(
+            compute_view(&rows, &columns(), &restored),
+            compute_view(&rows, &columns(), &state)
+        );
+    }
+}

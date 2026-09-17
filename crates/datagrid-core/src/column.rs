@@ -1,6 +1,6 @@
 //! Column identity and column specifications.
 
-use crate::{SortValue, TextCollation};
+use crate::{GridState, SortValue, TextCollation};
 use std::borrow::Cow;
 use std::fmt;
 use std::rc::Rc;
@@ -72,6 +72,11 @@ impl PartialEq<&str> for ColumnId {
 /// [`Rc`] rather than `Arc` because a Dioxus `VirtualDom` is single-threaded.
 pub type SortKeyFn<T> = Rc<dyn for<'a> Fn(&'a T) -> SortValue<'a>>;
 
+/// The narrowest a column can be resized to when it sets no
+/// [`min_width`](ColumnSpec::min_width), in CSS pixels. Wide enough for a short
+/// label and the resize handle.
+pub const DEFAULT_MIN_COLUMN_WIDTH: f32 = 48.0;
+
 /// Extracts the text a column filters and searches on.
 pub type FilterTextFn<T> = Rc<dyn Fn(&T) -> String>;
 
@@ -108,7 +113,8 @@ pub struct ColumnSpec<T> {
     pub filter_text: Option<FilterTextFn<T>>,
     /// Layout width.
     pub width: ColumnWidth,
-    /// Lower bound for interactive resizing, in CSS pixels.
+    /// Lower bound for interactive resizing, in CSS pixels. `None` means
+    /// [`DEFAULT_MIN_COLUMN_WIDTH`].
     pub min_width: Option<f32>,
     /// Whether the column is shown by default.
     ///
@@ -240,6 +246,47 @@ impl<T> ColumnSpec<T> {
     #[must_use]
     pub fn is_visible(&self, hidden_columns: &[ColumnId]) -> bool {
         self.visible && !hidden_columns.contains(&self.id)
+    }
+
+    /// The narrowest this column may be resized to, in CSS pixels.
+    ///
+    /// [`min_width`](ColumnSpec::min_width) if it is set to a usable value,
+    /// otherwise [`DEFAULT_MIN_COLUMN_WIDTH`].
+    #[must_use]
+    pub fn resize_min_width(&self) -> f32 {
+        match self.min_width {
+            Some(min) if min.is_finite() && min >= 0.0 => min,
+            _ => DEFAULT_MIN_COLUMN_WIDTH,
+        }
+    }
+
+    /// Clamps a proposed width to what this column allows.
+    ///
+    /// Never narrower than [`resize_min_width`](ColumnSpec::resize_min_width).
+    /// A non-finite width, such as one computed from a missing measurement,
+    /// yields the minimum rather than an unusable layout.
+    #[must_use]
+    pub fn clamp_width(&self, width: f32) -> f32 {
+        let min = self.resize_min_width();
+        if width.is_finite() {
+            width.max(min)
+        } else {
+            min
+        }
+    }
+
+    /// The width to lay this column out with, given the runtime state.
+    ///
+    /// A width chosen by resizing, recorded in
+    /// [`GridState::column_widths`](crate::GridState::column_widths), wins over
+    /// the column's own [`width`](ColumnSpec::width) and is clamped to the
+    /// minimum. State restored from storage can therefore never make a column
+    /// narrower than its definition allows.
+    #[must_use]
+    pub fn effective_width(&self, state: &GridState) -> ColumnWidth {
+        state
+            .column_width(&self.id)
+            .map_or(self.width, |width| ColumnWidth::Px(self.clamp_width(width)))
     }
 
     /// Whether this column can take part in filtering and search.

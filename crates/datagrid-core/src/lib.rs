@@ -69,7 +69,9 @@ mod state;
 mod view;
 mod virtualize;
 
-pub use column::{ColumnId, ColumnSpec, ColumnWidth, FilterTextFn, SortKeyFn};
+pub use column::{
+    ColumnId, ColumnSpec, ColumnWidth, DEFAULT_MIN_COLUMN_WIDTH, FilterTextFn, SortKeyFn,
+};
 pub use navigate::{CellFocus, NavKey, navigate};
 pub use selection::{Selection, SelectionMode};
 pub use sort::{SortDirection, SortState, SortValue, TextCollation};
