@@ -249,8 +249,8 @@ Geprüft am 2026-09-17 mit dem Playground (`dx serve --android --release --packa
   Nicht-MSVC-Ziel nach GNU-Regeln, in denen `\` ein Escape ist — aus `C:\dev\…` wird `C:dev…`.
   Nachgestellt mit einer Antwortdatei direkt gegen `clang.exe`. Umgehung: in
   `ndk\<version>\toolchains\llvm\prebuilt\windows-x86_64\bin\x86_64-linux-android28-clang.cmd`
-  (und `aarch64-…`) `--rsp-quoting=windows` vor `%*` ergänzen. Bug-Report für DioxusLabs/dioxus
-  vorbereitet.
+  (und `aarch64-…`) `--rsp-quoting=windows` vor `%*` ergänzen. Gemeldet als
+  [DioxusLabs/dioxus#5847](https://github.com/DioxusLabs/dioxus/issues/5847).
 - `JAVA_HOME` muss auf das Verzeichnis zeigen (`…\Android Studio\jbr`), nicht auf `java.exe`.
 
 **Noch offen:** Desktop (`dx serve --desktop --release --package playground --no-default-features
