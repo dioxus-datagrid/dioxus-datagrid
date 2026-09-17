@@ -158,6 +158,19 @@ Mit `GridHeader { resizable: true }` trägt jede in der Breite veränderbare Kop
 - Das Spaltenmenü der Registry-Komponente liegt **außerhalb** von `role="grid"` und besteht aus
   normalen Checkboxen mit Label.
 
+## Serverseitige Daten
+
+Bei `use_grid_remote` kommen die Zeilen seitenweise vom Server.
+
+- `aria-rowcount` und `aria-rowindex` beziehen sich auf die **Gesamtzahl des Servers**, nicht auf
+  die empfangene Seite — genau wie beim lokalen Paging.
+- **Während eine Anfrage läuft, trägt das Grid `aria-busy="true"`** und zeigt weiter die vorherige
+  Seite. Es wird nicht leer; Fokus und Tab-Stopp bleiben erhalten.
+- **`GridStatus` ist eine Live-Region** (`role="status"`, `aria-live="polite"`). Der Container
+  steht immer im DOM, denn Screenreader sagen nur Änderungen in bereits vorhandenen Live-Regionen
+  an. Er zeigt „Loading…" während einer Anfrage oder den Fehler mit einem „Retry"-Button.
+  Beide Texte sind per Prop übersetzbar.
+
 ## Automatisiert geprüft
 
 - **Markup:** SSR-Tests in `crates/dioxus-datagrid/tests/aria.rs`.
@@ -170,6 +183,8 @@ Mit `GridHeader { resizable: true }` trägt jede in der Breite veränderbare Kop
 - **Spalten:** `tests/e2e/columns.spec.ts` — Ziehen, Mindestbreite, `Alt`+Pfeiltasten,
   Zurücksetzen, Ausblenden bis zur letzten Spalte, Tab-Stopp nach Ausblenden der fokussierten
   Spalte.
+- **Serverseitige Daten:** `crates/dioxus-datagrid/tests/remote.rs` (`aria-busy`, Statusregion,
+  Zählung über die Server-Gesamtzahl) und `tests/e2e/server.spec.ts` im Browser.
 - **`axe`:** `@axe-core/playwright` über die ganze Komponente, im hellen **und** im dunklen Theme,
   ohne Befund. Der erste Lauf fand zu schwachen Kontrast bei gedämpftem Text (3,61:1); behoben,
   siehe ADR-0014.

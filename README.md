@@ -125,6 +125,37 @@ rsx! {
 `set_page`, `set_column_hidden`, `set_column_width`, `select`, `toggle_select`, `clear_selection`,
 `state` / `set_state` — for building controls of your own.
 
+## Server-side data
+
+For data too large to send to the client, `use_grid_remote` asks a `DataSource` for one page at a
+time. Every sort, filter, search or page change becomes a `GridQuery`; typing is debounced, and a
+slow answer to an old query never overwrites a newer one.
+
+```rust
+impl DataSource<User> for Api {
+    type Error = String;
+
+    async fn fetch(&self, query: GridQuery) -> Result<Page<User>, String> {
+        // query.sort, query.column_filters, query.search, query.page, query.page_size
+        todo!("ask your server")
+    }
+}
+
+let grid = use_grid_remote(Api, columns, GridOptions::paged(50));
+
+rsx! {
+    GridStatus { grid }
+    GridRoot { grid,
+        GridHeader { grid }
+        GridBody { grid }
+    }
+    GridPagination { grid }
+}
+```
+
+The same primitives render it. [`examples/server`](examples/server) runs against a simulated server
+with adjustable latency.
+
 ## Accessibility
 
 The grid is a single tab stop with a roving tabindex. Arrow keys move between cells, `Home`/`End`

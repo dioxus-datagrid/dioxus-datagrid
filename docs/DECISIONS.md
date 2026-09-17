@@ -501,3 +501,46 @@ endet mit einem Release. Reihenfolge wie bei 0.2.0: Versionen anheben, veröffen
 **Alternativen.**
 - *Commits bis nach Phase 6 lokal halten.* Verworfen: eine ganze Phase ungesichert und ohne CI.
 - *Ohne Release pushen.* Verworfen: die dokumentierte Installation wäre bis dahin kaputt.
+
+---
+
+## ADR-0020 — Serverseitige Daten: derselbe Handle, Abbruch plus Tracker, Timer per `cfg`
+
+**Kontext.** Phase 6 verlangt `use_grid_remote` mit Debounce für Suche und Filter, Lade- und
+Fehlerzustand in den Primitives und das Verwerfen veralteter Antworten.
+
+**Entscheidungen.**
+
+- **`use_grid_remote` liefert denselben `GridHandle`** wie `use_grid`. Beide Hooks teilen eine
+  Basis, die alle Signals außer der View anlegt; nur die View unterscheidet sich. Lokal rechnet
+  `compute_view` sie aus, remote ist sie die empfangene Seite mit der Server-Gesamtzahl als
+  `filtered_len`. Dadurch funktionieren alle Primitives, Tastaturnavigation, Selektion,
+  `aria-rowindex` und Spaltenbreiten unverändert.
+- **Veraltete Antworten, doppelt abgesichert.** Eine neue Anfrage bricht den laufenden Task ab
+  (`Task::cancel`), was den Future verwirft und bei einer passenden Datenquelle auch die
+  Netzwerkanfrage. Zusätzlich vergibt ein `RequestTracker` aus dem Core fortlaufende IDs, und nur
+  die Antwort auf die jüngste wird übernommen. Das deckt Quellen ab, deren Arbeit sich nicht
+  abbrechen lässt. Mutationstest: Ohne beides schlägt der Akzeptanztest fehl; jeder der zwei
+  Mechanismen allein reicht, damit er besteht.
+- **Debounce nur beim Tippen.** `GridQuery::is_typing_change` unterscheidet: Ändern sich nur
+  Suche oder Spaltenfilter, wartet die Anfrage 300 ms (`GridOptions::debounce`). Sortieren und
+  Blättern sind einzelne, bewusste Aktionen und laden sofort.
+- **Timer per `cfg`, nicht per `web-sys` oder `eval`.** Dioxus 0.7 hat keinen eigenen Timer.
+  `tokio::time` (nur Feature `time`) außerhalb von WASM, `gloo-timers` auf WASM — dieselbe
+  Aufteilung wie `dioxus-sdk-time`. Beide stehen ohnehin im Baum des jeweiligen Renderers
+  (`dioxus-web` hängt an `gloo-timers`, Desktop, Mobile und Server laufen auf Tokio); keine
+  zieht `web-sys`. Der `web-sys`-Guard der CI bleibt leer. Auf WASM steht `web-sys` über Dioxus
+  selbst (`subsecond`) schon im Baum, auch vor dieser Änderung.
+- **Die vorherige Seite bleibt beim Laden stehen**, statt leer zu werden; `aria-busy="true"` am
+  Grid kündigt die Änderung an. `GridStatus` ist eine Live-Region, die immer im DOM steht, weil
+  Screenreader nur Änderungen in bereits vorhandenen Live-Regionen ansagen.
+- **Die Registry-Komponente bekommt keinen Remote-Modus.** Sie würde entweder doppelt so lang oder
+  müsste ihre `data`-Prop aufgeben; beides widerspricht „dünn bleiben". Remote-Grids werden aus
+  den Primitives gebaut, wie `examples/server` zeigt. Nebeneffekt: Die Komponente nutzt keine
+  neuen Crate-APIs, Phase 6 erzwingt also keinen Release vor dem Push (vgl. ADR-0019).
+- **Nicht kombiniert mit Virtualisierung.** Remote lädt seitenweise; ein virtualisiertes
+  Remote-Grid bräuchte blockweises Nachladen beim Scrollen. Nicht Teil von `PLAN.md`.
+
+**Tests.** `crates/dioxus-datagrid/tests/remote.rs` treibt eine echte `VirtualDom` auf Tokio mit
+pausierter Zeit: simulierte Latenzen sind exakt, die Tests laufen in Millisekunden. Zusätzlich
+prüft Playwright `examples/server` im Browser, einschließlich des abgebrochenen langsamen Requests.

@@ -6,6 +6,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Server-side data: `use_grid_remote` takes a `DataSource` and returns the same `GridHandle` as
+  `use_grid`, so every primitive works with it. Typing in search or filters is debounced
+  (`GridOptions::debounce`, 300ms by default); sorting and paging load at once. A slower response
+  to an older request never overwrites a newer one.
+- `GridHandle::is_loading`, `load_error` and `reload`; `GridRoot` sets `aria-busy` while loading.
+- `GridStatus`, a live region showing the loading state or the error with a retry button.
+- `datagrid-core`: `GridQuery`, `Page`, the `DataSource` trait, `RequestTracker` and
+  `DEFAULT_REMOTE_PAGE_SIZE`.
+- `examples/server`: a simulated server with adjustable latency and a request log.
+
+### Changed
+
+- `GridOptions` has a new public field, `debounce`.
+- `dioxus-datagrid` depends on `tokio` (`time` only) outside WASM and on `gloo-timers` on WASM,
+  for the debounce. Both are already in the tree of the renderer for that platform.
+
 ## [0.3.0] - 2026-09-17
 
 ### Added
