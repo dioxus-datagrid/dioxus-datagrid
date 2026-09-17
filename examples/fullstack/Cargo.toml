@@ -1,0 +1,24 @@
+[package]
+name = "example-fullstack"
+version = "0.1.0"
+publish = false
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+dioxus = { workspace = true, features = ["fullstack"] }
+datagrid-core = { workspace = true, features = ["serde"] }
+dioxus-datagrid = { workspace = true, features = ["serde"] }
+serde = { workspace = true }
+# Server only: the database never reaches the client build.
+rusqlite = { version = "0.40", features = ["bundled"], optional = true }
+
+[features]
+default = ["web"]
+web = ["dioxus/web"]
+desktop = ["dioxus/desktop"]
+server = ["dioxus/server", "dep:rusqlite"]
+
+[lints.rust]
+unsafe_code = "forbid"
