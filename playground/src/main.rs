@@ -9,7 +9,7 @@ mod components;
 
 use components::data_grid::DataGrid;
 use dioxus::prelude::*;
-use dioxus_datagrid::{Column, ColumnWidth, GridRow, SelectionMode};
+use dioxus_datagrid::{Column, ColumnWidth, GridRow, GridState, SelectionMode};
 
 const STYLE: Asset = asset!("/assets/playground.css");
 
@@ -129,6 +129,37 @@ fn columns() -> Vec<Column<Employee>> {
     ]
 }
 
+/// Where the playground keeps the grid state between visits.
+const STORAGE_KEY: &str = "dioxus-datagrid-playground";
+
+/// Reads the saved grid state from `localStorage`.
+///
+/// Persistence is application code, not library code: the library hands out a
+/// serializable `GridState` and takes one back, and where it lives is up to the
+/// app. `document::eval` works on web, desktop and mobile alike.
+async fn load_state() -> Option<GridState> {
+    let script = format!("return localStorage.getItem({STORAGE_KEY:?});");
+    let saved: Option<String> = document::eval(&script).join().await.ok()?;
+    // State from an older version with fields missing still loads; anything
+    // unreadable is ignored rather than breaking the page.
+    serde_json::from_str(&saved?).ok()
+}
+
+/// Writes the grid state to `localStorage`.
+fn save_state(state: &GridState) {
+    let Ok(json) = serde_json::to_string(state) else {
+        return;
+    };
+    let script = format!("localStorage.setItem({STORAGE_KEY:?}, await dioxus.recv());");
+    let _ = document::eval(&script).send(json);
+}
+
+/// Forgets the saved state and starts over.
+fn reset_state() {
+    let script = format!("localStorage.removeItem({STORAGE_KEY:?}); location.reload();");
+    let _ = document::eval(&script);
+}
+
 #[component]
 fn App() -> Element {
     let mut rows = use_signal(employees);
@@ -139,6 +170,9 @@ fn App() -> Element {
     let mut virtualized = use_signal(|| false);
     let mut overscan = use_signal(|| 20_usize);
     let mut selected = use_signal(Vec::<u32>::new);
+    // Loaded before the grid renders: `initial_state` is read on the first
+    // render only.
+    let saved = use_resource(load_state);
 
     rsx! {
         document::Link { rel: "stylesheet", href: STYLE }
@@ -156,11 +190,12 @@ fn App() -> Element {
             div { class: "controls",
                 fieldset {
                     legend { "Selection" }
-                    for (label , mode) in [
+                    for (label, mode) in [
                         ("None", SelectionMode::None),
                         ("Single", SelectionMode::Single),
                         ("Multi", SelectionMode::Multi),
-                    ] {
+                    ]
+                    {
                         label { key: "{label}",
                             input {
                                 r#type: "radio",
@@ -225,26 +260,38 @@ fn App() -> Element {
                     }
                 }
 
+                button {
+                    r#type: "button",
+                    "data-testid": "reset-state",
+                    onclick: move |_| reset_state(),
+                    "Reset saved state"
+                }
+
                 output { "data-testid": "selected-keys", class: "selected",
                     "selected: [{selected().iter().map(u32::to_string).collect::<Vec<_>>().join(\", \")}]"
                 }
             }
 
-            DataGrid {
-                data: rows,
-                columns: cols,
-                page_size: (paged() && !virtualized()).then_some(5),
-                row_height: virtualized().then_some(ROW_HEIGHT),
-                overscan: overscan(),
-                height: virtualized().then(|| "480px".to_owned()),
-                selection: selection(),
-                column_filters: true,
-                search_placeholder: "Search all columns",
-                on_selection_change: move |keys: Vec<u32>| {
-                    let mut keys = keys;
-                    keys.sort_unstable();
-                    selected.set(keys);
-                },
+            if let Some(initial_state) = saved.read().clone() {
+                DataGrid {
+                    data: rows,
+                    columns: cols,
+                    page_size: (paged() && !virtualized()).then_some(5),
+                    row_height: virtualized().then_some(ROW_HEIGHT),
+                    overscan: overscan(),
+                    height: virtualized().then(|| "480px".to_owned()),
+                    selection: selection(),
+                    column_filters: true,
+                    search_placeholder: "Search all columns",
+                    on_selection_change: move |keys: Vec<u32>| {
+                        let mut keys = keys;
+                        keys.sort_unstable();
+                        selected.set(keys);
+                    },
+                    column_picker: true,
+                    initial_state,
+                    on_state_change: move |state: GridState| save_state(&state),
+                }
             }
         }
     }

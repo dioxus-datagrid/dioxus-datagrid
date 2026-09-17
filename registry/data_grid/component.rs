@@ -10,7 +10,9 @@ use dioxus::prelude::*;
 use dioxus_datagrid::primitives::{
     GridBody, GridColumnFilter, GridHeader, GridPagination, GridRoot, GridSearch, VirtualGridBody,
 };
-use dioxus_datagrid::{Column, ColumnWidth, GridOptions, GridRow, SelectionMode, use_grid};
+use dioxus_datagrid::{
+    Column, ColumnWidth, GridOptions, GridRow, GridState, SelectionMode, use_grid,
+};
 
 const THEME: Asset = asset!("/assets/dx-components-theme.css");
 const STYLE: Asset = asset!("/src/components/data_grid/style.css");
@@ -56,6 +58,26 @@ pub struct DataGridProps<T: GridRow + PartialEq + 'static> {
     /// A CSS height for the grid, such as `"480px"`. The grid scrolls within it.
     #[props(default)]
     pub height: Option<String>,
+    /// Lets the user resize columns by dragging the edge of a header, or with
+    /// `Alt+ArrowLeft` / `Alt+ArrowRight` on a focused header.
+    #[props(default = true)]
+    pub resizable_columns: bool,
+    /// Shows a menu for showing and hiding columns. Columns defined with
+    /// `.hidden()` stay hidden and are not listed.
+    #[props(default)]
+    pub column_picker: bool,
+    /// Label of the column menu.
+    #[props(default = String::from("Columns"))]
+    pub column_picker_label: String,
+    /// State to start from, such as one saved from `on_state_change`. Read on
+    /// the first render only; to apply state loaded later, render the grid once
+    /// it is available.
+    #[props(default)]
+    pub initial_state: Option<GridState>,
+    /// Called with the whole state whenever sort, filters, search, page, column
+    /// widths or hidden columns change. Serialize it to persist the grid.
+    #[props(default)]
+    pub on_state_change: Option<EventHandler<GridState>>,
     #[props(extends = GlobalAttributes)]
     pub attributes: Vec<Attribute>,
 }
@@ -75,8 +97,17 @@ pub struct DataGridProps<T: GridRow + PartialEq + 'static> {
 pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> Element {
     let mut options = GridOptions::default().selection(props.selection);
     options.page_size = props.page_size;
+    options.initial_state = props.initial_state.clone();
 
-    let grid = use_grid(props.data, props.columns, options);
+    let mut grid = use_grid(props.data, props.columns, options);
+
+    let on_state_change = props.on_state_change;
+    use_effect(move || {
+        let state = grid.state();
+        if let Some(handler) = &on_state_change {
+            handler.call(state);
+        }
+    });
 
     // Report selection changes outward. Reading the keys here is what subscribes
     // the effect to them.
@@ -89,6 +120,19 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
     });
 
     let is_empty = grid.filtered_len() == 0;
+    // Columns defined as hidden are the app's decision, not the user's.
+    let pickable: Vec<_> = grid
+        .columns()
+        .read()
+        .iter()
+        .filter(|column| column.spec().visible)
+        .map(|column| {
+            let id = column.id().clone();
+            let visible = grid.is_column_visible(&id);
+            (id, column.label().to_owned(), visible)
+        })
+        .collect();
+    let last_visible = grid.visible_column_count() <= 1;
     let height_style = props
         .height
         .as_deref()
@@ -99,8 +143,11 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
     let template = grid
         .visible_columns()
         .iter()
-        .map(|column| match column.spec().width {
-            ColumnWidth::Auto => "minmax(6rem, auto)".to_owned(),
+        .map(|column| match grid.column_width(column) {
+            ColumnWidth::Auto => match column.spec().min_width {
+                Some(min) => format!("minmax({min}px, auto)"),
+                None => "minmax(6rem, auto)".to_owned(),
+            },
             ColumnWidth::Px(width) => format!("{width}px"),
             ColumnWidth::Fraction(fraction) => format!("{fraction}fr"),
         })
@@ -113,17 +160,38 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
 
         div { class: "dg-wrapper", ..props.attributes,
 
-            if props.searchable {
+            if props.searchable || props.column_picker {
                 div { class: "dg-toolbar",
-                    GridSearch {
-                        grid,
-                        class: "dg-search",
-                        placeholder: props.search_placeholder,
+                    if props.searchable {
+                        GridSearch {
+                            grid,
+                            class: "dg-search",
+                            placeholder: props.search_placeholder,
+                        }
                     }
                     span { class: "dg-count",
                         "{grid.filtered_len()} rows"
                         if grid.selected_count() > 0 {
                             ", {grid.selected_count()} selected"
+                        }
+                    }
+                    if props.column_picker {
+                        details { class: "dg-columns",
+                            summary { "{props.column_picker_label}" }
+                            div { class: "dg-columns-menu",
+                                for (id , label , visible) in pickable {
+                                    label { key: "{id}",
+                                        input {
+                                            r#type: "checkbox",
+                                            checked: visible,
+                                            // The grid refuses to hide its last column.
+                                            disabled: visible && last_visible,
+                                            onchange: move |event| grid.set_column_hidden(id.clone(), !event.checked()),
+                                        }
+                                        "{label}"
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -151,7 +219,7 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
                     grid,
                     class: "dg",
                     style: "--dg-template: {template}; {height_style}",
-                    GridHeader { grid, class: "dg-head" }
+                    GridHeader { grid, resizable: props.resizable_columns, class: "dg-head" }
                     if let Some(row_height) = props.row_height {
                         VirtualGridBody {
                             grid,

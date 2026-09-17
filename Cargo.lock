@@ -3874,6 +3874,7 @@ dependencies = [
  "datagrid-core",
  "dioxus",
  "dioxus-datagrid",
+ "serde_json",
 ]
 
 [[package]]

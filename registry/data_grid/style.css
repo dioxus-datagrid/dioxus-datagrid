@@ -226,3 +226,107 @@
 .dg-filter .dg-search {
   min-width: 10rem;
 }
+
+/* Column resizing. The handle sits inside the header's end edge, because
+ * header cells clip their overflow; the root marks
+ * a drag in progress so the cursor and text selection stay consistent while
+ * the pointer is away from the handle. */
+.dg [role="columnheader"] {
+  position: relative;
+}
+
+.dg [data-resize-handle] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 8px;
+  cursor: col-resize;
+  /* Without it a touch drag scrolls the grid instead of resizing. */
+  touch-action: none;
+}
+
+.dg [data-resize-handle]::after {
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  right: 3px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--primary-color-6);
+  content: "";
+}
+
+.dg [data-resize-handle]:hover::after,
+.dg [data-resize-handle][data-resizing]::after {
+  top: 0;
+  bottom: 0;
+  background: var(--focused-border-color);
+}
+
+.dg[data-resizing] {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* Wider grab area where the pointer is a finger. */
+@media (pointer: coarse) {
+  .dg [data-resize-handle] {
+    width: 16px;
+  }
+
+}
+
+.dg-columns {
+  position: relative;
+}
+
+.dg-columns summary {
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--primary-color-6);
+  border-radius: 0.5rem;
+  background: var(--primary-color-2);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.dg-columns summary::-webkit-details-marker {
+  display: none;
+}
+
+.dg-columns summary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--focused-border-color);
+}
+
+.dg-columns-menu {
+  position: absolute;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  min-width: 10rem;
+  flex-direction: column;
+  padding: 0.5rem;
+  margin-top: 0.25rem;
+  border: 1px solid var(--primary-color-6);
+  border-radius: 0.5rem;
+  background: var(--primary-color-2);
+  box-shadow: 0 4px 12px var(--primary-color-7);
+  gap: 0.25rem;
+}
+
+.dg-columns-menu label {
+  display: flex;
+  align-items: center;
+  padding: 0.25rem 0.35rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.dg-columns-menu label:hover {
+  background: var(--primary-color-4);
+}
