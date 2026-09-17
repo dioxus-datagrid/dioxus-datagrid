@@ -135,7 +135,7 @@ Sort, filters, search, page, column widths and hidden columns together form a
 it wherever it likes:
 
 ```rust
-// Needs the serde feature: dioxus-datagrid = { version = "...", features = ["serde"] }
+// In Cargo.toml: dioxus-datagrid = { version = "0.3", features = ["serde"] }
 let saved = use_resource(load_state_from_storage);
 
 rsx! {

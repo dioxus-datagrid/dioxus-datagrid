@@ -1,6 +1,6 @@
 [package]
 name = "datagrid-core"
-version = "0.2.0"
+version = "0.3.0"
 description = "Framework-agnostic sorting, filtering, paging, selection and virtualization logic for data grids."
 keywords = ["datagrid", "table", "sorting", "filtering", "virtualization"]
 categories = ["gui", "data-structures"]
