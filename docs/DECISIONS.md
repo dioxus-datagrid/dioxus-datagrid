@@ -46,6 +46,9 @@ hängen am Grid-Root. Im Spike gegengetestet: Drag-Start auf einem 24 px breiten
 **Grenze, die wir bewusst akzeptieren.** Verlässt der Zeiger das Grid-Root vollständig, endet die
 Verfolgung. Das ist deutlich besser als am Handle-Rand und nach Phase-5-Praxis zu bewerten.
 
+> **Nachtrag (Phase 5).** In der Praxis nicht haltbar: die letzte Spalte ließ sich so nicht
+> verbreitern. Ergänzt um ein Overlay während des Ziehens, siehe ADR-0018.
+
 ---
 
 ## ADR-0003 — Registry-Komponenten unter `registry/`, nicht in der Playground-App
@@ -419,3 +422,60 @@ Primitive `VirtualGridBody` behält seinen Standard 5.
 nur, wie schnell man wischen muss; ab 40 kostet das Rendern selbst mehr, als der Puffer bringt.
 Weiter käme man nur, wenn weniger über die Brücke geht (z. B. Zellen, die bei gleichbleibender Zeile
 nicht neu diffen) — ein Thema für später, falls es jemand braucht.
+
+---
+
+## ADR-0018 — Spaltenbreite: Overlay beim Ziehen, Tastatur über die Kopfzelle
+
+**Kontext.** Phase 5 setzt das Ziehen der Spaltenbreite nach ADR-0002 um: Der Griff startet, das
+Grid-Root verfolgt den Zeiger. Playwright zeigte zwei Lücken:
+
+1. **Die letzte Spalte ließ sich nicht verbreitern.** Ihr Griff sitzt am rechten Rand des Grids,
+   schon die erste Bewegung nach rechts verlässt das Root, und ohne Pointer Capture kommt keine
+   `pointermove` mehr an. Die Breite blieb bei 88 px.
+2. **Doppelklick zum Zurücksetzen funktionierte in WebKit nicht.** WebKit löst weder `click` noch
+   `dblclick` aus, wenn Drücken und Loslassen auf verschiedenen Elementen passieren — Chromium
+   schon. Belegt mit einem Event-Protokoll in beiden Engines.
+
+**Entscheidung.**
+
+- **Solange eine Spaltenbreite gezogen wird, rendert `GridRoot` ein transparentes Overlay**
+  (`position: fixed; inset: 0`) als eigenes Kind. Es fängt den Zeiger im ganzen Fenster, seine
+  Events bubbeln zu den Handlern am Root. Plattformneutral, ohne `eval` und ohne `web-sys`. Das
+  Overlay erscheint schon beim Drücken, nicht erst bei Bewegung: bei der letzten Spalte verlässt
+  bereits die erste Bewegung das Grid.
+- **Zurücksetzen ohne `dblclick`:** Zweimal auf denselben Griff drücken, ohne zu ziehen und ohne
+  etwas dazwischen, stellt die definierte Breite wieder her. Funktioniert in allen Engines und als
+  Doppeltipp.
+- **Ein Klick, der ein Ziehen beendet, sortiert nicht.** Endet das Ziehen über einer Kopfzelle,
+  kann dort ein `click` ankommen — sicher dann, wenn das Overlay auf einer langsamen Brücke wie
+  Android noch nicht gerendert ist. `GridHandle` merkt sich das Ende eines echten Ziehens, und die
+  Kopfzelle ignoriert genau diesen Klick.
+- **Tastatur über die Kopfzelle, nicht über ein `separator`-Element.** Die erste Fassung von
+  `ACCESSIBILITY.md` sah einen fokussierbaren `separator` mit `aria-valuenow` vor. Im
+  Roving-Tabindex des Gitters hat ein zusätzliches fokussierbares Element keine Koordinate; es
+  wäre entweder ein zweiter Tab-Stopp oder per Pfeiltaste unerreichbar. Stattdessen verändert
+  `Alt+←`/`Alt+→` auf der fokussierten Kopfzelle die Breite, angekündigt per
+  `aria-keyshortcuts`; der Griff ist `aria-hidden`. `Alt+←` ist in Browsern „Zurück", das
+  `preventDefault` im `keydown` verhindert es; im Playwright-Test bleibt die Seite stehen.
+- **Messung statt Annahme:** Jede Kopfzelle meldet ihre gerenderte Breite per `onresize`. Ein
+  Ziehen startet von dort, weil die Breite einer `Auto`- oder `Fraction`-Spalte nur das Layout
+  kennt. Jede Bewegung rechnet vom Startpunkt aus, nicht schrittweise, damit verlorene Events sich
+  nicht aufsummieren.
+- **Die letzte sichtbare Spalte lässt sich nicht ausblenden**, und die Fokus-Koordinate wird beim
+  Lesen auf vorhandene Zellen begrenzt. Ohne beides hätte das Gitter ohne Spalten oder nach dem
+  Verschwinden der fokussierten Spalte keinen Tab-Stopp mehr.
+
+**Grenze.** Außerhalb des Browserfensters gibt es keine Events. Wird dort losgelassen, bemerkt das
+Grid es bei der nächsten Bewegung im Fenster ohne gedrückte Taste und beendet das Ziehen.
+
+**Alternativen.**
+- *`document::eval` mit `setPointerCapture`.* Verworfen aus demselben Grund wie in ADR-0002.
+- *Overlay erst bei der ersten Bewegung.* Ausprobiert; die letzte Spalte bekam die erste Bewegung
+  nie zu sehen.
+
+**Persistenz.** `GridState` ist die Einheit, die eine App speichert; die Bibliothek speichert
+nichts selbst (`PLAN.md` Phase 5). Das Beispiel steht im Playground: `localStorage` über
+`document::eval` im Anwendungscode. Eine gespeicherte Breite wird beim Anwenden auf die
+Mindestbreite begrenzt, und `set_column_width` ignoriert nicht-endliche Werte, die JSON nicht
+darstellen kann — sonst würde der Zustand den Round-Trip nicht überstehen.

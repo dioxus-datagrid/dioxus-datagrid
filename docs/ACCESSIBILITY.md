@@ -138,6 +138,26 @@ Die Fokusübergabe während eines Sprungs (etwa `Ctrl+End` über 100.000 Zeilen)
 Solange eine Fokusbewegung aussteht, parkt das Root den Fokus nicht, sonst würde es ihn der gerade
 eingerückten Zelle wieder wegnehmen.
 
+## Spaltenbreite und Spaltenauswahl
+
+Mit `GridHeader { resizable: true }` trägt jede in der Breite veränderbare Kopfzelle einen
+`ColumnResizeHandle`.
+
+- **Tastatur:** Auf einer fokussierten Kopfzelle verbreitert `Alt+→` die Spalte um 16 px, `Alt+←`
+  verschmälert sie. Die Kopfzelle kündigt das mit `aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"`
+  an. Der Fokus bleibt dabei stehen; ohne `Alt` navigieren die Pfeiltasten wie gewohnt.
+- **Der Ziehgriff selbst trägt `aria-hidden="true"`** und ist nicht fokussierbar. Er ist eine
+  reine Zeiger-Hilfe; ein fokussierbarer `separator` im Gitter hätte keine Position im
+  Roving-Tabindex und wäre ein zweiter Tab-Stopp. Siehe ADR-0018.
+- **Mindestbreite:** Keine Spalte wird schmaler als ihr `min_width` (ohne Angabe 48 px), auch nicht
+  über wiederhergestellten Zustand.
+- **Spalten ausblenden:** `aria-colcount` sinkt, `aria-colindex` der übrigen Spalten bleibt
+  lückenlos. Die letzte sichtbare Spalte lässt sich nicht ausblenden. Liegt der Fokus auf einer
+  Spalte, die verschwindet, rückt er auf die nächste vorhandene Zelle — das Gitter bleibt genau ein
+  Tab-Stopp. Dasselbe gilt, wenn ein Filter die fokussierte Zeile entfernt.
+- Das Spaltenmenü der Registry-Komponente liegt **außerhalb** von `role="grid"` und besteht aus
+  normalen Checkboxen mit Label.
+
 ## Automatisiert geprüft
 
 - **Markup:** SSR-Tests in `crates/dioxus-datagrid/tests/aria.rs`.
@@ -147,13 +167,16 @@ eingerückten Zelle wieder wegnehmen.
 - **Virtualisierung:** `tests/e2e/virtualization.spec.ts` mit 100.000 Zeilen — DOM-Obergrenze,
   `aria-rowindex` tief in den Daten, Pfeiltasten und `PageDown` über den Viewport-Rand,
   `Ctrl+End` bis Zeile 100.001, Fokus nach Wegscrollen und beim Zurücktabben.
+- **Spalten:** `tests/e2e/columns.spec.ts` — Ziehen, Mindestbreite, `Alt`+Pfeiltasten,
+  Zurücksetzen, Ausblenden bis zur letzten Spalte, Tab-Stopp nach Ausblenden der fokussierten
+  Spalte.
 - **`axe`:** `@axe-core/playwright` über die ganze Komponente, im hellen **und** im dunklen Theme,
   ohne Befund. Der erste Lauf fand zu schwachen Kontrast bei gedämpftem Text (3,61:1); behoben,
   siehe ADR-0014.
 
 ## Was noch fehlt
 
-- **Spalten-Resizing (Phase 5).** Das Resize-Handle braucht eine Tastaturalternative
-  (`aria-valuenow` an einem `separator`-Element, Pfeiltasten zum Verbreitern).
+- **Ansage der Spaltenbreite.** Ändert sich die Breite per Tastatur, sagt ein Screenreader den
+  neuen Wert nicht an; sichtbar ist die Änderung sofort.
 - **Screenreader-Praxistest.** Markup, Verhalten und axe sind automatisiert geprüft, ein
   Durchlauf mit NVDA und VoiceOver steht aber aus. axe findet keine Probleme der Ansage-Qualität.

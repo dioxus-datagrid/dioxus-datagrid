@@ -1,7 +1,7 @@
 # dioxus-datagrid
 
-A typed, accessible data grid for **Dioxus 0.7**: sorting, filtering, search, paging, selection
-and full keyboard navigation. It follows the WAI-ARIA data grid pattern and runs on web, desktop
+A typed, accessible data grid for **Dioxus 0.7**: sorting, filtering, search, paging, selection,
+resizable and hideable columns, virtualization and full keyboard navigation. It follows the WAI-ARIA data grid pattern and runs on web, desktop
 and mobile.
 
 ![The data_grid component, sorted by department with two rows selected](docs/screenshot.png)
@@ -94,6 +94,10 @@ For large data sets, set `row_height` and `height` instead of `page_size`: only 
 are rendered, while the scrollbar, keyboard navigation and `aria-rowcount` still cover every row.
 [`examples/virtualized`](examples/virtualized) shows 100,000 rows built directly on the primitives.
 
+Columns can be resized by dragging a header's edge, and `column_picker` adds a menu to show and
+hide them. With the `serde` feature the whole grid state — sort, filters, page, widths, hidden
+columns — round trips through `initial_state` and `on_state_change`.
+
 The installed [`docs.md`](registry/data_grid/docs.md) lists every prop and column option.
 
 ## Headless usage
@@ -110,7 +114,7 @@ let grid = use_grid(users, columns, GridOptions::paged(25).selection(SelectionMo
 rsx! {
     GridSearch { grid, class: "my-search" }
     GridRoot { grid, class: "my-grid",
-        GridHeader { grid }
+        GridHeader { grid, resizable: true }
         GridBody { grid }
     }
     GridPagination { grid }
@@ -118,15 +122,16 @@ rsx! {
 ```
 
 `GridHandle` is `Copy` and exposes the state directly — `toggle_sort`, `set_filter`, `set_search`,
-`set_page`, `select`, `toggle_select`, `clear_selection`, `state` / `set_state` — for building
-controls of your own.
+`set_page`, `set_column_hidden`, `set_column_width`, `select`, `toggle_select`, `clear_selection`,
+`state` / `set_state` — for building controls of your own.
 
 ## Accessibility
 
 The grid is a single tab stop with a roving tabindex. Arrow keys move between cells, `Home`/`End`
 within a row, `Ctrl+Home`/`Ctrl+End` to the corners. `Enter` on a header sorts, `Shift+Enter` adds
 a sort column. `Space` selects a row, `Shift+Space` and `Shift+Arrow` extend the selection.
-`aria-rowcount` and `aria-rowindex` stay correct across pages.
+`aria-rowcount` and `aria-rowindex` stay correct across pages. On a header, `Alt+ArrowLeft` and
+`Alt+ArrowRight` resize the column.
 
 [`docs/ACCESSIBILITY.md`](docs/ACCESSIBILITY.md) documents exactly what is rendered.
 

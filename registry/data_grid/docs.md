@@ -85,6 +85,11 @@ fn Users() -> Element {
 | `row_height` | `None` | Virtualizes the grid: only rows in view are rendered, each exactly this many pixels tall. |
 | `height` | `None` | A CSS height, such as `"480px"`, that the grid scrolls within. |
 | `overscan` | `20` | With `row_height`: extra rows rendered above and below the visible ones. |
+| `resizable_columns` | `true` | Lets the user resize columns by dragging a header's edge. |
+| `column_picker` | `false` | Shows a menu for showing and hiding columns. |
+| `column_picker_label` | `"Columns"` | Label of that menu. |
+| `initial_state` | `None` | A `GridState` to start from, read on the first render. |
+| `on_state_change` | — | Fires with the whole `GridState` whenever it changes. |
 
 ## Large data sets
 
@@ -111,6 +116,45 @@ On touch devices a fast fling can outrun rendering. The default `overscan` of 20
 keeps rows ready for that; on the Android emulator 5 showed blank rows and 40
 made scrolling sluggish. Lower it if your cells are expensive to render.
 
+## Resizing and hiding columns
+
+Drag the edge of a header to resize its column; pressing the edge twice
+without dragging (a double-click or double tap) restores the column's own width.
+From the keyboard, focus a header and press `Alt+ArrowLeft` or
+`Alt+ArrowRight`. A column never gets narrower than its `.min_width(...)`, or
+48 pixels without one. `.resizable(false)` opts a column out.
+
+With `column_picker` a menu lists the columns with a checkbox each. The last
+visible column cannot be hidden. Columns defined with `.hidden()` are left out:
+hiding those is the app's decision.
+
+## Saving the grid's state
+
+Sort, filters, search, page, column widths and hidden columns together form a
+`GridState`. With the crate's `serde` feature it serializes, so an app can keep
+it wherever it likes:
+
+```rust
+// Needs the serde feature: dioxus-datagrid = { version = "...", features = ["serde"] }
+let saved = use_resource(load_state_from_storage);
+
+rsx! {
+    // initial_state is read once, so wait until the saved state has loaded.
+    if let Some(initial_state) = saved.read().clone() {
+        DataGrid {
+            data: users,
+            columns,
+            initial_state,
+            on_state_change: move |state: GridState| save_state_to_storage(&state),
+        }
+    }
+}
+```
+
+State saved by an older version still loads: missing fields fall back to their
+defaults, and ids of columns that no longer exist are ignored. The playground
+keeps its state in `localStorage` this way.
+
 ## Columns
 
 A column only does what you give it a closure for:
@@ -121,6 +165,9 @@ A column only does what you give it a closure for:
 - `.filter_by(...)` — takes part in column filters and in the global search.
 - `.width(ColumnWidth::Px(120.0))` — a fixed track instead of the default
   `minmax(6rem, auto)`. `Fraction` gives it a share of the free space.
+- `.min_width(80.0)` — the narrowest the user can resize it to.
+- `.resizable(false)` — no resize handle for this column.
+- `.hidden()` — not shown, and not offered in the column menu.
 
 Sorting text is case-insensitive by default; `.collation(TextCollation::CaseSensitive)`
 changes that per column.
@@ -140,7 +187,8 @@ component links both stylesheets itself.
 
 Class names are prefixed `dg-`. State is exposed as data attributes you can
 style against: `data-sortable`, `data-sorted`, `data-sort-priority` on headers,
-and `data-selected` on rows.
+`data-selected` on rows, `data-resize-handle` on resize handles, and
+`data-resizing` on the grid and the handle while a column is being resized.
 
 > This file assumes the default `components_dir` of `src/components`, because it
 > loads its stylesheet from `/src/components/data_grid/style.css`. If you

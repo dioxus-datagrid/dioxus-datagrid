@@ -8,8 +8,26 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Column resizing: `ColumnResizeHandle`, enabled with `GridHeader { resizable: true }`. Drag a
+  header's edge, press it twice to reset, or use `Alt+ArrowLeft` / `Alt+ArrowRight` on a focused
+  header. The drag keeps following the pointer outside the grid.
+- `datagrid-core`: `ColumnSpec::resizable`, `resize_min_width`, `clamp_width` and
+  `effective_width`; `DEFAULT_MIN_COLUMN_WIDTH`; `GridState::reset_column_width`.
+- `dioxus-datagrid`: `GridHandle::column_width`, `set_column_width`, `resize_column_by`,
+  `is_column_visible` and the resize gesture methods; `COLUMN_RESIZE_STEP`.
+- `data_grid` component: `resizable_columns` (on by default), `column_picker`,
+  `column_picker_label`, `initial_state` and `on_state_change`.
+- A property test that any grid state survives a serde round trip with an identical view.
 - `data_grid` component: an `overscan` prop, defaulting to 20 rows. On the Android emulator the
   primitive's default of 5 showed blank rows during a fast fling; see ADR-0017.
+
+### Changed
+
+- `GridHandle::set_column_hidden` refuses to hide the last visible column.
+- `GridHandle::focus` is clamped to the cells that exist, so filtering rows or hiding columns
+  never leaves the grid without a tab stop.
+- `GridState::set_column_width` ignores non-finite widths.
+- `ColumnSpec` has a new public field, `resizable`.
 
 ### Fixed
 
