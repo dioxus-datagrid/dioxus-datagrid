@@ -5,7 +5,7 @@ import { expect, type Page, test } from "@playwright/test";
 // playground. A one-letter search takes three times the base latency of 400ms,
 // which is what makes an out-of-order answer reproducible.
 
-const URL = `http://localhost:${process.env.E2E_SERVER_PORT ?? 8093}/`;
+const URL = `http://127.0.0.1:${process.env.E2E_SERVER_PORT ?? 8093}/`;
 const grid = (page: Page) => page.getByRole("grid");
 const firstName = (page: Page) => page.locator(".body [role='row'] [aria-colindex='1']").first();
 const log = (page: Page) => page.locator(".log li");

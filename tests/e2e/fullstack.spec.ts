@@ -3,7 +3,7 @@ import { expect, type Page, test } from "@playwright/test";
 // examples/fullstack: the grid querying SQLite through a Dioxus server function.
 // Real requests over HTTP, no simulation.
 
-const URL = `http://localhost:${process.env.E2E_FULLSTACK_PORT ?? 8094}/`;
+const URL = `http://127.0.0.1:${process.env.E2E_FULLSTACK_PORT ?? 8094}/`;
 const grid = (page: Page) => page.getByRole("grid");
 const status = (page: Page) => page.locator(".status");
 const cells = (page: Page, column: number) =>

@@ -54,7 +54,20 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps ${{ matrix.browser }}
-      # playwright.config.ts builds and serves the playground itself.
+      # Built one after another before the tests. Otherwise Playwright starts all
+      # three `dx run` at once, they queue on Cargo's build lock, and a build that
+      # fails or stalls surfaces only as a page that never loads.
+      - name: Build playground
+        working-directory: playground
+        run: dx build --web --release
+      - name: Build examples/server
+        working-directory: examples/server
+        run: dx build --web --release
+      - name: Build examples/fullstack
+        working-directory: examples/fullstack
+        run: dx build --release
+      # playwright.config.ts serves the three apps itself; with the builds above,
+      # `dx run` only has to start them.
       - name: Run tests
         working-directory: tests/e2e
         run: npx playwright test --project=${{ matrix.browser }}

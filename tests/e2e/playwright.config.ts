@@ -9,6 +9,9 @@ const port = Number(process.env.E2E_PORT ?? 8080);
 const serverPort = Number(process.env.E2E_SERVER_PORT ?? 8093);
 // examples/fullstack, a server function over SQLite.
 const fullstackPort = Number(process.env.E2E_FULLSTACK_PORT ?? 8094);
+// dx binds the IPv4 loopback only. "localhost" may resolve to ::1 first, so
+// every URL names 127.0.0.1 explicitly.
+const host = "127.0.0.1";
 
 export default defineConfig({
   testDir: ".",
@@ -18,7 +21,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
-    baseURL: `http://localhost:${port}`,
+    baseURL: `http://${host}:${port}`,
     trace: "on-first-retry",
   },
   // The first run builds the playground to WASM, which takes a while.
@@ -29,11 +32,13 @@ export default defineConfig({
     { name: "firefox", use: { ...devices["Desktop Firefox"] } },
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
   ],
+  // Ready once each app answers HTTP, not merely once its port is open. In CI the
+  // apps are built in an earlier step, so this only waits for dx to serve them.
   webServer: [
     {
       cwd: path.join(__dirname, "../../playground"),
       command: `dx run --web --release --port ${port}`,
-      port,
+      url: `http://${host}:${port}/`,
       timeout: 30 * 60 * 1000,
       // Locally, reuse a `dx serve` that is already running.
       reuseExistingServer: !process.env.CI,
@@ -42,7 +47,7 @@ export default defineConfig({
     {
       cwd: path.join(__dirname, "../../examples/server"),
       command: `dx run --web --release --port ${serverPort}`,
-      port: serverPort,
+      url: `http://${host}:${serverPort}/`,
       timeout: 30 * 60 * 1000,
       reuseExistingServer: !process.env.CI,
       stdout: "pipe",
@@ -51,7 +56,7 @@ export default defineConfig({
       // Fullstack: dx builds the WASM client and the native server, and runs both.
       cwd: path.join(__dirname, "../../examples/fullstack"),
       command: `dx run --release --port ${fullstackPort}`,
-      port: fullstackPort,
+      url: `http://${host}:${fullstackPort}/`,
       timeout: 30 * 60 * 1000,
       reuseExistingServer: !process.env.CI,
       stdout: "pipe",
