@@ -7,6 +7,8 @@ import path from "node:path";
 const port = Number(process.env.E2E_PORT ?? 8080);
 // examples/server, for the server-side data tests.
 const serverPort = Number(process.env.E2E_SERVER_PORT ?? 8093);
+// examples/fullstack, a server function over SQLite.
+const fullstackPort = Number(process.env.E2E_FULLSTACK_PORT ?? 8094);
 
 export default defineConfig({
   testDir: ".",
@@ -41,6 +43,15 @@ export default defineConfig({
       cwd: path.join(__dirname, "../../examples/server"),
       command: `dx run --web --release --port ${serverPort}`,
       port: serverPort,
+      timeout: 30 * 60 * 1000,
+      reuseExistingServer: !process.env.CI,
+      stdout: "pipe",
+    },
+    {
+      // Fullstack: dx builds the WASM client and the native server, and runs both.
+      cwd: path.join(__dirname, "../../examples/fullstack"),
+      command: `dx run --release --port ${fullstackPort}`,
+      port: fullstackPort,
       timeout: 30 * 60 * 1000,
       reuseExistingServer: !process.env.CI,
       stdout: "pipe",
