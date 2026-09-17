@@ -1,0 +1,29 @@
+[package]
+name = "example-server"
+version = "0.1.0"
+publish = false
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+dioxus.workspace = true
+datagrid-core.workspace = true
+dioxus-datagrid.workspace = true
+
+# The simulated latency needs a timer, as a real app's HTTP client would bring
+# its own. The same split dioxus-datagrid uses for its debounce.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { version = "1", default-features = false, features = ["time"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+gloo-timers = { version = "0.3", features = ["futures"] }
+
+[features]
+default = ["web"]
+web = ["dioxus/web"]
+desktop = ["dioxus/desktop"]
+mobile = ["dioxus/mobile"]
+
+[lints.rust]
+unsafe_code = "forbid"

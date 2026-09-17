@@ -6,6 +6,7 @@ members = [
     "playground",
     "examples/basic",
     "examples/virtualized",
+    "examples/server",
 ]
 # The consumer fixture must look like a foreign project to `dx components add`.
 exclude = ["tests/fixtures/consumer-app"]

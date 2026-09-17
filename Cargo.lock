@@ -1725,6 +1725,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "example-server"
+version = "0.1.0"
+dependencies = [
+ "datagrid-core",
+ "dioxus",
+ "dioxus-datagrid",
+ "gloo-timers",
+ "tokio",
+]
+
+[[package]]
 name = "example-virtualized"
 version = "0.1.0"
 dependencies = [
