@@ -49,9 +49,9 @@ pub struct DataGridProps<T: GridRow + PartialEq + 'static> {
     #[props(default)]
     pub row_height: Option<f64>,
     /// With `row_height`: extra rows rendered above and below the visible ones.
-    /// Raise it if fast scrolling, typically a touch fling, shows blank rows
-    /// before the next render catches up.
-    #[props(default = 5)]
+    /// The default of 20 keeps a fast touch fling from showing blank rows
+    /// before the next render; lower it if rendering is expensive.
+    #[props(default = 20)]
     pub overscan: usize,
     /// A CSS height for the grid, such as `"480px"`. The grid scrolls within it.
     #[props(default)]

@@ -84,7 +84,7 @@ fn Users() -> Element {
 | `column_filters` | `false` | Shows a filter input for every filterable column. |
 | `row_height` | `None` | Virtualizes the grid: only rows in view are rendered, each exactly this many pixels tall. |
 | `height` | `None` | A CSS height, such as `"480px"`, that the grid scrolls within. |
-| `overscan` | `5` | With `row_height`: extra rows rendered above and below the visible ones. |
+| `overscan` | `20` | With `row_height`: extra rows rendered above and below the visible ones. |
 
 ## Large data sets
 
@@ -107,9 +107,9 @@ Every row is exactly `row_height` pixels tall and taller content is clipped, so
 pick a height that fits your cells. With the default styling, 40 pixels fits one
 line of text.
 
-On touch devices a fast fling can outrun rendering and show blank rows for a
-moment. Raising `overscan` keeps more rows ready above and below the viewport,
-at the cost of rendering more rows on every update.
+On touch devices a fast fling can outrun rendering. The default `overscan` of 20
+keeps rows ready for that; on the Android emulator 5 showed blank rows and 40
+made scrolling sluggish. Lower it if your cells are expensive to render.
 
 ## Columns
 

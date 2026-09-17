@@ -1,11 +1,11 @@
 import { expect, type Page, test } from "@playwright/test";
 
 // Phase 4 acceptance: the playground's virtualized mode renders 100,000 rows at
-// a fixed 40px, with the component's default overscan of 5.
+// a fixed 40px, with the component's default overscan of 20.
 
 const TOTAL = 100_000;
 const ROW_HEIGHT = 40;
-const OVERSCAN = 5;
+const OVERSCAN = 20;
 
 const grid = (page: Page) => page.getByRole("grid");
 const bodyRows = (page: Page) => page.locator(".dg-body [role='row']");
@@ -109,10 +109,10 @@ test.describe("rendering", () => {
       String(50_000 - OVERSCAN + 2),
     );
 
-    await page.getByTestId("overscan").selectOption("20");
+    await page.getByTestId("overscan").selectOption("40");
     await expect(bodyRows(page).first()).toHaveAttribute(
       "aria-rowindex",
-      String(50_000 - 20 + 2),
+      String(50_000 - 40 + 2),
     );
   });
 

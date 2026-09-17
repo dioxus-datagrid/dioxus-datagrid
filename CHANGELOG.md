@@ -8,7 +8,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- `data_grid` component: an `overscan` prop, for touch devices where a fast fling outruns rendering.
+- `data_grid` component: an `overscan` prop, defaulting to 20 rows. On the Android emulator the
+  primitive's default of 5 showed blank rows during a fast fling; see ADR-0017.
 
 ### Fixed
 

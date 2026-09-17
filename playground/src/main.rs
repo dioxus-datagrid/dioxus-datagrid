@@ -137,7 +137,7 @@ fn App() -> Element {
     let mut selection = use_signal(|| SelectionMode::Multi);
     let mut paged = use_signal(|| true);
     let mut virtualized = use_signal(|| false);
-    let mut overscan = use_signal(|| 5_usize);
+    let mut overscan = use_signal(|| 20_usize);
     let mut selected = use_signal(Vec::<u32>::new);
 
     rsx! {
