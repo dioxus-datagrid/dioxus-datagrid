@@ -121,8 +121,8 @@ Desktop und Mobile laufen über WebView und benutzen denselben Interpreter (`dio
 wie Web; die DOM/CSS-Parität aus `PLAN.md` Abschnitt 1 gilt damit auch für die Events oben.
 `cargo check -p playground --no-default-features --features desktop` ist grün (Exit 0).
 
-Noch offen: Ausführung des Spikes auf einem echten Desktop-Fenster und auf Android/iOS. Das steht
-unter „Offene Punkte".
+~~Noch offen: Ausführung auf einem echten Desktop-Fenster und auf Android/iOS.~~ Geprüft in Phase 4
+mit dem Playground auf Windows-Desktop und dem Android-Emulator, siehe Abschnitt 8.
 
 ## 4. Component-Schema
 
