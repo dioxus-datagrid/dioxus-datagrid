@@ -86,10 +86,16 @@
   border-bottom: none;
 }
 
-.dg [role="columnheader"] {
+/* Sticky on the header group, not on its cells: a sticky element only moves
+ * within its parent, and a header cell's parent is the header row, exactly as
+ * tall as the cell. The group's parent is the scrolling grid. */
+.dg-head {
   position: sticky;
   top: 0;
   z-index: 1;
+}
+
+.dg [role="columnheader"] {
   background: var(--primary-color-4);
   color: var(--secondary-color-2);
   font-weight: 600;

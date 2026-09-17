@@ -40,11 +40,16 @@ body {
   grid-template-columns: subgrid;
 }
 
-/* The header must be sticky: rows beneath it are treated as hidden. */
-.grid [role="columnheader"] {
+/* The header must be sticky: rows beneath it are treated as hidden. Sticky goes
+ * on the group, whose parent is the scrolling grid; on a cell it could only move
+ * within the header row, which is no taller than the cell. */
+.head {
   position: sticky;
   top: 0;
   z-index: 1;
+}
+
+.grid [role="columnheader"] {
   padding: 0.5rem 0.75rem;
   background: Canvas;
   border-bottom: 1px solid #d4d4d4;

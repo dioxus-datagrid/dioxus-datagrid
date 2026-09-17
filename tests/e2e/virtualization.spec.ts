@@ -72,6 +72,18 @@ test.describe("rendering", () => {
     expect(scrollHeight).toBeCloseTo(TOTAL * ROW_HEIGHT + headerHeight, 0);
   });
 
+  test("the header stays in view while the body scrolls", async ({ page }) => {
+    await scrollTo(page, 20_000);
+    await expect(bodyRows(page).first()).not.toHaveAttribute("aria-rowindex", "2");
+    const offset = await grid(page).evaluate((root) => {
+      const header = root.querySelector(".dg-head") as HTMLElement;
+      return header.getBoundingClientRect().top - root.getBoundingClientRect().top;
+    });
+    // clientTop: the header sits inside the root's border, if it has one.
+    expect(Math.abs(offset)).toBeLessThanOrEqual(2);
+    await expect(page.getByRole("columnheader", { name: "Name" })).toBeInViewport();
+  });
+
   test("renders no more than the visible rows plus overscan", async ({ page }) => {
     const limit = await maxRenderedRows(page);
 
