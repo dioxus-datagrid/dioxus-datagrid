@@ -257,5 +257,6 @@ Geprüft am 2026-09-17 mit dem Playground (`dx serve --android --release --packa
 playground --no-default-features --features desktop`, WebView2): Scrollen flüssig, Kopfzeile bleibt
 stehen.
 
-**Noch offen:** ein manueller Blick im Web-Browser. Das Verhalten dort ist durch Playwright auf
-Chromium, WebKit und (in CI) Firefox abgedeckt, das subjektive Scrollgefühl nicht.
+**Web.** Geprüft am 2026-09-17 (`dx serve --web --release --package playground`): Scrollen flüssig.
+Das Verhalten ist zusätzlich durch Playwright auf
+Chromium, WebKit und (in CI) Firefox abgedeckt.
