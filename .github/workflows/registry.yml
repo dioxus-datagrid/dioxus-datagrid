@@ -26,3 +26,20 @@ jobs:
       # Proves the distribution path: a project that knows nothing about this
       # repo adds the component from our registry and still compiles.
       - run: bash scripts/registry-smoke.sh
+
+  # What a user actually gets from `dx components add --git`: the component on
+  # the default branch, built against the crates on crates.io. Fails while the
+  # component uses crate APIs that are not released yet — the signal to release
+  # before pushing, or not to push yet.
+  published:
+    name: dx components add (crates.io)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install dx
+        run: cargo install dioxus-cli --version 0.7.10 --locked
+      - run: bash scripts/registry-smoke.sh
+        env:
+          SMOKE_PUBLISHED: "1"
