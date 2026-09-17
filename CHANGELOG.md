@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `data_grid` component: an `overscan` prop, for touch devices where a fast fling outruns rendering.
+
+### Fixed
+
+- `data_grid` component: the header row stays in view while a height-limited grid scrolls. The
+  sticky position sat on the header cells, which had no room to stick within their row.
+
 ## [0.2.0] - 2026-09-16
 
 ### Added

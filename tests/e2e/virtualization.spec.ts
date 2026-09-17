@@ -102,6 +102,20 @@ test.describe("rendering", () => {
     expect(await bodyRows(page).count()).toBeLessThanOrEqual(limit);
   });
 
+  test("a larger overscan renders more rows around the viewport", async ({ page }) => {
+    await scrollTo(page, 50_000 * ROW_HEIGHT);
+    await expect(bodyRows(page).first()).toHaveAttribute(
+      "aria-rowindex",
+      String(50_000 - OVERSCAN + 2),
+    );
+
+    await page.getByTestId("overscan").selectOption("20");
+    await expect(bodyRows(page).first()).toHaveAttribute(
+      "aria-rowindex",
+      String(50_000 - 20 + 2),
+    );
+  });
+
   test("rows render at exactly the fixed height", async ({ page }) => {
     const heights = await bodyRows(page).evaluateAll((rows) =>
       rows.map((row) => row.getBoundingClientRect().height),

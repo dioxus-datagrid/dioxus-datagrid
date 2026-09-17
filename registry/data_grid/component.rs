@@ -48,6 +48,11 @@ pub struct DataGridProps<T: GridRow + PartialEq + 'static> {
     /// with no `page_size`.
     #[props(default)]
     pub row_height: Option<f64>,
+    /// With `row_height`: extra rows rendered above and below the visible ones.
+    /// Raise it if fast scrolling, typically a touch fling, shows blank rows
+    /// before the next render catches up.
+    #[props(default = 5)]
+    pub overscan: usize,
     /// A CSS height for the grid, such as `"480px"`. The grid scrolls within it.
     #[props(default)]
     pub height: Option<String>,
@@ -148,7 +153,12 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
                     style: "--dg-template: {template}; {height_style}",
                     GridHeader { grid, class: "dg-head" }
                     if let Some(row_height) = props.row_height {
-                        VirtualGridBody { grid, row_height, class: "dg-body" }
+                        VirtualGridBody {
+                            grid,
+                            row_height,
+                            overscan: props.overscan,
+                            class: "dg-body",
+                        }
                     } else {
                         GridBody { grid, class: "dg-body" }
                     }

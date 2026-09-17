@@ -137,6 +137,7 @@ fn App() -> Element {
     let mut selection = use_signal(|| SelectionMode::Multi);
     let mut paged = use_signal(|| true);
     let mut virtualized = use_signal(|| false);
+    let mut overscan = use_signal(|| 5_usize);
     let mut selected = use_signal(Vec::<u32>::new);
 
     rsx! {
@@ -201,6 +202,29 @@ fn App() -> Element {
                     "Virtualized ({MANY} rows)"
                 }
 
+                // For tuning on a device: how many rows a fling can reveal
+                // before the next render.
+                label { class: "toggle",
+                    "Overscan "
+                    select {
+                        "data-testid": "overscan",
+                        disabled: !virtualized(),
+                        onchange: move |event| {
+                            if let Ok(value) = event.value().parse() {
+                                overscan.set(value);
+                            }
+                        },
+                        for value in [5_usize, 10, 20, 40] {
+                            option {
+                                key: "{value}",
+                                value: "{value}",
+                                selected: overscan() == value,
+                                "{value}"
+                            }
+                        }
+                    }
+                }
+
                 output { "data-testid": "selected-keys", class: "selected",
                     "selected: [{selected().iter().map(u32::to_string).collect::<Vec<_>>().join(\", \")}]"
                 }
@@ -211,6 +235,7 @@ fn App() -> Element {
                 columns: cols,
                 page_size: (paged() && !virtualized()).then_some(5),
                 row_height: virtualized().then_some(ROW_HEIGHT),
+                overscan: overscan(),
                 height: virtualized().then(|| "480px".to_owned()),
                 selection: selection(),
                 column_filters: true,
