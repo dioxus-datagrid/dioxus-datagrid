@@ -215,7 +215,8 @@ veröffentlicht wird erst nach expliziter Freigabe.
 
 ## Offene Punkte
 
-- **Mobile-Verifikation steht aus.** Der Spike lief auf Chromium und ist für Desktop nur
+- ~~**Mobile-Verifikation steht aus.**~~ Android-Emulator geprüft in Phase 4, siehe Abschnitt 8.
+  Ursprünglich: Der Spike lief auf Chromium und ist für Desktop nur
   Compile-geprüft. Android-Emulator / iOS-Simulator hängen an der offenen Entscheidung in
   `PLAN.md` Abschnitt 9.
 - ~~`registry/data_grid` ist ein Phase-0-Stub.~~ Erledigt in Phase 3.
@@ -224,3 +225,33 @@ veröffentlicht wird erst nach expliziter Freigabe.
   `version`-Form.
 - ~~CI ist noch nie remote gelaufen.~~ Läuft seit dem ersten Push auf
   `github.com/dioxus-datagrid/dioxus-datagrid`.
+
+---
+
+## 8. Phase 4: manueller Test auf dem Android-Emulator
+
+Geprüft am 2026-09-17 mit dem Playground (`dx serve --android --release --package playground
+--no-default-features --features mobile`) auf einem Pixel-10-Pro-Emulator, Host Windows 11.
+
+**Ergebnis.**
+
+- Virtualisierung funktioniert: 100.000 Zeilen, nach dem Scrollen erscheinen die richtigen Zeilen.
+- **Fehler gefunden: die Kopfzeile scrollte weg.** `position: sticky` saß auf den Kopfzellen statt
+  auf der Kopfzeilen-Gruppe und betraf alle Plattformen. Behoben, mit Playwright-Test.
+- Beim schnellen Wischen leere Zeilen mit Overscan 5, kurz mit 20, zäh ab 40. Daraus ADR-0017.
+- Kein sichtbarer Scrollbalken: Android blendet Overlay-Scrollbalken in scrollbaren Elementen nur
+  während der Bewegung ein. Plattformverhalten, kein Fehler des Grids.
+
+**Hürden beim Bauen auf einem Windows-Host.**
+
+- **`dx` 0.7.10 linkt für Android auf Windows nicht.** `dx` schreibt die Linker-Argumente in eine
+  Antwortdatei mit Windows-Pfaden in Anführungszeichen; der NDK-Clang liest sie für ein
+  Nicht-MSVC-Ziel nach GNU-Regeln, in denen `\` ein Escape ist — aus `C:\dev\…` wird `C:dev…`.
+  Nachgestellt mit einer Antwortdatei direkt gegen `clang.exe`. Umgehung: in
+  `ndk\<version>\toolchains\llvm\prebuilt\windows-x86_64\bin\x86_64-linux-android28-clang.cmd`
+  (und `aarch64-…`) `--rsp-quoting=windows` vor `%*` ergänzen. Bug-Report für DioxusLabs/dioxus
+  vorbereitet.
+- `JAVA_HOME` muss auf das Verzeichnis zeigen (`…\Android Studio\jbr`), nicht auf `java.exe`.
+
+**Noch offen:** Desktop (`dx serve --desktop --release --package playground --no-default-features
+--features desktop`) und ein manueller Blick im Web-Browser.

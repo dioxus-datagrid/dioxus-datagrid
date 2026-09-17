@@ -386,3 +386,36 @@ und ResizeObserver-Callbacks. Derselbe Spike in Playwright: 1 Scroll, 2 Resizes,
 Playwright gegen echtes Rendering geprüft, nicht im In-App-Browser. Nebenbefund für
 `docs/VERIFICATION.md`: dort war `onscroll` in Phase 0 per `dispatchEvent` ausgelöst worden — belegt
 waren also die Werte, nicht dass das Event bei echtem Scrollen feuert. Das ist erst jetzt belegt.
+
+---
+
+## ADR-0017 — Overscan 20 in der Registry-Komponente, 5 im Primitive
+
+**Kontext.** Der manuelle Test auf dem Android-Emulator (Pixel 10 Pro, `dx serve --android
+--release`) zeigte beim schnellen Wischen leere Zeilen, bevor der nächste Render ankam. Auf Mobile
+läuft jedes Scroll-Event über die Brücke zwischen WebView und Rust und die Änderungen zurück; ein
+Fling scrollt schneller, als diese Runde dauert. Mit dem Standard-Overscan von 5 Zeilen (200 px bei
+40 px Zeilenhöhe) ist der Puffer schnell aufgebraucht.
+
+Gemessen über eine Overscan-Auswahl im Playground, nach Augenmaß:
+
+| Overscan | Ergebnis |
+|---|---|
+| 5 | deutlich leere Zeilen beim Wischen |
+| 20 | nur kurz leere Zeilen |
+| 40 | Scrollen spürbar zäh |
+
+**Entscheidung.** Die Registry-Komponente bekommt einen Prop `overscan` mit Standard **20**. Das
+Primitive `VirtualGridBody` behält seinen Standard 5.
+
+- Die Komponente ist das, was die meisten nutzen, und sie läuft auch auf Mobile — ihr Standard soll
+  dort funktionieren. 20 Zeilen oben und unten sind auf Web und Desktop unkritisch: bei 480 px Höhe
+  rund 50 statt 22 gerenderte Zeilen.
+- Den Primitive-Standard zu ändern hieße, das Verhalten eines veröffentlichten Crates zu ändern,
+  ohne dass es dort einen Fehler gibt. Wer Primitives direkt verwendet, setzt `overscan` selbst.
+- Das Akzeptanzkriterium „nie mehr als sichtbare Zeilen + 2 × Overscan" gilt unverändert, nur mit 20.
+
+**Grenze.** Ganz verschwinden die leeren Zeilen auch mit 20 nicht. Ein größerer Overscan verschiebt
+nur, wie schnell man wischen muss; ab 40 kostet das Rendern selbst mehr, als der Puffer bringt.
+Weiter käme man nur, wenn weniger über die Brücke geht (z. B. Zellen, die bei gleichbleibender Zeile
+nicht neu diffen) — ein Thema für später, falls es jemand braucht.
