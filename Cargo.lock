@@ -1126,7 +1126,9 @@ dependencies = [
  "datagrid-core",
  "dioxus",
  "dioxus-ssr",
+ "gloo-timers",
  "serde",
+ "tokio",
 ]
 
 [[package]]

@@ -11,6 +11,7 @@ use dioxus::html::geometry::PixelsVector2D;
 use dioxus::prelude::*;
 use std::ops::Range;
 use std::rc::Rc;
+use std::time::Duration;
 
 /// The measured geometry of the grid's scroll container, in CSS pixels.
 ///
@@ -41,7 +42,15 @@ pub struct GridOptions {
     ///
     /// Takes precedence over [`page_size`](GridOptions::page_size).
     pub initial_state: Option<GridState>,
+    /// For [`use_grid_remote`](crate::use_grid_remote): how long typing in
+    /// search or a column filter must pause before a request goes out. `None`
+    /// means [`DEFAULT_DEBOUNCE`]; `Some(Duration::ZERO)` sends every keystroke.
+    /// Ignored by [`use_grid`], which filters locally.
+    pub debounce: Option<Duration>,
 }
+
+/// How long a remote grid waits for typing to pause before it sends a request.
+pub const DEFAULT_DEBOUNCE: Duration = Duration::from_millis(300);
 
 impl GridOptions {
     /// Options for a paged grid.
@@ -57,6 +66,13 @@ impl GridOptions {
     #[must_use]
     pub fn selection(mut self, mode: SelectionMode) -> Self {
         self.selection = mode;
+        self
+    }
+
+    /// Sets how long typing must pause before a remote grid sends a request.
+    #[must_use]
+    pub fn debounce(mut self, debounce: Duration) -> Self {
+        self.debounce = Some(debounce);
         self
     }
 
@@ -184,6 +200,12 @@ pub struct GridHandle<T: GridRow + 'static> {
     /// The column whose handle was last pressed without dragging, so a
     /// double-click can reset it.
     pressed_handle: Signal<Option<ColumnId>>,
+    /// Whether a remote grid is waiting for a response. Always `false` locally.
+    loading: Signal<bool>,
+    /// Why the last remote request failed, until the next one succeeds.
+    load_error: Signal<Option<String>>,
+    /// Bumped by [`GridHandle::reload`] to repeat the current request.
+    reload_nonce: Signal<u64>,
     view: Memo<View>,
 }
 
@@ -255,6 +277,56 @@ where
     let data = use_hook(move || data.into_read_signal());
     let columns = use_hook(move || columns.into_read_signal());
 
+    let base = use_grid_base(data, columns, options);
+    let state = base.state;
+
+    let view = use_memo(move || {
+        let rows = data.read();
+        let specs: Vec<ColumnSpec<T>> = columns
+            .read()
+            .iter()
+            .map(|column| column.spec().clone())
+            .collect();
+        compute_view(&rows, &specs, &state.read())
+    });
+
+    base.with_view(view)
+}
+
+/// Everything a grid owns except the view, which a local grid computes from its
+/// rows and a remote grid takes from the server's answer.
+pub(crate) struct GridBase<T: GridRow + 'static> {
+    pub(crate) data: ReadSignal<Vec<T>>,
+    pub(crate) columns: ReadSignal<Vec<Column<T>>>,
+    pub(crate) state: Signal<GridState>,
+    selection: Signal<Selection<T::Key>>,
+    focus: Signal<CellFocus>,
+    focus_nonce: Signal<u64>,
+    mode: Signal<SelectionMode>,
+    focus_pending: Signal<bool>,
+    focus_within: Signal<bool>,
+    root_focus_is_internal: Signal<bool>,
+    root: Signal<Option<Rc<MountedData>>>,
+    layout: Signal<Layout>,
+    virtual_body: Signal<Option<(f64, usize)>>,
+    measured_widths: Signal<Vec<(ColumnId, f64)>>,
+    resize: Signal<Option<ColumnResize>>,
+    resize_click: Signal<bool>,
+    pressed_handle: Signal<Option<ColumnId>>,
+    pub(crate) loading: Signal<bool>,
+    pub(crate) load_error: Signal<Option<String>>,
+    pub(crate) reload_nonce: Signal<u64>,
+}
+
+/// Creates the signals shared by local and remote grids, in a fixed hook order.
+pub(crate) fn use_grid_base<T>(
+    data: ReadSignal<Vec<T>>,
+    columns: ReadSignal<Vec<Column<T>>>,
+    options: GridOptions,
+) -> GridBase<T>
+where
+    T: GridRow + PartialEq + 'static,
+{
     let requested_mode = options.selection;
     let requested_page_size = options.page_size;
 
@@ -262,18 +334,6 @@ where
     let mut page_size = use_signal(|| requested_page_size);
     let mut state = use_signal(|| options.into_state());
     let mut selection = use_signal(Selection::new);
-    let focus = use_signal(CellFocus::default);
-    let focus_nonce = use_signal(|| 0_u64);
-    let focus_pending = use_signal(|| false);
-    let focus_within = use_signal(|| false);
-    let root_focus_is_internal = use_signal(|| false);
-    let root = use_signal(|| None::<Rc<MountedData>>);
-    let layout = use_signal(Layout::default);
-    let virtual_body = use_signal(|| None::<(f64, usize)>);
-    let measured_widths = use_signal(Vec::new);
-    let resize = use_signal(|| None::<ColumnResize>);
-    let resize_click = use_signal(|| false);
-    let pressed_handle = use_signal(|| None::<ColumnId>);
 
     // Options are plain values, so a component re-rendering with different ones
     // would otherwise be ignored after the first render. This is the pattern
@@ -290,35 +350,56 @@ where
         state.write().set_page_size(requested_page_size);
     }
 
-    let view = use_memo(move || {
-        let rows = data.read();
-        let specs: Vec<ColumnSpec<T>> = columns
-            .read()
-            .iter()
-            .map(|column| column.spec().clone())
-            .collect();
-        compute_view(&rows, &specs, &state.read())
-    });
-
-    GridHandle {
+    GridBase {
         data,
         columns,
         state,
         selection,
-        focus,
-        focus_nonce,
+        focus: use_signal(CellFocus::default),
+        focus_nonce: use_signal(|| 0_u64),
         mode,
-        focus_pending,
-        focus_within,
-        root_focus_is_internal,
-        root,
-        layout,
-        virtual_body,
-        measured_widths,
-        resize,
-        resize_click,
-        pressed_handle,
-        view,
+        focus_pending: use_signal(|| false),
+        focus_within: use_signal(|| false),
+        root_focus_is_internal: use_signal(|| false),
+        root: use_signal(|| None::<Rc<MountedData>>),
+        layout: use_signal(Layout::default),
+        virtual_body: use_signal(|| None::<(f64, usize)>),
+        measured_widths: use_signal(Vec::new),
+        resize: use_signal(|| None::<ColumnResize>),
+        resize_click: use_signal(|| false),
+        pressed_handle: use_signal(|| None::<ColumnId>),
+        loading: use_signal(|| false),
+        load_error: use_signal(|| None::<String>),
+        reload_nonce: use_signal(|| 0_u64),
+    }
+}
+
+impl<T: GridRow> GridBase<T> {
+    /// Completes the handle with the view it should render.
+    pub(crate) fn with_view(self, view: Memo<View>) -> GridHandle<T> {
+        GridHandle {
+            data: self.data,
+            columns: self.columns,
+            state: self.state,
+            selection: self.selection,
+            focus: self.focus,
+            focus_nonce: self.focus_nonce,
+            mode: self.mode,
+            focus_pending: self.focus_pending,
+            focus_within: self.focus_within,
+            root_focus_is_internal: self.root_focus_is_internal,
+            root: self.root,
+            layout: self.layout,
+            virtual_body: self.virtual_body,
+            measured_widths: self.measured_widths,
+            resize: self.resize,
+            resize_click: self.resize_click,
+            pressed_handle: self.pressed_handle,
+            loading: self.loading,
+            load_error: self.load_error,
+            reload_nonce: self.reload_nonce,
+            view,
+        }
     }
 }
 
@@ -692,6 +773,31 @@ impl<T: GridRow> GridHandle<T> {
             .read()
             .as_ref()
             .map(|resize| resize.column.clone())
+    }
+
+    // -- remote loading --------------------------------------------------------
+
+    /// Whether a remote grid is waiting for a response. Always `false` for a
+    /// grid from [`use_grid`].
+    ///
+    /// The previous page stays on screen while loading, so the grid does not
+    /// flicker empty between pages.
+    #[must_use]
+    pub fn is_loading(&self) -> bool {
+        *self.loading.read()
+    }
+
+    /// Why the most recent remote request failed, if it did. Cleared by the next
+    /// successful response.
+    #[must_use]
+    pub fn load_error(&self) -> Option<String> {
+        self.load_error.read().clone()
+    }
+
+    /// Sends the current request again, for instance after an error or when the
+    /// data on the server has changed. Does nothing for a local grid.
+    pub fn reload(&mut self) {
+        *self.reload_nonce.write() += 1;
     }
 
     // -- selection -----------------------------------------------------------

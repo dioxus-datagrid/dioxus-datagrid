@@ -16,11 +16,21 @@ datagrid-core.workspace = true
 dioxus.workspace = true
 serde = { workspace = true, optional = true }
 
+# Only for the debounce of `use_grid_remote`. Each is already in the tree of the
+# renderer for its platform: dioxus-web depends on gloo-timers, and the desktop,
+# mobile and server renderers run on Tokio. Neither pulls in web-sys.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { version = "1", default-features = false, features = ["time"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+gloo-timers = { version = "0.3", features = ["futures"] }
+
 [features]
 default = []
 serde = ["dep:serde", "datagrid-core/serde"]
 
 [dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt", "test-util", "time"] }
 dioxus-ssr.workspace = true
 
 [lints]

@@ -141,6 +141,9 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
                     grid.record_viewport_height(size.height);
                 }
             },
+            // A remote grid keeps showing the previous page while the next loads;
+            // aria-busy tells assistive technology the content is about to change.
+            aria_busy: grid.is_loading().then_some("true"),
             "data-resizing": grid.resizing_column().is_some().then_some("true"),
             // Column resizing: a ColumnResizeHandle starts the drag, the root
             // follows it, because the pointer leaves a narrow handle at once.
@@ -651,6 +654,55 @@ pub fn GridPagination<T: GridRowKey + PartialEq + 'static>(
                 aria_label: "Next page",
                 onclick: move |_| grid.next_page(),
                 "Next"
+            }
+        }
+    }
+}
+
+/// Loading and error state of a remote grid, as a live region.
+///
+/// Renders its container always, because a live region must already be in the
+/// page for a screen reader to announce what appears in it. Inside, it shows
+/// `loading_label` while a request is in flight, or the error with a retry
+/// button when the last request failed. For a grid from
+/// [`use_grid`](crate::use_grid) it stays empty.
+///
+/// Renders `data-state` as `idle`, `loading` or `error` for styling.
+#[component]
+pub fn GridStatus<T: GridRowKey + PartialEq + 'static>(
+    grid: GridHandle<T>,
+    /// Announced while a request is in flight.
+    #[props(default = String::from("Loading…"))]
+    loading_label: String,
+    /// Label of the button that repeats a failed request.
+    #[props(default = String::from("Retry"))]
+    retry_label: String,
+    #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
+) -> Element {
+    let mut grid = grid;
+    let error = grid.load_error();
+    let loading = grid.is_loading();
+    let state = match (&error, loading) {
+        (Some(_), _) => "error",
+        (None, true) => "loading",
+        (None, false) => "idle",
+    };
+
+    rsx! {
+        div {
+            role: "status",
+            aria_live: "polite",
+            "data-state": state,
+            ..attributes,
+            if let Some(error) = error {
+                span { "{error}" }
+                button {
+                    r#type: "button",
+                    onclick: move |_| grid.reload(),
+                    "{retry_label}"
+                }
+            } else if loading {
+                "{loading_label}"
             }
         }
     }
