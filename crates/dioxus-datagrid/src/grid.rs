@@ -126,6 +126,12 @@ struct ColumnResize {
     column: ColumnId,
     start_x: f64,
     start_width: f64,
+    /// Whether the pointer has moved since it went down. A press that never
+    /// moves is a click or half of a double-click, not a drag.
+    moved: bool,
+    /// Whether the same handle was pressed, without dragging, right before.
+    /// Released without a drag, this press completes a double press.
+    repeat: bool,
 }
 
 /// A handle to a grid's state and derived view.
@@ -175,6 +181,9 @@ pub struct GridHandle<T: GridRow + 'static> {
     /// Set when a resize ends, so the click that follows the release is not
     /// taken for a click on the header underneath.
     resize_click: Signal<bool>,
+    /// The column whose handle was last pressed without dragging, so a
+    /// double-click can reset it.
+    pressed_handle: Signal<Option<ColumnId>>,
     view: Memo<View>,
 }
 
@@ -264,6 +273,7 @@ where
     let measured_widths = use_signal(Vec::new);
     let resize = use_signal(|| None::<ColumnResize>);
     let resize_click = use_signal(|| false);
+    let pressed_handle = use_signal(|| None::<ColumnId>);
 
     // Options are plain values, so a component re-rendering with different ones
     // would otherwise be ignored after the first render. This is the pattern
@@ -307,6 +317,7 @@ where
         measured_widths,
         resize,
         resize_click,
+        pressed_handle,
         view,
     }
 }
@@ -609,6 +620,8 @@ impl<T: GridRow> GridHandle<T> {
                 column: column.clone(),
                 start_x: client_x,
                 start_width,
+                moved: false,
+                repeat: self.pressed_handle.peek().as_ref() == Some(column),
             }));
         }
     }
@@ -618,6 +631,11 @@ impl<T: GridRow> GridHandle<T> {
         let Some(resize) = self.resize.peek().clone() else {
             return;
         };
+        if !resize.moved && client_x != resize.start_x {
+            if let Some(active) = self.resize.write().as_mut() {
+                active.moved = true;
+            }
+        }
         let width = resize.start_width + (client_x - resize.start_x);
         #[allow(clippy::cast_possible_truncation)]
         self.set_column_width(&resize.column, width as f32);
@@ -625,9 +643,24 @@ impl<T: GridRow> GridHandle<T> {
 
     /// Ends the resize in progress, keeping the width it reached.
     pub fn end_column_resize(&mut self) {
-        if self.resize.peek().is_some() {
-            self.resize.set(None);
+        let Some(resize) = self.resize.peek().clone() else {
+            return;
+        };
+        self.resize.set(None);
+        if resize.moved {
+            // A drag released over a header produces a click there.
             self.resize_click.set(true);
+            self.pressed_handle.set(None);
+        } else if resize.repeat {
+            // Pressed twice without dragging: back to the defined width.
+            //
+            // Detected here rather than with `dblclick`, which WebKit does not
+            // fire when press and release land on different elements — and the
+            // release lands on the drag overlay. It also covers a double tap.
+            self.pressed_handle.set(None);
+            self.reset_column_width(&resize.column);
+        } else {
+            self.pressed_handle.set(Some(resize.column));
         }
     }
 
@@ -646,6 +679,9 @@ impl<T: GridRow> GridHandle<T> {
     pub fn forget_resize_click(&mut self) {
         if *self.resize_click.peek() {
             self.resize_click.set(false);
+        }
+        if self.pressed_handle.peek().is_some() {
+            self.pressed_handle.set(None);
         }
     }
 

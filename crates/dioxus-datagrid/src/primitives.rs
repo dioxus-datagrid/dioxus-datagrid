@@ -173,6 +173,22 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
             onkeydown,
             ..attributes,
             {children}
+            // While a column is resized, a transparent layer over the whole
+            // window catches the pointer, so the drag keeps going when it leaves
+            // the grid — widening the last column always does. It is a child of
+            // the root, so its events bubble to the handlers above. This stands in
+            // for pointer capture, which Dioxus does not expose (ADR-0018).
+            if grid.resizing_column().is_some() {
+                div {
+                    "data-resize-overlay": "",
+                    aria_hidden: "true",
+                    style: "position: fixed; inset: 0; z-index: 2147483647; cursor: col-resize; touch-action: none;",
+                    // A fast double press can press again before the overlay is
+                    // gone. That press belongs to the handle's gesture, so it must
+                    // not reach the root and forget which handle was pressed.
+                    onpointerdown: move |event: PointerEvent| event.stop_propagation(),
+                }
+            }
         }
     }
 }
@@ -330,7 +346,8 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
 ///
 /// Carries `aria-hidden`: it is a pointer affordance only. Keyboard users resize
 /// with `Alt+ArrowLeft` / `Alt+ArrowRight` on the header cell, which announces
-/// those keys through `aria-keyshortcuts`. Double-clicking resets the width.
+/// those keys through `aria-keyshortcuts`. Pressing the handle twice without
+/// dragging — a double-click or double tap — resets the width.
 ///
 /// Renders `data-resize-handle` for styling, and `data-resizing` while dragging.
 #[component]
@@ -346,7 +363,6 @@ pub fn ColumnResizeHandle<T: GridRowKey + PartialEq + 'static>(
         return rsx! {};
     };
     let id = column.id().clone();
-    let reset_id = id.clone();
     let active = grid.resizing_column().as_ref() == Some(&id);
 
     rsx! {
@@ -362,10 +378,6 @@ pub fn ColumnResizeHandle<T: GridRowKey + PartialEq + 'static>(
                 grid.start_column_resize(&id, event.client_coordinates().x);
             },
             onclick: move |event: MouseEvent| event.stop_propagation(),
-            ondoubleclick: move |event: MouseEvent| {
-                event.stop_propagation();
-                grid.reset_column_width(&reset_id);
-            },
             ..attributes,
         }
     }
