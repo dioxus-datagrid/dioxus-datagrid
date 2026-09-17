@@ -2,7 +2,10 @@ import { defineConfig, devices } from "@playwright/test";
 import path from "node:path";
 
 // Mirrors the setup in DioxusLabs/components: one web build of the app under
-// test, served on 8080, exercised in all three engines.
+// test, served on 8080, exercised in all three engines. E2E_PORT moves it off
+// 8080 when another `dx serve` holds that port, such as a mobile build.
+const port = Number(process.env.E2E_PORT ?? 8080);
+
 export default defineConfig({
   testDir: ".",
   fullyParallel: true,
@@ -11,7 +14,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
-    baseURL: "http://localhost:8080",
+    baseURL: `http://localhost:${port}`,
     trace: "on-first-retry",
   },
   // The first run builds the playground to WASM, which takes a while.
@@ -24,8 +27,8 @@ export default defineConfig({
   ],
   webServer: {
     cwd: path.join(__dirname, "../../playground"),
-    command: "dx run --web --release --port 8080",
-    port: 8080,
+    command: `dx run --web --release --port ${port}`,
+    port,
     timeout: 30 * 60 * 1000,
     // Locally, reuse a `dx serve` that is already running.
     reuseExistingServer: !process.env.CI,

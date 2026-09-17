@@ -66,10 +66,12 @@ test.describe("dark theme", () => {
 
   test("has no axe violations", async ({ page }) => {
     // Confirms the dark palette is actually in effect, so a pass means something.
-    const background = await page
-      .getByRole("columnheader", { name: "Name", exact: true })
-      .evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(background).toBe("rgb(26, 26, 26)");
+    // Polled: the component links its stylesheet itself, so it can land after
+    // the grid is already in the DOM.
+    const header = page.getByRole("columnheader", { name: "Name", exact: true });
+    await expect
+      .poll(() => header.evaluate((el) => getComputedStyle(el).backgroundColor))
+      .toBe("rgb(26, 26, 26)");
 
     const results = await new AxeBuilder({ page }).include(".dg-wrapper").analyze();
     expect(results.violations).toEqual([]);
