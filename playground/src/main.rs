@@ -7,9 +7,12 @@
 
 mod components;
 
+use chrono::NaiveDate;
 use components::data_grid::DataGrid;
 use dioxus::prelude::*;
-use dioxus_datagrid::{Column, ColumnWidth, GridRow, GridState, SelectionMode};
+use dioxus_datagrid::{
+    CellFormat, Column, ColumnId, ColumnWidth, GridLocale, GridRow, GridState, SelectionMode,
+};
 
 const STYLE: Asset = asset!("/assets/playground.css");
 
@@ -24,6 +27,8 @@ struct Employee {
     email: String,
     department: String,
     age: u32,
+    salary: f64,
+    since: NaiveDate,
 }
 
 impl GridRow for Employee {
@@ -57,12 +62,15 @@ fn employees() -> Vec<Employee> {
         .enumerate()
         .map(|(index, (name, department, age))| {
             let local = name.to_lowercase().replace(' ', ".");
+            let id = index as u32 + 1;
             Employee {
-                id: index as u32 + 1,
+                id,
                 name: (*name).to_owned(),
                 email: format!("{local}@example.com"),
                 department: (*department).to_owned(),
                 age: *age,
+                salary: salary_for(id),
+                since: since_for(id),
             }
         })
         .collect()
@@ -97,9 +105,22 @@ fn many_employees(count: u32) -> Vec<Employee> {
                 ),
                 department: DEPARTMENTS[index % DEPARTMENTS.len()].to_owned(),
                 age: 20 + id % 45,
+                salary: salary_for(id),
+                since: since_for(id),
             }
         })
         .collect()
+}
+
+/// A deterministic monthly salary with cents, so number formatting shows.
+fn salary_for(id: u32) -> f64 {
+    f64::from(2_800 + (id * 7_919) % 6_000) + f64::from(id % 4) * 0.25
+}
+
+/// A deterministic start date within twenty years of 2006.
+fn since_for(id: u32) -> NaiveDate {
+    let start = NaiveDate::from_ymd_opt(2006, 1, 2).unwrap_or_default();
+    start + chrono::Days::new(u64::from((id * 2_111) % 7_300))
 }
 
 /// Row count for the virtualized mode, matching `PLAN.md` phase 4.
@@ -108,25 +129,62 @@ const MANY: u32 = 100_000;
 /// cell padding, so no row content is clipped.
 const ROW_HEIGHT: f64 = 40.0;
 
-fn columns() -> Vec<Column<Employee>> {
+/// Column labels in the two playground languages. Labels are the app's text,
+/// not the grid's, so the locale does not translate them.
+fn label(id: &str, german: bool) -> &'static str {
+    match (id, german) {
+        ("email", true) => "E-Mail",
+        ("email", false) => "Email",
+        ("department", true) => "Abteilung",
+        ("department", false) => "Department",
+        ("age", true) => "Alter",
+        ("age", false) => "Age",
+        ("salary", true) => "Gehalt",
+        ("salary", false) => "Salary",
+        ("since", true) => "Seit",
+        ("since", false) => "Since",
+        _ => "Name",
+    }
+}
+
+fn columns(german: bool) -> Vec<Column<Employee>> {
+    let label = |id| label(id, german);
     vec![
-        Column::new("name", "Name")
+        Column::new("name", label("name"))
             .cell(|row: &Employee| rsx! { "{row.name}" })
             .sort_by_text(|row: &Employee| row.name.as_str())
             .filter_by(|row: &Employee| row.name.clone()),
-        Column::new("email", "Email")
+        Column::new("email", label("email"))
             .cell(|row: &Employee| rsx! { "{row.email}" })
             .sort_by_text(|row: &Employee| row.email.as_str())
             .filter_by(|row: &Employee| row.email.clone()),
-        Column::new("department", "Department")
+        Column::new("department", label("department"))
             .cell(|row: &Employee| rsx! { "{row.department}" })
             .sort_by_text(|row: &Employee| row.department.as_str())
             .filter_by(|row: &Employee| row.department.clone()),
-        Column::new("age", "Age")
-            .cell(|row: &Employee| rsx! { "{row.age}" })
-            .sort_by_value(|row: &Employee| row.age)
+        Column::new("age", label("age"))
+            .value_of(|row: &Employee| row.age)
             .width(ColumnWidth::Px(88.0)),
+        // No `.cell()` from here on: the grid shows the value in its format,
+        // with separators and date order from the locale.
+        Column::new("salary", label("salary"))
+            .value_of(|row: &Employee| row.salary)
+            .format(CellFormat::currency("€", 2)),
+        Column::new("since", label("since"))
+            .value_of(|row: &Employee| row.since)
+            .format(CellFormat::Date),
     ]
+}
+
+/// The state when nothing is saved. The formatted columns start hidden, so the
+/// grid opens with the four columns the tests expect; the column menu shows
+/// them. Paged like the page-size control starts, because an initial state
+/// takes precedence over `page_size`.
+fn default_state() -> GridState {
+    GridState {
+        hidden_columns: vec![ColumnId::from("salary"), ColumnId::from("since")],
+        ..GridState::paged(5)
+    }
 }
 
 /// Where the playground keeps the grid state between visits.
@@ -163,7 +221,8 @@ fn reset_state() {
 #[component]
 fn App() -> Element {
     let mut rows = use_signal(employees);
-    let cols = use_hook(columns);
+    let mut german = use_signal(|| false);
+    let cols = use_memo(move || columns(german()));
 
     let mut selection = use_signal(|| SelectionMode::Multi);
     let mut paged = use_signal(|| true);
@@ -208,6 +267,22 @@ fn App() -> Element {
                                 onchange: move |_| selection.set(mode),
                             }
                             "{label}"
+                        }
+                    }
+                }
+
+                fieldset {
+                    legend { "Language" }
+                    for (text , value) in [("English", false), ("Deutsch", true)] {
+                        label { key: "{text}",
+                            input {
+                                r#type: "radio",
+                                name: "language",
+                                "data-testid": if value { "language-de" } else { "language-en" },
+                                checked: german() == value,
+                                onchange: move |_| german.set(value),
+                            }
+                            "{text}"
                         }
                     }
                 }
@@ -282,15 +357,18 @@ fn App() -> Element {
                     height: virtualized().then(|| "480px".to_owned()),
                     selection: selection(),
                     column_filters: true,
-                    search_placeholder: "Search all columns",
+                    search_placeholder: if german() { "Alle Spalten durchsuchen" } else { "Search all columns" },
                     on_selection_change: move |keys: Vec<u32>| {
                         let mut keys = keys;
                         keys.sort_unstable();
                         selected.set(keys);
                     },
                     column_picker: true,
-                    initial_state,
+                    initial_state: initial_state.unwrap_or_else(default_state),
                     on_state_change: move |state: GridState| save_state(&state),
+                    locale: if german() { GridLocale::german() } else { GridLocale::english() },
+                    // Tells screen readers which language the grid speaks.
+                    lang: if german() { "de" } else { "en" },
                 }
             }
         }
