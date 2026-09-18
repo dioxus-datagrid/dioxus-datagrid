@@ -260,3 +260,30 @@ stehen.
 **Web.** Geprüft am 2026-09-17 (`dx serve --web --release --package playground`): Scrollen flüssig.
 Das Verhalten ist zusätzlich durch Playwright auf
 Chromium, WebKit und (in CI) Firefox abgedeckt.
+
+## 9. Phase 7: `componentDependencies` (Spike zu A3)
+
+Geprüft am 2026-09-18 mit dx 0.7.10, Quelle `packages/cli/src/cli/component.rs` auf `v0.7.10` und
+`main`, dazu eine Spike-Komponente in einem frischen Projekt.
+
+- **Ein String verweist immer auf das offizielle Registry.** `ComponentDependency::Builtin(name)`
+  löst über `ComponentRegistry::default()` auf, also `https://github.com/dioxuslabs/components` —
+  nicht auf das Registry, aus dem die abhängige Komponente kommt. Eine Zusatzkomponente, die
+  `"data_grid"` als String nennt, bekäme `data_grid` aus dem offiziellen Registry, wo es keins gibt.
+  Eigene Komponenten müssen als `{ "name", "git", "rev" }` angegeben werden.
+- **Abhängigkeiten werden rekursiv aufgelöst**, schon installierte still übersprungen.
+- **Ohne `rev` wird der Klon nie aktualisiert.** `resolve()` lädt nur, wenn das Verzeichnis unter
+  `~/.dx/components/` fehlt. Im Spike lag dort ein Klon dieses Repos vom 16.09. (`2dcda2c`, noch
+  ohne `component.json` im Wurzelverzeichnis); dx scheiterte daran, statt neu zu holen. Das trifft
+  auch `dx components add data_grid --git …` direkt: Nutzer bekommen den Stand ihres ersten Aufrufs.
+  Abhilfe: `dx components update --git <url>` (steht jetzt im README) oder ein festes `rev`.
+- **Blocker: `globalAssets` einer Abhängigkeit scheitern.** `copy_global_assets` vergleicht jeden
+  Asset-Pfad mit der Wurzel des *aufrufenden* Registrys, die einmal zu Beginn von `add` bestimmt
+  wird. Die Assets einer Abhängigkeit liegen in deren eigenem Klon, also immer „außerhalb":
+  `Cannot copy global asset '…/preview/assets/dx-components-theme.css' for component 'popover'
+  because it is outside of the component registry '…'`. Die Dateien der Komponente sind dann schon
+  kopiert, das Theme nicht, und der Befehl endet mit Fehler. Reproduziert mit dem offiziellen
+  `popover` wie mit unserem `data_grid` (mit `rev`). Auf `main` unverändert.
+
+**Folge:** Solange dx das nicht behebt, nennen unsere Zusatzkomponenten keine
+`componentDependencies`. Siehe ADR-0025.

@@ -39,6 +39,13 @@ The command copies the component into `src/components/data_grid/`, adds `dioxus-
 `Cargo.toml` and copies the dx-components theme into `assets/`. If this is your first component,
 add `mod components;` to `main.rs`.
 
+dx keeps a clone of the registry and does not refresh it on its own. To pick up a newer version of
+the component, refresh the clone first:
+
+```bash
+dx components update --git https://github.com/dioxus-datagrid/dioxus-datagrid
+```
+
 ## Usage
 
 ```rust

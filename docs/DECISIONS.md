@@ -642,3 +642,27 @@ unsichtbar, nicht abwählbar, und mitgezählt („2 selected").
 (`Selection::retain_existing`, bisher ungenutzt). Nur lokal: Ein Remote-Grid hält eine Seite, und
 Zeilen anderer Seiten existieren weiter. Der Effekt schreibt nur bei tatsächlich veralteten
 Schlüsseln, damit er keine Render-Schleife auslöst.
+
+## ADR-0025 — Zusatzkomponenten ohne `componentDependencies`, eigene schlichte Popups
+
+**Kontext.** A3 in `docs/ROADMAP.md` sah vor, dass Zusatzkomponenten `data_grid` und offizielle
+dx-components (Popover, Dialog) über `componentDependencies` mitinstallieren. Der Spike
+(`docs/VERIFICATION.md` §9) zeigt: Jede Abhängigkeit mit `globalAssets` — das offizielle `popover`
+wie unser `data_grid` — lässt `dx components add` mit Fehler enden, weil dx deren Theme-Datei gegen
+das falsche Registry prüft. Ein String-Verweis zeigt zudem immer aufs offizielle Registry.
+
+**Entscheidung.**
+
+- **Keine `componentDependencies` in unseren Komponenten**, bis dx den Fehler behebt. Die Doku nennt
+  den Installationsbefehl mit allen Teilen, etwa `dx components add data_grid data_grid_editor`;
+  beide kommen dann aus demselben Registry und teilen dessen Theme.
+- **Popover, Dialog und Menü bauen wir als schlichte, eigene Bausteine** in `dioxus-datagrid`
+  (Fallback aus `docs/ROADMAP.md` §7): unstyled Primitives mit Tastatur und ARIA, gestylt in der
+  Registry-Komponente über die Theme-Variablen. `dioxus-primitives` direkt als Crate zu nutzen wäre
+  die Alternative, ist auf crates.io aber nur ein Platzhalter (0.0.0) und sonst nur per Git zu
+  haben — für eine veröffentlichte Crate keine tragfähige Abhängigkeit.
+- **Der Fehler geht upstream** (Bericht vorbereitet, der Nutzer reicht ihn ein). Behebt dx ihn, wird
+  das hier neu entschieden.
+
+**Folge für A3.** Die Architektur bleibt: `data_grid` legt den Handle in den Context und nimmt
+Kinder an, Zusatzkomponenten lesen ihn dort. Nur die automatische Mitinstallation entfällt vorerst.

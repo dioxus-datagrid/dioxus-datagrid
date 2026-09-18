@@ -83,6 +83,7 @@ passt nicht in eine Datei. Vorschlag:
 - `data_grid` bleibt der Kern (Tabelle, Suche, Paging).
 - Zusatzkomponenten, die man bei Bedarf dazuholt: `data_grid_toolbar`, `data_grid_filter_menu`,
   `data_grid_editor` (Formular und Dialog), `data_grid_group_panel`, `data_grid_export`.
+- *Nach dem Spike (ADR-0025): vorerst ohne `componentDependencies`, Popups als eigene Primitives.*
 - Popover, Dialog, Kontextmenü, Checkbox und Select kommen **aus den offiziellen dx-components**
   über `componentDependencies` im Manifest, statt selbst gebaut zu werden. Muss in Phase 7 per Spike
   geprüft werden (Schema-Feld existiert laut `docs/VERIFICATION.md`, Verhalten nicht getestet).
