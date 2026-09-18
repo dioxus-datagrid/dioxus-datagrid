@@ -1,6 +1,6 @@
 //! Turning rows plus state into the indices the renderer should draw.
 
-use crate::column::{FilterTextFn, SortKeyFn};
+use crate::column::{FilterTextFn, ValueFn};
 use crate::{ColumnSpec, GridState, SortDirection, SortValue, TextCollation};
 use std::cmp::Ordering;
 
@@ -175,12 +175,13 @@ fn sort_indices<T>(
     columns: &[ColumnSpec<T>],
     state: &GridState,
 ) {
-    let plan: Vec<(&SortKeyFn<T>, SortDirection, TextCollation)> = state
+    let plan: Vec<(&ValueFn<T>, SortDirection, TextCollation)> = state
         .sort
         .iter()
         .filter_map(|entry| {
             let column = columns.iter().find(|column| column.id == entry.column)?;
-            Some((column.sort_key.as_ref()?, entry.direction, column.collation))
+            let key = column.value.as_ref().filter(|_| column.sortable)?;
+            Some((key, entry.direction, column.collation))
         })
         .collect();
 
@@ -257,7 +258,7 @@ fn sort_indices<T>(
 fn sort_packed<T, const N: usize>(
     indices: &mut [usize],
     rows: &[T],
-    plan: &[(&SortKeyFn<T>, SortDirection, TextCollation)],
+    plan: &[(&ValueFn<T>, SortDirection, TextCollation)],
     settings: &[(SortDirection, TextCollation)],
 ) -> bool {
     let mut records: Vec<([SortValue; N], usize)> = indices

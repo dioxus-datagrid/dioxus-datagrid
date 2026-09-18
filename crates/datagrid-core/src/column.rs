@@ -1,6 +1,6 @@
 //! Column identity and column specifications.
 
-use crate::{GridState, SortValue, TextCollation};
+use crate::{CellAlign, CellFormat, CellOverflow, CellValue, GridLocale, GridState, TextCollation};
 use std::borrow::Cow;
 use std::fmt;
 use std::rc::Rc;
@@ -64,13 +64,16 @@ impl PartialEq<&str> for ColumnId {
     }
 }
 
-/// Extracts the value a column sorts by, borrowed from the row.
+/// Reads a column's typed value from a row, borrowing from it where it can.
 ///
 /// Higher-ranked over the row's lifetime so the returned
-/// [`SortValue`] can point into the row instead of owning a copy of it.
+/// [`CellValue`] can point into the row instead of owning a copy of it.
 ///
 /// [`Rc`] rather than `Arc` because a Dioxus `VirtualDom` is single-threaded.
-pub type SortKeyFn<T> = Rc<dyn for<'a> Fn(&'a T) -> SortValue<'a>>;
+pub type ValueFn<T> = Rc<dyn for<'a> Fn(&'a T) -> CellValue<'a>>;
+
+/// The name [`ValueFn`] had while it was only used for sorting.
+pub type SortKeyFn<T> = ValueFn<T>;
 
 /// The narrowest a column can be resized to when it sets no
 /// [`min_width`](ColumnSpec::min_width), in CSS pixels. Wide enough for a short
@@ -101,14 +104,18 @@ pub enum ColumnWidth {
 /// The closures are [`Rc`] rather than `Arc` because a Dioxus `VirtualDom` is
 /// single-threaded and WASM imposes no `Send` bound.
 ///
-/// A column without a [`sort_key`](ColumnSpec::sort_key) cannot be sorted, and
-/// one without a [`filter_text`](ColumnSpec::filter_text) takes part in neither
+/// A column without a [`value`](ColumnSpec::value) cannot be sorted, and one
+/// without a [`filter_text`](ColumnSpec::filter_text) takes part in neither
 /// column filtering nor search.
 pub struct ColumnSpec<T> {
     /// Stable identifier, referenced from [`GridState`](crate::GridState).
     pub id: ColumnId,
-    /// Extracts the value this column sorts by.
-    pub sort_key: Option<SortKeyFn<T>>,
+    /// Reads this column's typed value from a row. Sorting, formatting and
+    /// everything else that needs to know what a cell *is* works from it.
+    pub value: Option<ValueFn<T>>,
+    /// Whether the column can be sorted by its [`value`](ColumnSpec::value).
+    /// `true` by default; it has no effect without a value.
+    pub sortable: bool,
     /// Extracts the text this column filters and searches on.
     pub filter_text: Option<FilterTextFn<T>>,
     /// Layout width.
@@ -126,6 +133,13 @@ pub struct ColumnSpec<T> {
     pub visible: bool,
     /// How this column compares text when sorting.
     pub collation: TextCollation,
+    /// How the value is turned into text.
+    pub format: CellFormat,
+    /// Horizontal alignment of the cell content. `None` derives it from the
+    /// [`format`](ColumnSpec::format); see [`ColumnSpec::effective_align`].
+    pub align: Option<CellAlign>,
+    /// What happens to content wider than the column.
+    pub overflow: CellOverflow,
 }
 
 impl<T> ColumnSpec<T> {
@@ -134,76 +148,171 @@ impl<T> ColumnSpec<T> {
     pub fn new(id: impl Into<ColumnId>) -> Self {
         Self {
             id: id.into(),
-            sort_key: None,
+            value: None,
+            sortable: true,
             filter_text: None,
             width: ColumnWidth::Auto,
             min_width: None,
             resizable: true,
             visible: true,
             collation: TextCollation::CaseInsensitive,
+            format: CellFormat::Plain,
+            align: None,
+            overflow: CellOverflow::Truncate,
         }
     }
 
-    /// Makes the column sortable by a key borrowed from the row.
+    /// Sets how this column reads its typed value from a row.
     ///
-    /// This is the general form. For the two common cases prefer
-    /// [`sort_by_text`](ColumnSpec::sort_by_text), which takes a plain `&str`,
-    /// or [`sort_by_value`](ColumnSpec::sort_by_value), which takes anything
-    /// that does not borrow.
+    /// The value is what the column sorts by and what it formats for display,
+    /// so a column with a value is sortable unless
+    /// [`sortable(false)`](ColumnSpec::sortable) says otherwise. This is the
+    /// general form: the closure may borrow text from the row. For the common
+    /// cases prefer [`value_text`](ColumnSpec::value_text) or
+    /// [`value_of`](ColumnSpec::value_of).
     ///
     /// ```
-    /// # use datagrid_core::{ColumnSpec, SortValue};
+    /// # use datagrid_core::{CellValue, ColumnSpec};
     /// struct Task { title: String, done: bool }
     ///
-    /// let column = ColumnSpec::new("status").sort_by(|task: &Task| {
+    /// let column = ColumnSpec::new("status").value(|task: &Task| {
     ///     // A `&'static str` borrows for long enough to be returned here.
-    ///     SortValue::Text(if task.done { "done" } else { "open" })
+    ///     CellValue::Text(if task.done { "done" } else { "open" })
     /// });
     /// ```
     #[must_use]
-    pub fn sort_by<F>(mut self, key: F) -> Self
+    pub fn value<F>(mut self, value: F) -> Self
     where
-        F: for<'a> Fn(&'a T) -> SortValue<'a> + 'static,
+        F: for<'a> Fn(&'a T) -> CellValue<'a> + 'static,
     {
-        self.sort_key = Some(Rc::new(key));
+        self.value = Some(Rc::new(value));
         self
     }
 
-    /// Makes the column sortable by text borrowed from the row.
+    /// Sets the column's value to text borrowed from the row.
     ///
     /// ```
     /// # use datagrid_core::ColumnSpec;
     /// struct User { name: String }
     ///
-    /// let column = ColumnSpec::new("name").sort_by_text(|user: &User| user.name.as_str());
+    /// let column = ColumnSpec::new("name").value_text(|user: &User| user.name.as_str());
     /// ```
     #[must_use]
-    pub fn sort_by_text<F>(mut self, key: F) -> Self
+    pub fn value_text<F>(self, text: F) -> Self
     where
         F: for<'a> Fn(&'a T) -> &'a str + 'static,
     {
-        self.sort_key = Some(Rc::new(move |row| SortValue::Text(key(row))));
-        self
+        self.value(move |row| CellValue::Text(text(row)))
     }
 
-    /// Makes the column sortable by a value that does not borrow from the row —
-    /// a number, a boolean, or an [`Option`] of one.
+    /// Sets the column's value to one that does not borrow from the row — a
+    /// number, a boolean, a date with the `chrono` feature, or an [`Option`] of
+    /// one.
     ///
     /// ```
     /// # use datagrid_core::ColumnSpec;
     /// struct User { age: u32, score: Option<f64> }
     ///
-    /// let age = ColumnSpec::new("age").sort_by_value(|user: &User| user.age);
-    /// let score = ColumnSpec::new("score").sort_by_value(|user: &User| user.score);
+    /// let age = ColumnSpec::new("age").value_of(|user: &User| user.age);
+    /// let score = ColumnSpec::new("score").value_of(|user: &User| user.score);
     /// ```
     #[must_use]
-    pub fn sort_by_value<V, F>(mut self, key: F) -> Self
+    pub fn value_of<V, F>(self, value: F) -> Self
     where
         F: Fn(&T) -> V + 'static,
-        V: for<'a> Into<SortValue<'a>>,
+        V: for<'a> Into<CellValue<'a>>,
     {
-        self.sort_key = Some(Rc::new(move |row: &T| key(row).into()));
+        self.value(move |row: &T| value(row).into())
+    }
+
+    /// Makes the column sortable by a value borrowed from the row.
+    ///
+    /// The same as [`value`](ColumnSpec::value), under the name from before
+    /// columns had a typed value.
+    #[must_use]
+    pub fn sort_by<F>(self, key: F) -> Self
+    where
+        F: for<'a> Fn(&'a T) -> CellValue<'a> + 'static,
+    {
+        self.value(key).sortable(true)
+    }
+
+    /// Makes the column sortable by text borrowed from the row.
+    ///
+    /// The same as [`value_text`](ColumnSpec::value_text).
+    #[must_use]
+    pub fn sort_by_text<F>(self, key: F) -> Self
+    where
+        F: for<'a> Fn(&'a T) -> &'a str + 'static,
+    {
+        self.value_text(key).sortable(true)
+    }
+
+    /// Makes the column sortable by a value that does not borrow from the row.
+    ///
+    /// The same as [`value_of`](ColumnSpec::value_of).
+    #[must_use]
+    pub fn sort_by_value<V, F>(self, key: F) -> Self
+    where
+        F: Fn(&T) -> V + 'static,
+        V: for<'a> Into<CellValue<'a>>,
+    {
+        self.value_of(key).sortable(true)
+    }
+
+    /// Sets whether the column can be sorted by its value.
+    #[must_use]
+    pub const fn sortable(mut self, sortable: bool) -> Self {
+        self.sortable = sortable;
         self
+    }
+
+    /// Sets how the value is turned into text.
+    #[must_use]
+    pub fn format(mut self, format: CellFormat) -> Self {
+        self.format = format;
+        self
+    }
+
+    /// Sets the horizontal alignment, overriding the one derived from the
+    /// format.
+    #[must_use]
+    pub const fn align(mut self, align: CellAlign) -> Self {
+        self.align = Some(align);
+        self
+    }
+
+    /// Sets what happens to content wider than the column.
+    #[must_use]
+    pub const fn overflow(mut self, overflow: CellOverflow) -> Self {
+        self.overflow = overflow;
+        self
+    }
+
+    /// Reads this column's value from a row, or [`CellValue::None`] if the
+    /// column has no value.
+    #[must_use]
+    pub fn read<'a>(&self, row: &'a T) -> CellValue<'a> {
+        self.value
+            .as_ref()
+            .map_or(CellValue::None, |value| value(row))
+    }
+
+    /// Formats this column's value in a row as text, using the column's
+    /// [`format`](ColumnSpec::format) and the given locale. `None` for a column
+    /// without a value.
+    #[must_use]
+    pub fn display_text(&self, row: &T, locale: &GridLocale) -> Option<String> {
+        let value = self.value.as_ref()?;
+        Some(locale.format(&value(row), &self.format))
+    }
+
+    /// The alignment to lay the cell out with: the column's own
+    /// [`align`](ColumnSpec::align) if set, otherwise
+    /// [`CellFormat::default_align`].
+    #[must_use]
+    pub fn effective_align(&self) -> CellAlign {
+        self.align.unwrap_or_else(|| self.format.default_align())
     }
 
     /// Makes the column filterable and searchable by the given text.
@@ -308,7 +417,7 @@ impl<T> ColumnSpec<T> {
     /// Whether this column can be sorted.
     #[must_use]
     pub const fn is_sortable(&self) -> bool {
-        self.sort_key.is_some()
+        self.sortable && self.value.is_some()
     }
 }
 
@@ -316,13 +425,17 @@ impl<T> Clone for ColumnSpec<T> {
     fn clone(&self) -> Self {
         Self {
             id: self.id.clone(),
-            sort_key: self.sort_key.clone(),
+            value: self.value.clone(),
+            sortable: self.sortable,
             filter_text: self.filter_text.clone(),
             width: self.width,
             min_width: self.min_width,
             resizable: self.resizable,
             visible: self.visible,
             collation: self.collation,
+            format: self.format.clone(),
+            align: self.align,
+            overflow: self.overflow,
         }
     }
 }
@@ -338,6 +451,9 @@ impl<T> fmt::Debug for ColumnSpec<T> {
             .field("resizable", &self.resizable)
             .field("visible", &self.visible)
             .field("collation", &self.collation)
+            .field("format", &self.format)
+            .field("align", &self.align)
+            .field("overflow", &self.overflow)
             .finish()
     }
 }
@@ -363,7 +479,11 @@ impl<T> PartialEq for ColumnSpec<T> {
             && self.resizable == other.resizable
             && self.visible == other.visible
             && self.collation == other.collation
-            && same_closure(self.sort_key.as_ref(), other.sort_key.as_ref())
+            && self.sortable == other.sortable
+            && self.format == other.format
+            && self.align == other.align
+            && self.overflow == other.overflow
+            && same_closure(self.value.as_ref(), other.value.as_ref())
             && same_closure(self.filter_text.as_ref(), other.filter_text.as_ref())
     }
 }

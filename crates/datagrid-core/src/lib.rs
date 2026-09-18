@@ -62,17 +62,22 @@
 #![forbid(unsafe_code)]
 
 mod column;
+mod format;
+mod locale;
 mod navigate;
 mod remote;
 mod selection;
 mod sort;
 mod state;
+mod value;
 mod view;
 mod virtualize;
 
 pub use column::{
-    ColumnId, ColumnSpec, ColumnWidth, DEFAULT_MIN_COLUMN_WIDTH, FilterTextFn, SortKeyFn,
+    ColumnId, ColumnSpec, ColumnWidth, DEFAULT_MIN_COLUMN_WIDTH, FilterTextFn, SortKeyFn, ValueFn,
 };
+pub use format::{CellAlign, CellFormat, CellOverflow};
+pub use locale::GridLocale;
 pub use navigate::{CellFocus, NavKey, navigate};
 pub use remote::{
     DEFAULT_REMOTE_PAGE_SIZE, DataSource, GridQuery, Page, RequestId, RequestTracker,
@@ -80,6 +85,7 @@ pub use remote::{
 pub use selection::{Selection, SelectionMode};
 pub use sort::{SortDirection, SortState, SortValue, TextCollation};
 pub use state::{GridState, PageState};
+pub use value::CellValue;
 pub use view::{View, compute_view};
 pub use virtualize::{
     offset_of, reveal_scroll_top, rows_per_viewport, total_height, visible_range,
