@@ -6,6 +6,38 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-18
+
+### Added
+
+- Typed cell values: `ColumnSpec::value` / `Column::value` (with `value_text` and `value_of`) reads
+  a `CellValue` from a row. The column sorts by it and, without a `.cell()` renderer, shows it.
+- Formatting per column: `CellFormat` (`number`, `currency`, `percent`, `Date`, `DateTime`,
+  `date_pattern`), `CellAlign` and `CellOverflow` (`Truncate`, `TruncateWithTooltip`, `Wrap`).
+  Header and data cells carry `data-align` and `data-overflow`; numeric formats align at the end.
+- `GridLocale` with every text the grid writes and its number and date formats; English by
+  default, `GridLocale::german()` included. `GridOptions::locale`, `GridHandle::locale` and
+  `set_locale`; the `data_grid` component takes a `locale` prop.
+- Optional `chrono` feature on both crates: `CellValue::Date` and `CellValue::DateTime`.
+- The playground switches between English and German and shows a currency and a date column.
+
+### Changed
+
+- `ColumnSpec::sort_key` is now `ColumnSpec::value`, with a separate `sortable` flag.
+  `SortValue` is an alias of `CellValue`; `sort_by`, `sort_by_text` and `sort_by_value` remain as
+  shortcuts and sort exactly as before.
+- `Column::render_cell` takes the locale.
+- Text props are `Option<String>` and default to the locale: `GridSearch::placeholder`,
+  `GridStatus::loading_label` and `retry_label`, and the component's `search_placeholder`,
+  `empty_message` and `column_picker_label`. Passing a plain string still works.
+- The row count reads "1 row" for a single row.
+
+### Fixed
+
+- A local grid drops selected rows that are removed from the data, instead of keeping them
+  selected and counted.
+
+
 ## [0.4.0] - 2026-09-17
 
 ### Added
@@ -115,7 +147,8 @@ The first release.
 - The `data_grid` component, installable with `dx components add data_grid`, styled entirely with
   the dx-components theme variables, with optional search, per-column filters and paging.
 
-[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.1.0...v0.2.0
