@@ -199,8 +199,9 @@ test.describe("keyboard across the viewport edge", () => {
     for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowDown");
     await expect.poll(() => active(page)).toEqual({ role: "gridcell", row: "6" });
 
-    // Leave the grid, scroll the focused row away, then tab back in.
-    await page.getByRole("textbox", { name: "Filter Department" }).focus();
+    // Leave the grid, scroll the focused row away, then tab back in from the
+    // last control before it: the filter row's last menu button.
+    await page.getByRole("button", { name: "Filter options for Age" }).focus();
     await scrollTo(page, 20_000 * ROW_HEIGHT);
     await expect(page.locator(".dg-body [role='row'][aria-rowindex='6']")).toHaveCount(0);
 

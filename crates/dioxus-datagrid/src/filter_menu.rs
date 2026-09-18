@@ -534,6 +534,7 @@ fn OperandInput(
         input {
             r#type: input_type(kind),
             aria_label: "{label}",
+            placeholder: "{label}",
             inputmode: (kind == ValueKind::Number).then_some("decimal"),
             value: "{value}",
             oninput: move |event| onchange.call(event.value()),

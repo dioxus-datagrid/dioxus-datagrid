@@ -10,10 +10,11 @@
 
 use dioxus::prelude::*;
 use dioxus_datagrid::primitives::{
-    GridBody, GridColumnFilter, GridHeader, GridPagination, GridRoot, GridSearch, VirtualGridBody,
+    GridBody, GridColumnFilter, GridFilterMenu, GridHeader, GridPagination, GridRoot, GridSearch,
+    VirtualGridBody,
 };
 use dioxus_datagrid::{
-    Column, ColumnWidth, GridLocale, GridOptions, GridRow, GridState, SelectionMode, use_grid,
+    Column, GridLocale, GridOptions, GridRow, GridState, SelectionMode, use_grid,
 };
 
 const THEME: Asset = asset!("/assets/dx-components-theme.css");
@@ -38,6 +39,10 @@ pub struct DataGridProps<T: GridRow + PartialEq + 'static> {
     /// Whether to show a filter input for every filterable column.
     #[props(default)]
     pub column_filters: bool,
+    /// Whether to show a filter menu for every filterable column: conditions
+    /// with operators, or a list of values to tick.
+    #[props(default)]
+    pub filter_menu: bool,
     /// Placeholder for the search box. Defaults to the locale's.
     #[props(default)]
     pub search_placeholder: Option<String>,
@@ -128,39 +133,15 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
 
     let is_empty = grid.filtered_len() == 0;
     let locale = props.locale.clone();
-    // Columns defined as hidden are the app's decision, not the user's.
-    let pickable: Vec<_> = grid
-        .columns()
-        .read()
-        .iter()
-        .filter(|column| column.spec().visible)
-        .map(|column| {
-            let id = column.id().clone();
-            let visible = grid.is_column_visible(&id);
-            (id, column.label().to_owned(), visible)
-        })
-        .collect();
+    let pickable = grid.pickable_columns();
     let last_visible = grid.visible_column_count() <= 1;
     let height_style = props
         .height
         .as_deref()
         .map_or_else(String::new, |height| format!("height: {height};"));
 
-    // Every row is a CSS subgrid of this one track definition, so the header and
-    // the cells stay aligned without anyone measuring anything.
-    let template = grid
-        .visible_columns()
-        .iter()
-        .map(|column| match grid.column_width(column) {
-            ColumnWidth::Auto => match column.spec().min_width {
-                Some(min) => format!("minmax({min}px, auto)"),
-                None => "minmax(6rem, auto)".to_owned(),
-            },
-            ColumnWidth::Px(width) => format!("{width}px"),
-            ColumnWidth::Fraction(fraction) => format!("{fraction}fr"),
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
+    // Every row is a CSS subgrid of this one track list.
+    let template = grid.column_template("minmax(6rem, auto)");
 
     rsx! {
         document::Link { rel: "stylesheet", href: THEME }
@@ -207,13 +188,20 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
 
             // Outside role="grid" on purpose: a filter row inside it would count
             // towards aria-rowcount and shift every aria-rowindex by one.
-            if props.column_filters {
+            if props.column_filters || props.filter_menu {
                 div { class: "dg-filters",
                     for (index , column) in grid.visible_columns().into_iter().enumerate() {
                         if column.spec().is_filterable() {
-                            label { key: "{column.id()}", class: "dg-filter",
-                                span { "{column.label()}" }
-                                GridColumnFilter { grid, column_index: index, class: "dg-search" }
+                            div { key: "{column.id()}", class: "dg-filter",
+                                label {
+                                    span { "{column.label()}" }
+                                    if props.column_filters {
+                                        GridColumnFilter { grid, column_index: index, class: "dg-search" }
+                                    }
+                                }
+                                if props.filter_menu {
+                                    GridFilterMenu { grid, column_index: index, class: "dg-filter-menu" }
+                                }
                             }
                         }
                     }

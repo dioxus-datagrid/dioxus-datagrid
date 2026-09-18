@@ -357,6 +357,7 @@ fn App() -> Element {
                     height: virtualized().then(|| "480px".to_owned()),
                     selection: selection(),
                     column_filters: true,
+                    filter_menu: true,
                     search_placeholder: if german() { "Alle Spalten durchsuchen" } else { "Search all columns" },
                     on_selection_change: move |keys: Vec<u32>| {
                         let mut keys = keys;

@@ -734,6 +734,46 @@ impl<T: GridRow> GridHandle<T> {
         column.spec().effective_width(&self.state.read())
     }
 
+    /// The visible columns' widths as a CSS `grid-template-columns` value, such
+    /// as `"minmax(6rem, auto) 88px 1fr"`.
+    ///
+    /// An auto-sized column becomes `minmax(<min_width>px, auto)`, or
+    /// `auto_track` if it sets no minimum. Laying every row out on this one
+    /// track list, as CSS subgrid rows, keeps header and cells aligned without
+    /// measuring anything.
+    #[must_use]
+    pub fn column_template(&self, auto_track: &str) -> String {
+        self.visible_columns()
+            .iter()
+            .map(|column| match self.column_width(column) {
+                ColumnWidth::Auto => match column.spec().min_width {
+                    Some(min) => format!("minmax({min}px, auto)"),
+                    None => auto_track.to_owned(),
+                },
+                ColumnWidth::Px(width) => format!("{width}px"),
+                ColumnWidth::Fraction(fraction) => format!("{fraction}fr"),
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    /// The columns a user may show and hide, with their labels and whether
+    /// each is visible now. Columns defined as hidden are the app's decision
+    /// and are left out.
+    #[must_use]
+    pub fn pickable_columns(&self) -> Vec<(ColumnId, String, bool)> {
+        self.columns
+            .read()
+            .iter()
+            .filter(|column| column.spec().visible)
+            .map(|column| {
+                let id = column.id().clone();
+                let visible = self.is_column_visible(&id);
+                (id, column.label().to_owned(), visible)
+            })
+            .collect()
+    }
+
     /// Sets a column's width, clamped to its minimum. Ignores unknown columns
     /// and columns that are not resizable.
     pub fn set_column_width(&mut self, column: &ColumnId, width: f32) {

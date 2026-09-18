@@ -233,11 +233,155 @@
 
 .dg-filter {
   display: flex;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+.dg-filter > label {
+  display: flex;
   flex-direction: column;
   align-items: stretch;
   color: var(--secondary-color-3);
   font-size: 0.8125rem;
   gap: 0.25rem;
+}
+
+/* The filter menu: a button, and a panel that opens below it. */
+.dg-filter-menu {
+  position: relative;
+}
+
+.dg-filter-menu [data-filter-trigger] {
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  border: 1px solid var(--primary-color-6);
+  border-radius: 0.5rem;
+  background: var(--primary-color-2);
+  color: var(--secondary-color-4);
+  cursor: pointer;
+  font: inherit;
+}
+
+.dg-filter-menu[data-filtered="true"] [data-filter-trigger] {
+  border-color: var(--focused-border-color);
+  background: var(--primary-color-5);
+}
+
+.dg-filter-menu [data-filter-trigger]:focus-visible,
+.dg-filter-menu [data-filter-panel] :focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--focused-border-color);
+}
+
+.dg-filter-menu [data-filter-backdrop] {
+  z-index: 4;
+}
+
+.dg-filter-menu [data-filter-panel] {
+  position: absolute;
+  z-index: 5;
+  top: 100%;
+  display: flex;
+  width: max-content;
+  min-width: 16rem;
+  max-width: min(22rem, 90vw);
+  box-sizing: border-box;
+  flex-direction: column;
+  padding: 0.75rem;
+  margin-top: 0.25rem;
+  border: 1px solid var(--primary-color-6);
+  border-radius: 0.5rem;
+  background: var(--primary-color-2);
+  box-shadow: 0 4px 12px var(--primary-color-7);
+  color: var(--secondary-color-4);
+  font-size: 0.875rem;
+  gap: 0.6rem;
+  inset-inline-start: 0;
+}
+
+.dg-filter-menu [data-filter-panel] select,
+.dg-filter-menu [data-filter-panel] input:not([type="checkbox"], [type="radio"]),
+.dg-filter-menu [data-filter-panel] button {
+  box-sizing: border-box;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--primary-color-6);
+  border-radius: 0.4rem;
+  background: var(--primary-color-3);
+  color: var(--secondary-color-4);
+  font: inherit;
+}
+
+.dg-filter-menu [data-filter-modes],
+.dg-filter-menu [data-filter-actions],
+.dg-filter-menu [data-filter-join] {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.dg-filter-menu [data-filter-modes] button {
+  flex: 1;
+  cursor: pointer;
+}
+
+.dg-filter-menu [data-filter-modes] button[aria-pressed="true"] {
+  border-color: var(--focused-border-color);
+  background: var(--primary-color-5);
+  font-weight: 600;
+}
+
+.dg-filter-menu [data-filter-condition] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dg-filter-menu [data-filter-join] label,
+.dg-filter-menu [data-filter-select-all],
+.dg-filter-menu [data-filter-values] label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dg-filter-menu [data-filter-values] {
+  max-height: 14rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.dg-filter-menu [data-filter-values] li {
+  padding: 0.15rem 0;
+}
+
+.dg-filter-menu [data-filter-count],
+.dg-filter-menu [data-filter-truncated] {
+  color: var(--secondary-color-3);
+}
+
+.dg-filter-menu [data-filter-truncated] {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.dg-filter-menu [data-filter-actions] {
+  justify-content: flex-end;
+}
+
+.dg-filter-menu [data-filter-actions] button {
+  cursor: pointer;
+}
+
+.dg-filter-menu [data-filter-apply] {
+  border-color: var(--focused-border-color);
+  font-weight: 600;
+}
+
+/* A filtered column's header says so, in addition to the menu button. */
+.dg [role="columnheader"][data-filtered="true"] {
+  text-decoration: underline dotted;
+  text-underline-offset: 0.25em;
 }
 
 .dg-filter .dg-search {
