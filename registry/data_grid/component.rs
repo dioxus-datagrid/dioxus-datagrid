@@ -11,7 +11,9 @@ use dioxus_datagrid::primitives::{
     GridBody, GridColumnFilter, GridFilterMenu, GridHeader, GridPagination, GridRoot, GridSearch,
     VirtualGridBody,
 };
-use dioxus_datagrid::{Column, GridLocale, GridOptions, GridRow, GridState, SelectionMode, use_grid};
+use dioxus_datagrid::{
+    Column, GridLocale, GridOptions, GridRow, GridState, SelectionMode, use_grid,
+};
 
 const THEME: Asset = asset!("/assets/dx-components-theme.css");
 const STYLE: Asset = asset!("/src/components/data_grid/style.css");
