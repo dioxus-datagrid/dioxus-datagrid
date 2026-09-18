@@ -573,3 +573,72 @@ fragt eine SQLite-Datenbank im Speicher ab.
 **Folge für die CI.** Das Beispiel ist Workspace-Mitglied; `--all-features` baut es mit `server`
 und vereinigt die Dioxus-Features workspace-weit. Clippy und Tests laufen damit ohne Befund.
 Playwright startet das Beispiel mit `dx run` als dritten Server.
+
+## ADR-0022 — Ein typisierter Zellwert für Sortieren, Formatieren und alles Weitere
+
+**Kontext.** Bis 0.4.0 hatte eine Spalte eine Closure fürs Sortieren (`SortValue`) und eine fürs
+Filtern (`String`). Formatierung, typisierte Filter, Aggregate, Export und Bearbeiten brauchen alle
+denselben typisierten Wert (`docs/ROADMAP.md`, A1).
+
+**Entscheidung.**
+
+- **`CellValue<'a>` ist der bisherige `SortValue`, erweitert** um `Date` und `DateTime` (hinter dem
+  Feature `chrono`). `SortValue` bleibt als Typ-Alias, die Varianten heißen gleich, bestehender Code
+  kompiliert unverändert. `Text` borgt weiter aus der Zeile — der Grund dafür (keine Allokation pro
+  Zeile beim Sortieren) gilt unverändert.
+- **`ColumnSpec::value` ersetzt `sort_key`**, dazu `sortable: bool` (Standard `true`). Eine Spalte
+  mit Wert ist damit sortierbar, außer man schaltet es ab. `sort_by`, `sort_by_text` und
+  `sort_by_value` bleiben als Kurzformen von `value`, `value_text` und `value_of`.
+- **`filter_by` bleibt getrennt.** Suchen über den Wert statt über einen eigenen Text würde das
+  Verhalten bestehender Spalten ändern (eine Zahlenspalte wäre plötzlich durchsuchbar). Wie Filter
+  und Wert zusammenkommen, entscheidet Phase 8.
+- **Ordnung:** `Bool` < Zahl < Datum/Zeit < `Text` < `None`. Ein Datum zählt als Mitternacht. Für
+  die bisherigen Varianten ist die Ordnung dieselbe; ein Property-Test vergleicht die Sortierung
+  gegen eine unabhängig ausgeschriebene Referenz der 0.4.0-Ordnung.
+- **`chrono`, nicht `time`,** mit dem Nutzer abgestimmt: `default-features = false` mit `alloc`,
+  optional, ohne `wasmbind` — kein `js-sys`/`web-sys` im Baum (per `cargo tree` geprüft).
+  `rust_decimal` kommt erst, wenn ein Anwendungsfall es verlangt.
+
+**Folge.** `ColumnSpec::sort_key` gibt es nicht mehr; wer das Feld direkt las, liest `value`. Das
+ist der einzige Bruch, und er gehört in eine 0.x-Minor-Version.
+
+## ADR-0023 — Formate und Texte in `GridLocale`, getragen vom Grid-Handle
+
+**Kontext.** Texte wie „Previous page" standen fest in den Primitives, andere als Props in der
+Komponente. Zahlen- und Datumsformate gab es nicht (`docs/ROADMAP.md`, A5).
+
+**Entscheidung.**
+
+- **`GridLocale` liegt im Core**, als reine Daten (`Cow<'static, str>`, `char`, `bool`). Der Core
+  braucht die Zahlen- und Datumsformate selbst (Export in Phase 13), und Texte sind nur Strings.
+  Englisch ist Standard, Deutsch wird mitgeliefert. Texte mit Platzhaltern (`{count}`) sind Vorlagen,
+  gleichnamige Methoden füllen sie. Mit `serde` ist die Struktur (de)serialisierbar, fehlende Felder
+  fallen auf Englisch zurück — eine Übersetzung kann aus einer Datei kommen.
+- **Keine Pluralregeln-Bibliothek.** `row_count_one` und `row_count` decken Englisch und Deutsch ab;
+  Sprachen mit mehr Pluralformen bleiben offen, bis jemand sie braucht.
+- **Das Grid-Handle trägt die Locale** (`GridOptions::locale`, `GridHandle::locale`,
+  `set_locale`), nicht ein eigener Dioxus-Context. Jedes Primitive bekommt das Handle ohnehin; so
+  können zwei Grids auf einer Seite verschiedene Sprachen sprechen, und eine geänderte Option schaltet
+  um wie `page_size` und `selection` (Vergleich mit dem zuletzt gesehenen Wert).
+- **Text-Props werden `Option<String>`** (`placeholder`, `loading_label`, `retry_label`,
+  `search_placeholder`, `empty_message`, `column_picker_label`). Gesetzt gewinnen sie, sonst gilt die
+  Locale. Dioxus nimmt für `Option`-Props weiter den blanken Wert an, bestehende Aufrufe kompilieren.
+- **Formatierung:** `CellFormat` (Plain, Number, Currency, Percent, Date, DateTime, DatePattern) sagt
+  die Art, die Locale die Zeichen. Ein Format, das nicht zum Wert passt, fällt auf Plain zurück.
+  Rundung über `format!("{:.*}")`; `-0,00` wird `0,00`. Ein ungültiges `chrono`-Muster würde bei
+  `to_string` panicken — geschrieben wird deshalb über `write!`, im Fehlerfall ISO 8601.
+- **Darstellung:** Eine Spalte mit Wert und ohne `cell` zeigt den formatierten Wert. Kopf- und
+  Datenzellen tragen `data-align` (numerische Formate `end`) und `data-overflow`; die Komponente
+  setzt das per CSS mit logischen Werten um (`text-align: end` folgt der Schreibrichtung).
+  `TruncateWithTooltip` setzt `title` — nur mit Wert, denn die Ausgabe eines eigenen Renderers ist
+  kein Text, den das Grid lesen kann. Standard bleibt `Truncate` ohne Tooltip wie bisher.
+
+## ADR-0024 — Auswahl folgt den Zeilen aus den Daten
+
+**Kontext.** Wurde eine ausgewählte Zeile aus den Daten entfernt, blieb ihr Schlüssel ausgewählt:
+unsichtbar, nicht abwählbar, und mitgezählt („2 selected").
+
+**Entscheidung.** `use_grid` entfernt per Effekt Schlüssel, deren Zeile nicht mehr in den Daten ist
+(`Selection::retain_existing`, bisher ungenutzt). Nur lokal: Ein Remote-Grid hält eine Seite, und
+Zeilen anderer Seiten existieren weiter. Der Effekt schreibt nur bei tatsächlich veralteten
+Schlüsseln, damit er keine Render-Schleife auslöst.
