@@ -6,7 +6,7 @@
 //! into [`GridQuery`] values, asks a [`DataSource`] for a [`Page`], and uses
 //! [`RequestTracker`] to decide whether an arriving response still matters.
 
-use crate::{ColumnId, GridState, SortState};
+use crate::{ColumnFilter, ColumnId, DistinctValues, GridState, SortState};
 use std::fmt::Display;
 use std::future::Future;
 
@@ -24,9 +24,15 @@ pub const DEFAULT_REMOTE_PAGE_SIZE: usize = 25;
 pub struct GridQuery {
     /// Sort order, highest priority first.
     pub sort: Vec<SortState>,
-    /// Column filters, each a case-insensitive substring by convention. Never
-    /// contains empty filter text.
+    /// Filter bar text per column. Never empty. Read it with
+    /// [`Condition::from_text`](crate::Condition::from_text) to do what the
+    /// grid does locally: `>100`, `10..20`, `=Berlin`, or a substring test.
     pub column_filters: Vec<(ColumnId, String)>,
+    /// Typed filters per column, from a filter menu. A row must pass these as
+    /// well as [`column_filters`](GridQuery::column_filters). Absent from
+    /// queries of grids before 0.6.0, and then empty.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub filters: Vec<(ColumnId, ColumnFilter)>,
     /// Global search term, if any. Never empty.
     pub search: Option<String>,
     /// Zero-based page index.
@@ -59,6 +65,12 @@ impl GridQuery {
                 .column_filters
                 .iter()
                 .filter(|(_, text)| !text.is_empty())
+                .cloned()
+                .collect(),
+            filters: state
+                .filters
+                .iter()
+                .filter(|(_, filter)| !filter.is_empty())
                 .cloned()
                 .collect(),
             search: state.search.clone().filter(|text| !text.is_empty()),
@@ -146,6 +158,23 @@ pub trait DataSource<T> {
 
     /// Loads the page `query` describes.
     fn fetch(&self, query: GridQuery) -> impl Future<Output = Result<Page<T>, Self::Error>>;
+
+    /// The distinct values of `column` for a value list: among the rows that
+    /// pass every filter in `query` except the column's own, at most `limit`
+    /// of them. [`distinct_values`](crate::distinct_values) is what a local
+    /// grid does.
+    ///
+    /// The default answers with an empty list, which a filter menu shows as
+    /// having no value list.
+    fn distinct_values(
+        &self,
+        column: ColumnId,
+        query: GridQuery,
+        limit: usize,
+    ) -> impl Future<Output = Result<DistinctValues, Self::Error>> {
+        let _ = (column, query, limit);
+        async { Ok(DistinctValues::default()) }
+    }
 }
 
 /// Identifies one request issued through a [`RequestTracker`].

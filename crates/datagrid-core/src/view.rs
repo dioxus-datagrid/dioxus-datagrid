@@ -1,8 +1,13 @@
 //! Turning rows plus state into the indices the renderer should draw.
 
 use crate::column::{FilterTextFn, ValueFn};
-use crate::{ColumnSpec, GridState, SortDirection, SortValue, TextCollation};
+use crate::filter::contains_ignore_case;
+use crate::{
+    ColumnFilter, ColumnId, ColumnSpec, Condition, FilterOp, FilterValue, GridState, SortDirection,
+    SortValue, TextCollation, ValueKind,
+};
 use std::cmp::Ordering;
+use std::collections::HashMap;
 
 /// The result of [`compute_view`].
 ///
@@ -38,11 +43,17 @@ impl View {
 ///
 /// # Filtering
 ///
-/// A row must match **every** non-empty entry in
-/// [`GridState::column_filters`] and, if set, the
-/// [`search`](GridState::search) term. Matching is a case-insensitive substring
-/// test against the column's
-/// [`filter_text`](ColumnSpec::filter_text).
+/// A row must pass **every** non-empty entry in
+/// [`GridState::column_filters`] and [`GridState::filters`] and, if set, the
+/// [`search`](GridState::search) term.
+///
+/// - Filter bar text is read by [`Condition::from_text`]: `>100`, `=Berlin`,
+///   `10..20`, or plain text. Plain text is a case-insensitive substring test
+///   on text columns, and equality on number, date and boolean columns.
+/// - Typed filters ([`ColumnFilter`]) compare the column's
+///   [`value`](ColumnSpec::value); text operators use its
+///   [`filter_text`](ColumnSpec::filter_text) when it has one.
+/// - Search is a case-insensitive substring test on the filter text only.
 ///
 /// - Column filters apply whether or not the column is visible: the user set
 ///   them deliberately, so hiding a column does not silently widen the result.
@@ -94,15 +105,17 @@ pub fn compute_view<T>(rows: &[T], columns: &[ColumnSpec<T>], state: &GridState)
 
 /// Collects the indices of every row that passes the active filters.
 fn filter_indices<T>(rows: &[T], columns: &[ColumnSpec<T>], state: &GridState) -> Vec<usize> {
-    let active: Vec<(&FilterTextFn<T>, &str)> = state
-        .column_filters
-        .iter()
-        .filter(|(_, needle)| !needle.is_empty())
-        .filter_map(|(id, needle)| {
-            let column = columns.iter().find(|column| &column.id == id)?;
-            Some((column.filter_text.as_ref()?, needle.as_str()))
-        })
-        .collect();
+    filter_indices_except(rows, columns, state, None)
+}
+
+/// [`filter_indices`], leaving out the filters on `except`.
+fn filter_indices_except<T>(
+    rows: &[T],
+    columns: &[ColumnSpec<T>],
+    state: &GridState,
+    except: Option<&ColumnId>,
+) -> Vec<usize> {
+    let active = active_filters(rows, columns, state, except);
 
     let search = state.search.as_deref().filter(|term| !term.is_empty());
     let searchable: Vec<&FilterTextFn<T>> = match search {
@@ -127,7 +140,7 @@ fn filter_indices<T>(rows: &[T], columns: &[ColumnSpec<T>], state: &GridState) -
         .filter(|(_, row)| {
             let passes_columns = active
                 .iter()
-                .all(|(text, needle)| contains_ignore_case(&text(row), needle));
+                .all(|(column, filter)| passes(*row, column, filter));
 
             let passes_search = search.is_none_or(|term| {
                 searchable
@@ -141,28 +154,72 @@ fn filter_indices<T>(rows: &[T], columns: &[ColumnSpec<T>], state: &GridState) -
         .collect()
 }
 
-/// Case-insensitive substring test.
+/// The filters in effect, each paired with its column and prepared for the
+/// column's kind: the filter bar's text read by [`Condition::from_text`], then
+/// the typed filters. `except` leaves one column's filters out, which is what a
+/// value list needs to show the values its own filter would hide.
 ///
-/// Pure ASCII inputs — the overwhelming majority — take a non-allocating path.
-/// Anything else falls back to full Unicode lowercasing, which has to allocate
-/// because lowercasing can change a string's length.
-fn contains_ignore_case(haystack: &str, needle: &str) -> bool {
-    if needle.is_empty() {
-        return true;
-    }
-    if haystack.len() < needle.len() {
-        return false;
-    }
+/// Filters naming an unknown or unfilterable column are dropped.
+pub(crate) fn active_filters<'c, T>(
+    rows: &[T],
+    columns: &'c [ColumnSpec<T>],
+    state: &GridState,
+    except: Option<&ColumnId>,
+) -> Vec<(&'c ColumnSpec<T>, ColumnFilter)> {
+    let from_text = state
+        .column_filters
+        .iter()
+        .filter_map(|(id, text)| Some((id, ColumnFilter::new(Condition::from_text(text)?), true)));
+    let typed = state
+        .filters
+        .iter()
+        .filter(|(_, filter)| !filter.is_empty())
+        .map(|(id, filter)| (id, filter.clone(), false));
 
-    if haystack.is_ascii() && needle.is_ascii() {
-        let needle = needle.as_bytes();
-        return haystack
-            .as_bytes()
-            .windows(needle.len())
-            .any(|window| window.eq_ignore_ascii_case(needle));
-    }
+    from_text
+        .chain(typed)
+        .filter(|(id, ..)| except != Some(*id))
+        .filter_map(|(id, filter, from_bar)| {
+            let column = columns
+                .iter()
+                .find(|column| &column.id == id)
+                .filter(|column| column.is_filterable())?;
+            let filter = match column.value_kind(rows) {
+                Some(kind) if from_bar => bar_semantics(filter, kind).prepared(kind),
+                Some(kind) => filter.prepared(kind),
+                None => filter,
+            };
+            Some((column, filter))
+        })
+        .collect()
+}
 
-    haystack.to_lowercase().contains(&needle.to_lowercase())
+/// Typing `30` into the filter bar of a number column means "equals 30", not
+/// "contains the digits 3 and 0": plain bar text is a substring test only on
+/// text. A typed filter is left alone — its `Contains` was chosen on purpose.
+fn bar_semantics(filter: ColumnFilter, kind: ValueKind) -> ColumnFilter {
+    if kind == ValueKind::Text {
+        return filter;
+    }
+    let conditions = filter
+        .conditions
+        .into_iter()
+        .map(|condition| match condition.op {
+            FilterOp::Contains => Condition::new(FilterOp::Equals, condition.values),
+            _ => condition,
+        })
+        .collect();
+    ColumnFilter {
+        conditions,
+        ..filter
+    }
+}
+
+/// Whether `row` passes one column's filter.
+pub(crate) fn passes<T>(row: &T, column: &ColumnSpec<T>, filter: &ColumnFilter) -> bool {
+    let value = column.read(row);
+    let text = column.filter_text.as_ref().map(|text| text(row));
+    filter.matches(&value, text.as_deref())
 }
 
 /// Sorts `indices` in place according to [`GridState::sort`].
@@ -299,4 +356,64 @@ fn compare_keys(
         }
     }
     Ordering::Equal
+}
+
+/// The values of one column, each with how many rows hold it: what a value
+/// list in a filter menu offers to tick.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(default))]
+pub struct DistinctValues {
+    /// Each value once, in sort order, with its row count.
+    pub values: Vec<(FilterValue, usize)>,
+    /// How many rows have no value.
+    pub empty: usize,
+    /// Whether there were more distinct values than the limit allowed; the
+    /// list then holds the first ones in sort order.
+    pub truncated: bool,
+}
+
+/// The distinct values of `column` among the rows that pass every *other*
+/// filter and the search.
+///
+/// Leaving the column's own filter out is what makes a value list useful: a
+/// value the user unticked stays in the list, ready to be ticked again, while
+/// values that other filters exclude disappear. At most `limit` values are
+/// returned. `None` if the column does not exist or has no value.
+///
+/// Text is distinct as written: `Berlin` and `berlin` are two entries, since
+/// the list shows them and a user may want either.
+#[must_use]
+pub fn distinct_values<T>(
+    rows: &[T],
+    columns: &[ColumnSpec<T>],
+    state: &GridState,
+    column: &ColumnId,
+    limit: usize,
+) -> Option<DistinctValues> {
+    let spec = columns.iter().find(|spec| &spec.id == column)?;
+    let value = spec.value.as_ref()?;
+
+    let mut counts: HashMap<FilterValue, usize> = HashMap::new();
+    let mut empty = 0;
+    for index in filter_indices_except(rows, columns, state, Some(column)) {
+        let Some(row) = rows.get(index) else {
+            continue;
+        };
+        match FilterValue::from_cell(&value(row)) {
+            Some(value) => *counts.entry(value).or_insert(0) += 1,
+            None => empty += 1,
+        }
+    }
+
+    let mut values: Vec<(FilterValue, usize)> = counts.into_iter().collect();
+    values.sort_by(|(a, _), (b, _)| a.as_cell().cmp_with(&b.as_cell(), spec.collation));
+    let truncated = values.len() > limit;
+    values.truncate(limit);
+
+    Some(DistinctValues {
+        values,
+        empty,
+        truncated,
+    })
 }

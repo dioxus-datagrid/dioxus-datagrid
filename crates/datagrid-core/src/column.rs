@@ -1,6 +1,8 @@
 //! Column identity and column specifications.
 
-use crate::{CellAlign, CellFormat, CellOverflow, CellValue, GridLocale, GridState, TextCollation};
+use crate::{
+    CellAlign, CellFormat, CellOverflow, CellValue, GridLocale, GridState, TextCollation, ValueKind,
+};
 use std::borrow::Cow;
 use std::fmt;
 use std::rc::Rc;
@@ -140,6 +142,9 @@ pub struct ColumnSpec<T> {
     pub align: Option<CellAlign>,
     /// What happens to content wider than the column.
     pub overflow: CellOverflow,
+    /// What kind of value the column holds. `None` lets
+    /// [`ColumnSpec::value_kind`] find out from the rows.
+    pub kind: Option<ValueKind>,
 }
 
 impl<T> ColumnSpec<T> {
@@ -159,6 +164,7 @@ impl<T> ColumnSpec<T> {
             format: CellFormat::Plain,
             align: None,
             overflow: CellOverflow::Truncate,
+            kind: None,
         }
     }
 
@@ -408,10 +414,41 @@ impl<T> ColumnSpec<T> {
             .map_or(self.width, |width| ColumnWidth::Px(self.clamp_width(width)))
     }
 
-    /// Whether this column can take part in filtering and search.
+    /// Whether this column can be filtered: by its
+    /// [`filter_text`](ColumnSpec::filter_text), its [`value`](ColumnSpec::value)
+    /// or both.
     #[must_use]
     pub const fn is_filterable(&self) -> bool {
+        self.filter_text.is_some() || self.value.is_some()
+    }
+
+    /// Whether the global search looks at this column: only by its
+    /// [`filter_text`](ColumnSpec::filter_text).
+    #[must_use]
+    pub const fn is_searchable(&self) -> bool {
         self.filter_text.is_some()
+    }
+
+    /// Declares what kind of value the column holds, instead of letting
+    /// [`value_kind`](ColumnSpec::value_kind) find out from the rows. Worth it
+    /// for a column that is often empty, or a remote grid before its first page.
+    #[must_use]
+    pub const fn kind(mut self, kind: ValueKind) -> Self {
+        self.kind = Some(kind);
+        self
+    }
+
+    /// What kind of value the column holds: the declared
+    /// [`kind`](ColumnSpec::kind), otherwise the kind of the first value in
+    /// `rows` that is not empty, otherwise text if it has filter text.
+    #[must_use]
+    pub fn value_kind(&self, rows: &[T]) -> Option<ValueKind> {
+        self.kind
+            .or_else(|| {
+                let value = self.value.as_ref()?;
+                rows.iter().find_map(|row| ValueKind::of(&value(row)))
+            })
+            .or_else(|| self.filter_text.as_ref().map(|_| ValueKind::Text))
     }
 
     /// Whether this column can be sorted.
@@ -436,6 +473,7 @@ impl<T> Clone for ColumnSpec<T> {
             format: self.format.clone(),
             align: self.align,
             overflow: self.overflow,
+            kind: self.kind,
         }
     }
 }
@@ -454,6 +492,7 @@ impl<T> fmt::Debug for ColumnSpec<T> {
             .field("format", &self.format)
             .field("align", &self.align)
             .field("overflow", &self.overflow)
+            .field("kind", &self.kind)
             .finish()
     }
 }
@@ -483,6 +522,7 @@ impl<T> PartialEq for ColumnSpec<T> {
             && self.format == other.format
             && self.align == other.align
             && self.overflow == other.overflow
+            && self.kind == other.kind
             && same_closure(self.value.as_ref(), other.value.as_ref())
             && same_closure(self.filter_text.as_ref(), other.filter_text.as_ref())
     }

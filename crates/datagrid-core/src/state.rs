@@ -1,6 +1,6 @@
 //! The state a grid derives its view from.
 
-use crate::{ColumnId, SortDirection, SortState};
+use crate::{ColumnFilter, ColumnId, SortDirection, SortState};
 
 /// Which page of the filtered rows is shown.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -33,8 +33,13 @@ impl PageState {
 pub struct GridState {
     /// Active sort, highest priority first.
     pub sort: Vec<SortState>,
-    /// Per-column filter text. Empty strings are ignored.
+    /// Per-column filter text, as typed in a filter bar. Empty strings are
+    /// ignored. A leading operator such as `>100` makes a comparison; see
+    /// [`Condition::from_text`](crate::Condition::from_text).
     pub column_filters: Vec<(ColumnId, String)>,
+    /// Per-column typed filters, as built by a filter menu. They apply on top
+    /// of [`column_filters`](GridState::column_filters): a row must pass both.
+    pub filters: Vec<(ColumnId, ColumnFilter)>,
     /// Global search across every visible filterable column.
     pub search: Option<String>,
     /// Paging, or `None` to show every filtered row.
@@ -148,6 +153,37 @@ impl GridState {
             .iter()
             .find(|(id, _)| id == column)
             .map(|(_, text)| text.as_str())
+    }
+
+    /// Sets a column's typed filter. An empty filter removes it.
+    ///
+    /// Resets paging to the first page.
+    pub fn set_column_filter(&mut self, column: impl Into<ColumnId>, filter: ColumnFilter) {
+        let column = column.into();
+        if filter.is_empty() {
+            self.filters.retain(|(id, _)| id != &column);
+        } else if let Some(entry) = self.filters.iter_mut().find(|(id, _)| *id == column) {
+            entry.1 = filter;
+        } else {
+            self.filters.push((column, filter));
+        }
+        self.reset_page();
+    }
+
+    /// The typed filter currently set for a column.
+    #[must_use]
+    pub fn column_filter(&self, column: &ColumnId) -> Option<&ColumnFilter> {
+        self.filters
+            .iter()
+            .find(|(id, _)| id == column)
+            .map(|(_, filter)| filter)
+    }
+
+    /// Whether a column is filtered, by text or by a typed filter.
+    #[must_use]
+    pub fn is_filtered(&self, column: &ColumnId) -> bool {
+        self.filter(column).is_some_and(|text| !text.is_empty())
+            || self.column_filter(column).is_some()
     }
 
     /// Sets the global search term. An empty string clears it.

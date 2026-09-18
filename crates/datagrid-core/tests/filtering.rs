@@ -72,12 +72,32 @@ fn filters_on_unknown_columns_are_ignored() {
 #[test]
 fn filters_on_unfilterable_columns_are_ignored() {
     let rows = sample_rows();
-    // "age" is sortable but has no filter text.
+    // Neither a value nor filter text: nothing to filter by.
+    let mut columns = sample_columns();
+    columns.push(ColumnSpec::new("decoration"));
+    let mut state = GridState::new();
+    state.set_filter("decoration", "anything");
+
+    let view = compute_view(&rows, &columns, &state);
+    assert_eq!(view.filtered_len, 5);
+}
+
+/// Since 0.6.0 a column with a value is filterable without filter text, and
+/// plain text in the filter bar of a number column means "equals".
+#[test]
+fn the_bar_filters_a_value_column_by_equality() {
+    let rows = sample_rows();
     let mut state = GridState::new();
     state.set_filter("age", "30");
 
     let view = compute_view(&rows, &sample_columns(), &state);
-    assert_eq!(view.filtered_len, 5);
+    assert_eq!(names_of(&rows, &view), ["Zoe", "Mia"]);
+
+    state.set_filter("age", "3");
+    assert_eq!(
+        compute_view(&rows, &sample_columns(), &state).filtered_len,
+        0
+    );
 }
 
 #[test]
