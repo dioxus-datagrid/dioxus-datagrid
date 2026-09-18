@@ -86,7 +86,7 @@ pub use remote::use_grid_remote;
 // `GridRow` trait deliberately keeps its name here; the row *component* lives in
 // [`primitives`] to avoid the collision.
 pub use datagrid_core::{
-    CellFocus, ColumnId, ColumnWidth, DEFAULT_MIN_COLUMN_WIDTH, DEFAULT_REMOTE_PAGE_SIZE,
-    DataSource, GridQuery, GridRow, GridState, NavKey, Page, SelectionMode, SortDirection,
-    SortValue, TextCollation, View,
+    CellAlign, CellFocus, CellFormat, CellOverflow, CellValue, ColumnId, ColumnWidth,
+    DEFAULT_MIN_COLUMN_WIDTH, DEFAULT_REMOTE_PAGE_SIZE, DataSource, GridLocale, GridQuery, GridRow,
+    GridState, NavKey, Page, SelectionMode, SortDirection, SortValue, TextCollation, View,
 };

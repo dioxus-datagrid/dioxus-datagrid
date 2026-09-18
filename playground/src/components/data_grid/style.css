@@ -82,6 +82,21 @@
   white-space: nowrap;
 }
 
+/* Numbers align at the end so their digits line up; the header follows its
+ * column. Logical values, so this mirrors in right-to-left text. */
+.dg [data-align="end"] {
+  text-align: end;
+}
+
+.dg [data-align="center"] {
+  text-align: center;
+}
+
+.dg [role="gridcell"][data-overflow="wrap"] {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .dg [role="row"]:last-child [role="gridcell"] {
   border-bottom: none;
 }

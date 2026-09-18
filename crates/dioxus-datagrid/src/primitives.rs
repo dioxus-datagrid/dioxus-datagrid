@@ -313,6 +313,7 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
                 None => "none",
             },
             "data-sort-priority": priority.map(|value| value.to_string()),
+            "data-align": column.spec().effective_align().as_str(),
             "aria-keyshortcuts": show_handle.then_some("Alt+ArrowLeft Alt+ArrowRight"),
             onmounted,
             onclick,
@@ -535,15 +536,22 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
     let focused = grid.focus() == CellFocus::new(focus_row, column_index);
     let onmounted = use_focus_pull(grid, CellFocus::new(focus_row, column_index));
 
-    let content = {
+    let (content, tooltip) = {
         let data = grid.data();
         let rows = data.read();
+        let locale = grid.locale();
+        let locale = locale.read();
         let index = grid.view().read().indices.get(row_index).copied();
         match index.and_then(|index| rows.get(index)) {
-            Some(row) => column.render_cell(row),
-            None => rsx! {},
+            Some(row) => (
+                column.render_cell(row, &locale),
+                column.tooltip(row, &locale),
+            ),
+            None => (rsx! {}, None),
         }
     };
+    let align = column.spec().effective_align().as_str();
+    let overflow = column.spec().overflow.as_str();
 
     let onclick = move |_| {
         grid.set_focus(CellFocus::new(focus_row, column_index));
@@ -559,6 +567,9 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
             role: "gridcell",
             aria_colindex: "{column_index + 1}",
             tabindex: if focused { "0" } else { "-1" },
+            "data-align": align,
+            "data-overflow": overflow,
+            title: tooltip,
             onmounted,
             onclick,
             ..attributes,
@@ -629,31 +640,34 @@ pub fn GridPagination<T: GridRowKey + PartialEq + 'static>(
     };
     let page_count = grid.page_count();
     let last = page_count.saturating_sub(1);
+    let locale = grid.locale();
+    let locale = locale.read();
+    let position = locale.page_of(page + 1, page_count.max(1));
 
     rsx! {
         nav {
-            aria_label: "Pagination",
+            aria_label: "{locale.pagination}",
             "data-page": "{page}",
             "data-page-count": "{page_count}",
             ..attributes,
             button {
                 r#type: "button",
                 disabled: page == 0,
-                aria_label: "Previous page",
+                aria_label: "{locale.previous_page}",
                 onclick: move |_| grid.previous_page(),
-                "Previous"
+                "{locale.previous}"
             }
             span {
                 role: "status",
                 aria_live: "polite",
-                "Page {page + 1} of {page_count.max(1)}"
+                "{position}"
             }
             button {
                 r#type: "button",
                 disabled: page >= last,
-                aria_label: "Next page",
+                aria_label: "{locale.next_page}",
                 onclick: move |_| grid.next_page(),
-                "Next"
+                "{locale.next}"
             }
         }
     }
@@ -664,7 +678,8 @@ pub fn GridPagination<T: GridRowKey + PartialEq + 'static>(
 /// Renders its container always, because a live region must already be in the
 /// page for a screen reader to announce what appears in it. Inside, it shows
 /// `loading_label` while a request is in flight, or the error with a retry
-/// button when the last request failed. For a grid from
+/// button when the last request failed. Both labels default to the grid's
+/// [locale](GridHandle::locale). For a grid from
 /// [`use_grid`](crate::use_grid) it stays empty.
 ///
 /// Renders `data-state` as `idle`, `loading` or `error` for styling.
@@ -672,16 +687,20 @@ pub fn GridPagination<T: GridRowKey + PartialEq + 'static>(
 pub fn GridStatus<T: GridRowKey + PartialEq + 'static>(
     grid: GridHandle<T>,
     /// Announced while a request is in flight.
-    #[props(default = String::from("Loading…"))]
-    loading_label: String,
+    #[props(default)]
+    loading_label: Option<String>,
     /// Label of the button that repeats a failed request.
-    #[props(default = String::from("Retry"))]
-    retry_label: String,
+    #[props(default)]
+    retry_label: Option<String>,
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
 ) -> Element {
     let mut grid = grid;
     let error = grid.load_error();
     let loading = grid.is_loading();
+    let locale = grid.locale();
+    let locale = locale.read();
+    let loading_label = loading_label.unwrap_or_else(|| locale.loading.to_string());
+    let retry_label = retry_label.unwrap_or_else(|| locale.retry.to_string());
     let state = match (&error, loading) {
         (Some(_), _) => "error",
         (None, true) => "loading",
@@ -712,13 +731,15 @@ pub fn GridStatus<T: GridRowKey + PartialEq + 'static>(
 #[component]
 pub fn GridSearch<T: GridRowKey + PartialEq + 'static>(
     grid: GridHandle<T>,
-    /// Placeholder text for the input.
-    #[props(default = String::from("Search"))]
-    placeholder: String,
+    /// Placeholder and accessible name of the input. Defaults to the grid's
+    /// [locale](GridHandle::locale).
+    #[props(default)]
+    placeholder: Option<String>,
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
 ) -> Element {
     let mut grid = grid;
     let value = grid.search().unwrap_or_default();
+    let placeholder = placeholder.unwrap_or_else(|| grid.locale().read().search.to_string());
 
     rsx! {
         input {
@@ -748,7 +769,7 @@ pub fn GridColumnFilter<T: GridRowKey + PartialEq + 'static>(
     };
 
     let id = column.id().clone();
-    let label = format!("Filter {}", column.label());
+    let label = grid.locale().read().filter_column(column.label());
     let value = grid.filter(&id).unwrap_or_default();
 
     rsx! {

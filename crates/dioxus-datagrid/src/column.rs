@@ -1,6 +1,9 @@
 //! Column definitions that pair core sorting and filtering with rendering.
 
-use datagrid_core::{ColumnId, ColumnSpec, ColumnWidth, SortValue, TextCollation};
+use datagrid_core::{
+    CellAlign, CellFormat, CellOverflow, CellValue, ColumnId, ColumnSpec, ColumnWidth, GridLocale,
+    SortValue, TextCollation,
+};
 use dioxus::prelude::*;
 use std::fmt;
 use std::rc::Rc;
@@ -13,13 +16,15 @@ pub type HeaderRenderer = Rc<dyn Fn() -> Element>;
 
 /// A column: what the core needs to sort and filter it, plus how to draw it.
 ///
-/// Built fluently. Only an id and a label are required; a column with no
-/// [`sort_by`](Column::sort_by_text) cannot be sorted, and one with no
+/// Built fluently. Only an id and a label are required. A column with a
+/// [`value`](Column::value_of) is sortable and, unless it has its own
+/// [`cell`](Column::cell) renderer, shows that value formatted by its
+/// [`format`](Column::format) and the grid's locale. One with no
 /// [`filter_by`](Column::filter_by) takes part in neither filtering nor search.
 ///
 /// ```
 /// use dioxus::prelude::*;
-/// use dioxus_datagrid::Column;
+/// use dioxus_datagrid::{CellFormat, Column};
 ///
 /// #[derive(Clone, PartialEq)]
 /// struct User {
@@ -33,8 +38,8 @@ pub type HeaderRenderer = Rc<dyn Fn() -> Element>;
 ///         .sort_by_text(|user: &User| user.name.as_str())
 ///         .filter_by(|user: &User| user.name.clone()),
 ///     Column::new("age", "Age")
-///         .cell(|user: &User| rsx! { "{user.age}" })
-///         .sort_by_value(|user: &User| user.age),
+///         .value_of(|user: &User| user.age)
+///         .format(CellFormat::number(0)),
 /// ];
 /// # let _ = columns;
 /// ```
@@ -62,8 +67,8 @@ impl<T> Column<T> {
 
     /// Sets how a cell of this column is rendered.
     ///
-    /// Without this the column renders empty cells, which is occasionally what
-    /// you want for a column that exists only to be sorted or filtered on.
+    /// Without this the column shows its formatted [value](Column::value_of),
+    /// or nothing if it has none.
     #[must_use]
     pub fn cell(mut self, render: impl Fn(&T) -> Element + 'static) -> Self {
         self.cell = Some(Rc::new(render));
@@ -77,6 +82,71 @@ impl<T> Column<T> {
     #[must_use]
     pub fn header(mut self, render: impl Fn() -> Element + 'static) -> Self {
         self.header = Some(Rc::new(render));
+        self
+    }
+
+    /// Sets how this column reads its typed value from a row, which it sorts
+    /// by and, without a [`cell`](Column::cell) renderer, shows. The closure
+    /// may borrow text from the row.
+    #[must_use]
+    pub fn value<F>(mut self, value: F) -> Self
+    where
+        F: for<'a> Fn(&'a T) -> CellValue<'a> + 'static,
+    {
+        self.spec = self.spec.value(value);
+        self
+    }
+
+    /// Sets the column's value to text borrowed from the row.
+    #[must_use]
+    pub fn value_text<F>(mut self, text: F) -> Self
+    where
+        F: for<'a> Fn(&'a T) -> &'a str + 'static,
+    {
+        self.spec = self.spec.value_text(text);
+        self
+    }
+
+    /// Sets the column's value to one that does not borrow from the row: a
+    /// number, a boolean, a date with the `chrono` feature, or an [`Option`] of
+    /// one.
+    #[must_use]
+    pub fn value_of<V, F>(mut self, value: F) -> Self
+    where
+        F: Fn(&T) -> V + 'static,
+        V: for<'a> Into<CellValue<'a>>,
+    {
+        self.spec = self.spec.value_of(value);
+        self
+    }
+
+    /// Sets whether the column can be sorted by its value.
+    #[must_use]
+    pub fn sortable(mut self, sortable: bool) -> Self {
+        self.spec = self.spec.sortable(sortable);
+        self
+    }
+
+    /// Sets how the value is turned into text, such as
+    /// [`CellFormat::currency`]. Numeric formats also align the column at the
+    /// end.
+    #[must_use]
+    pub fn format(mut self, format: CellFormat) -> Self {
+        self.spec = self.spec.format(format);
+        self
+    }
+
+    /// Sets the horizontal alignment, overriding the one from the format.
+    #[must_use]
+    pub fn align(mut self, align: CellAlign) -> Self {
+        self.spec = self.spec.align(align);
+        self
+    }
+
+    /// Sets what happens to content wider than the column.
+    #[must_use]
+    pub fn overflow(mut self, overflow: CellOverflow) -> Self {
+        self.spec = self.spec.overflow(overflow);
         self
     }
 
@@ -178,11 +248,23 @@ impl<T> Column<T> {
         self.spec.is_sortable()
     }
 
-    /// Renders one cell of this column, or nothing if no renderer was set.
-    pub fn render_cell(&self, row: &T) -> Element {
-        match &self.cell {
-            Some(render) => render(row),
-            None => rsx! {},
+    /// Renders one cell of this column: its own renderer if it has one,
+    /// otherwise its value formatted for `locale`, otherwise nothing.
+    pub fn render_cell(&self, row: &T, locale: &GridLocale) -> Element {
+        match (&self.cell, self.spec.display_text(row, locale)) {
+            (Some(render), _) => render(row),
+            (None, Some(text)) => rsx! { "{text}" },
+            (None, None) => rsx! {},
+        }
+    }
+
+    /// The cell's text for a tooltip, if the column shows one: only with
+    /// [`CellOverflow::TruncateWithTooltip`] and a value to format.
+    #[must_use]
+    pub fn tooltip(&self, row: &T, locale: &GridLocale) -> Option<String> {
+        match self.spec.overflow {
+            CellOverflow::TruncateWithTooltip => self.spec.display_text(row, locale),
+            CellOverflow::Truncate | CellOverflow::Wrap => None,
         }
     }
 

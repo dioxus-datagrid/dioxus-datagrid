@@ -28,6 +28,8 @@ gloo-timers = { version = "0.3", features = ["futures"] }
 [features]
 default = []
 serde = ["dep:serde", "datagrid-core/serde"]
+# Dates and times as cell values, formatted through the locale.
+chrono = ["datagrid-core/chrono"]
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "test-util", "time"] }

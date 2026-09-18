@@ -2,13 +2,14 @@
 
 use crate::Column;
 use datagrid_core::{
-    CellFocus, ColumnId, ColumnSpec, ColumnWidth, GridRow, GridState, NavKey, Selection,
-    SelectionMode, SortDirection, View, compute_view, navigate, reveal_scroll_top,
+    CellFocus, ColumnId, ColumnSpec, ColumnWidth, GridLocale, GridRow, GridState, NavKey,
+    Selection, SelectionMode, SortDirection, View, compute_view, navigate, reveal_scroll_top,
     rows_per_viewport, visible_range,
 };
 use dioxus::html::ScrollBehavior;
 use dioxus::html::geometry::PixelsVector2D;
 use dioxus::prelude::*;
+use std::collections::HashSet;
 use std::ops::Range;
 use std::rc::Rc;
 use std::time::Duration;
@@ -47,6 +48,9 @@ pub struct GridOptions {
     /// means [`DEFAULT_DEBOUNCE`]; `Some(Duration::ZERO)` sends every keystroke.
     /// Ignored by [`use_grid`], which filters locally.
     pub debounce: Option<Duration>,
+    /// The texts and number formats the grid's primitives use. English unless
+    /// set; changing it on a later render switches the grid over.
+    pub locale: GridLocale,
 }
 
 /// How long a remote grid waits for typing to pause before it sends a request.
@@ -73,6 +77,13 @@ impl GridOptions {
     #[must_use]
     pub fn debounce(mut self, debounce: Duration) -> Self {
         self.debounce = Some(debounce);
+        self
+    }
+
+    /// Sets the texts and number formats.
+    #[must_use]
+    pub fn locale(mut self, locale: GridLocale) -> Self {
+        self.locale = locale;
         self
     }
 
@@ -205,6 +216,8 @@ pub struct GridHandle<T: GridRow + 'static> {
     /// Why the last remote request failed, until the next one succeeds.
     load_error: Signal<Option<String>>,
     /// Bumped by [`GridHandle::reload`] to repeat the current request.
+    /// Texts and formats; see [`GridOptions::locale`].
+    locale: Signal<GridLocale>,
     reload_nonce: Signal<u64>,
     view: Memo<View>,
 }
@@ -280,6 +293,18 @@ where
     let base = use_grid_base(data, columns, options);
     let state = base.state;
 
+    // A selected row that is no longer in the data cannot be seen or
+    // deselected, so it leaves the selection with its row. Only local grids do
+    // this: a remote grid holds one page, and rows on other pages still exist.
+    let mut selection = base.selection;
+    use_effect(move || {
+        let keys: HashSet<T::Key> = data.read().iter().map(GridRow::key).collect();
+        let stale = selection.peek().iter().any(|key| !keys.contains(key));
+        if stale {
+            selection.write().retain_existing(&keys);
+        }
+    });
+
     let view = use_memo(move || {
         let rows = data.read();
         let specs: Vec<ColumnSpec<T>> = columns
@@ -299,7 +324,7 @@ pub(crate) struct GridBase<T: GridRow + 'static> {
     pub(crate) data: ReadSignal<Vec<T>>,
     pub(crate) columns: ReadSignal<Vec<Column<T>>>,
     pub(crate) state: Signal<GridState>,
-    selection: Signal<Selection<T::Key>>,
+    pub(crate) selection: Signal<Selection<T::Key>>,
     focus: Signal<CellFocus>,
     focus_nonce: Signal<u64>,
     mode: Signal<SelectionMode>,
@@ -316,6 +341,7 @@ pub(crate) struct GridBase<T: GridRow + 'static> {
     pub(crate) loading: Signal<bool>,
     pub(crate) load_error: Signal<Option<String>>,
     pub(crate) reload_nonce: Signal<u64>,
+    locale: Signal<GridLocale>,
 }
 
 /// Creates the signals shared by local and remote grids, in a fixed hook order.
@@ -329,11 +355,13 @@ where
 {
     let requested_mode = options.selection;
     let requested_page_size = options.page_size;
+    let requested_locale = options.locale.clone();
 
     let mut mode = use_signal(|| requested_mode);
     let mut page_size = use_signal(|| requested_page_size);
     let mut state = use_signal(|| options.into_state());
     let mut selection = use_signal(Selection::new);
+    let mut locale = use_signal(|| requested_locale.clone());
 
     // Options are plain values, so a component re-rendering with different ones
     // would otherwise be ignored after the first render. This is the pattern
@@ -348,6 +376,9 @@ where
     if *page_size.peek() != requested_page_size {
         page_size.set(requested_page_size);
         state.write().set_page_size(requested_page_size);
+    }
+    if *locale.peek() != requested_locale {
+        locale.set(requested_locale);
     }
 
     GridBase {
@@ -371,6 +402,7 @@ where
         loading: use_signal(|| false),
         load_error: use_signal(|| None::<String>),
         reload_nonce: use_signal(|| 0_u64),
+        locale,
     }
 }
 
@@ -398,12 +430,29 @@ impl<T: GridRow> GridBase<T> {
             loading: self.loading,
             load_error: self.load_error,
             reload_nonce: self.reload_nonce,
+            locale: self.locale,
             view,
         }
     }
 }
 
 impl<T: GridRow> GridHandle<T> {
+    /// The texts and number formats this grid uses. Reading it subscribes the
+    /// caller, so a component that renders a text re-renders when the locale
+    /// changes.
+    #[must_use]
+    pub fn locale(&self) -> ReadSignal<GridLocale> {
+        self.locale.into()
+    }
+
+    /// Switches the grid to other texts and number formats.
+    ///
+    /// For a grid whose locale comes from [`GridOptions::locale`], the next
+    /// render with different options switches it again.
+    pub fn set_locale(&mut self, locale: GridLocale) {
+        self.locale.set(locale);
+    }
+
     /// The rows the grid was given, unfiltered and unsorted.
     #[must_use]
     pub fn data(&self) -> ReadSignal<Vec<T>> {

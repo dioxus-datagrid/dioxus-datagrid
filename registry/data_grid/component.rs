@@ -11,7 +11,7 @@ use dioxus_datagrid::primitives::{
     GridBody, GridColumnFilter, GridHeader, GridPagination, GridRoot, GridSearch, VirtualGridBody,
 };
 use dioxus_datagrid::{
-    Column, ColumnWidth, GridOptions, GridRow, GridState, SelectionMode, use_grid,
+    Column, ColumnWidth, GridLocale, GridOptions, GridRow, GridState, SelectionMode, use_grid,
 };
 
 const THEME: Asset = asset!("/assets/dx-components-theme.css");
@@ -36,12 +36,16 @@ pub struct DataGridProps<T: GridRow + PartialEq + 'static> {
     /// Whether to show a filter input for every filterable column.
     #[props(default)]
     pub column_filters: bool,
-    /// Placeholder for the search box.
-    #[props(default = String::from("Search"))]
-    pub search_placeholder: String,
-    /// What to show when no row matches.
-    #[props(default = String::from("No matching rows"))]
-    pub empty_message: String,
+    /// Placeholder for the search box. Defaults to the locale's.
+    #[props(default)]
+    pub search_placeholder: Option<String>,
+    /// What to show when no row matches. Defaults to the locale's.
+    #[props(default)]
+    pub empty_message: Option<String>,
+    /// Every text the grid writes and how it formats numbers and dates, such
+    /// as `GridLocale::german()`. English by default.
+    #[props(default)]
+    pub locale: GridLocale,
     /// Called whenever the set of selected rows changes.
     #[props(default)]
     pub on_selection_change: Option<EventHandler<Vec<T::Key>>>,
@@ -66,9 +70,9 @@ pub struct DataGridProps<T: GridRow + PartialEq + 'static> {
     /// `.hidden()` stay hidden and are not listed.
     #[props(default)]
     pub column_picker: bool,
-    /// Label of the column menu.
-    #[props(default = String::from("Columns"))]
-    pub column_picker_label: String,
+    /// Label of the column menu. Defaults to the locale's.
+    #[props(default)]
+    pub column_picker_label: Option<String>,
     /// State to start from, such as one saved from `on_state_change`. Read on
     /// the first render only; to apply state loaded later, render the grid once
     /// it is available.
@@ -98,6 +102,7 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
     let mut options = GridOptions::default().selection(props.selection);
     options.page_size = props.page_size;
     options.initial_state = props.initial_state.clone();
+    options.locale = props.locale.clone();
 
     let mut grid = use_grid(props.data, props.columns, options);
 
@@ -120,6 +125,7 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
     });
 
     let is_empty = grid.filtered_len() == 0;
+    let locale = props.locale.clone();
     // Columns defined as hidden are the app's decision, not the user's.
     let pickable: Vec<_> = grid
         .columns()
@@ -166,18 +172,18 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
                         GridSearch {
                             grid,
                             class: "dg-search",
-                            placeholder: props.search_placeholder,
+                            placeholder: props.search_placeholder.clone(),
                         }
                     }
                     span { class: "dg-count",
-                        "{grid.filtered_len()} rows"
+                        "{locale.row_count(grid.filtered_len())}"
                         if grid.selected_count() > 0 {
-                            ", {grid.selected_count()} selected"
+                            ", {locale.selected_count(grid.selected_count())}"
                         }
                     }
                     if props.column_picker {
                         details { class: "dg-columns",
-                            summary { "{props.column_picker_label}" }
+                            summary { {props.column_picker_label.clone().unwrap_or_else(|| locale.columns.to_string())} }
                             div { class: "dg-columns-menu",
                                 for (id , label , visible) in pickable {
                                     label { key: "{id}",
@@ -234,7 +240,9 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
             }
 
             if is_empty {
-                p { class: "dg-empty", role: "status", "{props.empty_message}" }
+                p { class: "dg-empty", role: "status",
+                    {props.empty_message.clone().unwrap_or_else(|| locale.no_rows.to_string())}
+                }
             }
 
             GridPagination { grid, class: "dg-pagination" }
