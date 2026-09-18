@@ -50,7 +50,7 @@ dx components update --git https://github.com/dioxus-datagrid/dioxus-datagrid
 
 ```rust
 use dioxus::prelude::*;
-use dioxus_datagrid::{Column, GridRow, SelectionMode};
+use dioxus_datagrid::{CellFormat, Column, GridRow, SelectionMode};
 
 use crate::components::data_grid::DataGrid;
 
@@ -58,7 +58,7 @@ use crate::components::data_grid::DataGrid;
 struct User {
     id: u32,
     name: String,
-    age: u32,
+    salary: f64,
 }
 
 // A stable identity, so selection survives sorting and paging.
@@ -79,9 +79,10 @@ fn Users() -> Element {
                 .cell(|user: &User| rsx! { "{user.name}" })
                 .sort_by_text(|user: &User| user.name.as_str())
                 .filter_by(|user: &User| user.name.clone()),
-            Column::new("age", "Age")
-                .cell(|user: &User| rsx! { "{user.age}" })
-                .sort_by_value(|user: &User| user.age),
+            // No `.cell()`: the grid shows the value, formatted.
+            Column::new("salary", "Salary")
+                .value_of(|user: &User| user.salary)
+                .format(CellFormat::currency("€", 2)),
         ]
     });
 
@@ -104,6 +105,10 @@ are rendered, while the scrollbar, keyboard navigation and `aria-rowcount` still
 Columns can be resized by dragging a header's edge, and `column_picker` adds a menu to show and
 hide them. With the `serde` feature the whole grid state — sort, filters, page, widths, hidden
 columns — round trips through `initial_state` and `on_state_change`.
+
+Numbers, currencies, percentages and dates (`chrono` feature) are formatted per column, and every
+text the grid writes comes from a `GridLocale`: English by default, German included, as in
+`DataGrid { locale: GridLocale::german(), .. }`.
 
 The installed [`docs.md`](registry/data_grid/docs.md) lists every prop and column option.
 

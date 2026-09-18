@@ -78,8 +78,9 @@ fn Users() -> Element {
 | `page_size` | `None` | Rows per page; omit to show all rows. |
 | `selection` | `SelectionMode::None` | `None`, `Single` or `Multi`. |
 | `searchable` | `true` | Whether to show the search box. |
-| `search_placeholder` | `"Search"` | Placeholder for the search box. |
-| `empty_message` | `"No matching rows"` | Shown when nothing matches. |
+| `search_placeholder` | from `locale` | Placeholder for the search box. |
+| `empty_message` | from `locale` | Shown when nothing matches. |
+| `locale` | `GridLocale::english()` | Every text the grid writes and how it formats numbers and dates. |
 | `on_selection_change` | — | Fires with the selected keys whenever they change. |
 | `column_filters` | `false` | Shows a filter input for every filterable column. |
 | `row_height` | `None` | Virtualizes the grid: only rows in view are rendered, each exactly this many pixels tall. |
@@ -87,9 +88,38 @@ fn Users() -> Element {
 | `overscan` | `20` | With `row_height`: extra rows rendered above and below the visible ones. |
 | `resizable_columns` | `true` | Lets the user resize columns by dragging a header's edge. |
 | `column_picker` | `false` | Shows a menu for showing and hiding columns. |
-| `column_picker_label` | `"Columns"` | Label of that menu. |
+| `column_picker_label` | from `locale` | Label of that menu. |
 | `initial_state` | `None` | A `GridState` to start from, read on the first render. |
 | `on_state_change` | — | Fires with the whole `GridState` whenever it changes. |
+
+## Formats and languages
+
+A column with a value and no `.cell()` shows the value itself, formatted:
+
+```rust
+Column::new("salary", "Salary")
+    .value_of(|user: &User| user.salary)
+    .format(CellFormat::currency("€", 2)),
+Column::new("joined", "Joined")
+    .value_of(|user: &User| user.joined) // a chrono::NaiveDate, with the `chrono` feature
+    .format(CellFormat::Date),
+```
+
+`CellFormat` has `number`, `currency`, `percent`, `Date`, `DateTime` and
+`date_pattern`. Numeric formats align the column at the end; `.align()`
+overrides that, and `.overflow(CellOverflow::TruncateWithTooltip)` shows cut-off
+text as a tooltip.
+
+Separators, symbol placement, date order and every text the grid writes come
+from `locale`. English is the default and German ships with the crate:
+
+```rust
+DataGrid { data: users, columns, locale: GridLocale::german() }
+```
+
+For another language, start from one of them and change the fields —
+`GridLocale { search: "Rechercher".into(), ..GridLocale::german() }`. Column
+labels are yours and are not translated.
 
 ## Large data sets
 
