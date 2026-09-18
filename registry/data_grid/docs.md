@@ -83,6 +83,7 @@ fn Users() -> Element {
 | `locale` | `GridLocale::english()` | Every text the grid writes and how it formats numbers and dates. |
 | `on_selection_change` | — | Fires with the selected keys whenever they change. |
 | `column_filters` | `false` | Shows a filter input for every filterable column. |
+| `filter_menu` | `false` | Shows a filter menu for every filterable column: conditions, or a value list. |
 | `row_height` | `None` | Virtualizes the grid: only rows in view are rendered, each exactly this many pixels tall. |
 | `height` | `None` | A CSS height, such as `"480px"`, that the grid scrolls within. |
 | `overscan` | `20` | With `row_height`: extra rows rendered above and below the visible ones. |
@@ -91,6 +92,24 @@ fn Users() -> Element {
 | `column_picker_label` | from `locale` | Label of that menu. |
 | `initial_state` | `None` | A `GridState` to start from, read on the first render. |
 | `on_state_change` | — | Fires with the whole `GridState` whenever it changes. |
+
+## Filtering
+
+With `column_filters`, each filterable column gets a text box. Plain text
+searches text columns and means "equals" on numbers, dates and booleans; a
+leading operator compares: `>100`, `<=2026-01-01`, `!=Berlin`, `10..20`.
+
+With `filter_menu`, each also gets a menu: one or two conditions joined by
+*and* or *or*, with the operators that suit the column, or a list of the
+column's values with counts to tick, as in a spreadsheet. A column is
+filterable when it has a value or `filter_by` text.
+
+```rust
+DataGrid { data: users, columns, column_filters: true, filter_menu: true }
+```
+
+Filters are part of the grid state, so they persist with `on_state_change`
+like sort and page do.
 
 ## Formats and languages
 

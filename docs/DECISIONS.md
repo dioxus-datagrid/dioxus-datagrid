@@ -666,3 +666,52 @@ das falsche Registry prüft. Ein String-Verweis zeigt zudem immer aufs offiziell
 
 **Folge für A3.** Die Architektur bleibt: `data_grid` legt den Handle in den Context und nimmt
 Kinder an, Zusatzkomponenten lesen ihn dort. Nur die automatische Mitinstallation entfällt vorerst.
+
+## ADR-0026 — Typisierte Filter neben der Filterleiste
+
+**Kontext.** Phase 8 (`docs/ROADMAP.md`) verlangt Operatoren je Werteart, ein Filtermenü mit zwei
+Bedingungen, eine Werteliste wie in einer Tabellenkalkulation und dieselben Filter auf dem Server.
+
+**Entscheidung.**
+
+- **Modell im Core:** `ColumnFilter` = Bedingungen (`Condition` = `FilterOp` + `FilterValue`-
+  Operanden), verbunden mit UND oder ODER (`any`). Die Werteliste ist `OneOf`, bei angehakten
+  leeren Zellen ODER `IsEmpty`. Ein Modell für Menü und Werteliste, statt zwei Filterarten.
+- **Zwei Felder im Zustand:** `GridState::column_filters` (Text der Filterleiste) bleibt, neu ist
+  `GridState::filters` (typisiert, vom Menü). Eine Zeile muss beide bestehen. So bleibt gespeicherter
+  Zustand und bestehender Code gültig, und `serde(default)` liest alte Zustände wie alte Anfragen.
+- **Operanden sind zunächst Text** (`FilterValue::Text`) und werden erst gegen die Werteart der
+  Spalte gelesen (`coerce`, einmal pro Filter über `prepared`). Filterleiste und Menü müssen die
+  Werteart dafür nicht kennen, und ein Server bekommt, was der Nutzer meinte. Zahlen nehmen `,` als
+  Dezimaltrennzeichen, Daten ISO, deutsches und US-Format.
+- **Filterleiste:** `>100`, `<=`, `!=`, `=`, `a..b`; sonst Teilstring wie bisher — aber **nur bei
+  Text**. Bei Zahl, Datum und Bool heißt schlichter Text „gleich" (`30` findet 30, nicht 130).
+  `ColumnFilter::from_bar_text` ist öffentlich, damit ein Server exakt dieselbe Semantik nutzt.
+- **Filterbar wird, was einen Wert oder Filtertext hat** (vorher nur Filtertext). Eine Spalte wie
+  „Alter" bekommt dadurch ein Feld in der Filterleiste. Der einzige Test, der das Gegenteil
+  festhielt, wurde angepasst; die Suche bleibt auf Filtertext beschränkt.
+- **Werteart** (`ValueKind`): erklärt per `.kind()` oder aus dem ersten nicht-leeren Wert der Zeilen.
+  Remote-Grids sollten sie erklären, weil vor der ersten Seite keine Zeilen da sind.
+- **Werteliste:** `distinct_values` wertet alle Filter **außer denen der eigenen Spalte** aus — ein
+  abgewählter Wert bleibt in der Liste, Werte, die andere Filter ausschließen, verschwinden.
+  Höchstens `limit` Werte (Standard 1.000), `truncated` sagt, ob es mehr gab. Remote über die neue
+  Methode `DataSource::distinct_values` mit Standard-Implementierung (leere Liste), also ohne Bruch.
+  Das Handle hält dafür eine typlose Closure, damit es nur über den Zeilentyp generisch bleibt.
+- **Das Menü ist ein eigenes, ungestyltes Primitive** (`GridFilterMenu`), kein Popover aus
+  dx-components (ADR-0025): nicht-modaler Dialog, Klick daneben über eine `position: fixed`-Ebene
+  (kein `web-sys` für Klicks außerhalb), Fokus zurück auf den Knopf. In `data_grid` per Prop
+  `filter_menu`, in der vorhandenen Filterzeile neben dem Textfeld.
+- **Warum Prop statt Zusatzkomponente (A3):** Die Filterzeile gehört schon zu `data_grid`, das Menü
+  braucht keinen eigenen Zustand in der Komponente, und zwei Hilfsfunktionen der Komponente
+  (`column_template`, `pickable_columns`) wanderten in die Crate — die Datei ist mit Menü kürzer
+  (237 Zeilen) als vorher. Die Familie aus A3 beginnt, wo eine Erweiterung eigenen Zustand braucht:
+  beim Editor in Phase 9.
+
+**Folge für Server.** `GridQuery` hat `filters`. Das Fullstack-Beispiel übersetzt alle Operatoren
+nach SQL; ein Test vergleicht für 3 Spalten × 13 Operatoren × 19 Operanden das SQL-Ergebnis mit dem
+lokalen, dazu Filterleisten-Kurzformen, UND/ODER und Wertelisten. Er fand beim ersten Lauf eine
+Abweichung (Zahl als Operand von „enthält").
+
+**Gefunden nebenbei.** `dioxus-datagrid` passte `match` auf Varianten hinter dem `chrono`-Feature des
+Cores an. Aktiviert eine andere Crate `chrono` nur im Core, kompilierte `dioxus-datagrid` nicht mehr.
+Solche Matches liegen jetzt im Core (`FilterValue::edit_text`), und die CI prüft die Mischungen.

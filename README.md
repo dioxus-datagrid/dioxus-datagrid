@@ -106,6 +106,11 @@ Columns can be resized by dragging a header's edge, and `column_picker` adds a m
 hide them. With the `serde` feature the whole grid state — sort, filters, page, widths, hidden
 columns — round trips through `initial_state` and `on_state_change`.
 
+`column_filters` adds a filter bar that understands `>100`, `!=Berlin` and `10..20`, and
+`filter_menu` a menu per column: conditions joined by *and* or *or*, or a list of values with
+counts to tick. A remote grid sends both to the server as part of the `GridQuery`;
+[`examples/fullstack`](examples/fullstack) turns them into SQL.
+
 Numbers, currencies, percentages and dates (`chrono` feature) are formatted per column, and every
 text the grid writes comes from a `GridLocale`: English by default, German included, as in
 `DataGrid { locale: GridLocale::german(), .. }`.
@@ -148,7 +153,7 @@ impl DataSource<User> for Api {
     type Error = String;
 
     async fn fetch(&self, query: GridQuery) -> Result<Page<User>, String> {
-        // query.sort, query.column_filters, query.search, query.page, query.page_size
+        // query.sort, query.column_filters, query.filters, query.search, query.page, …
         todo!("ask your server")
     }
 }

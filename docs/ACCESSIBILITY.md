@@ -171,6 +171,27 @@ Bei `use_grid_remote` kommen die Zeilen seitenweise vom Server.
   an. Er zeigt „Loading…" während einer Anfrage oder den Fehler mit einem „Retry"-Button.
   Beide Texte sind per Prop übersetzbar.
 
+## Filtermenü
+
+`GridFilterMenu` ist ein Knopf mit nicht-modalem Dialog (Disclosure-Muster mit `role="dialog"`).
+
+- **Der Knopf** hat einen sprechenden Namen aus der Locale („Filter options for Department"),
+  `aria-haspopup="dialog"`, `aria-expanded` und, solange offen, `aria-controls` auf das Panel.
+  Das sichtbare „▾" ist `aria-hidden`.
+- **Beim Öffnen** springt der Fokus auf die erste Operator-Auswahl. **`Escape`** und ein Klick
+  daneben schließen ohne Übernahme; **„Anwenden" und „Zurücksetzen"** schließen mit. In jedem Fall
+  kehrt der Fokus auf den Knopf zurück.
+- **Nicht modal:** `Tab` darf das Panel verlassen, der Rest der Seite bleibt bedienbar. Eine
+  Fokusfalle wäre für ein kleines Filterpanel mehr Hindernis als Hilfe.
+- **Bedienelemente sind native Formularelemente:** `select` für Operatoren, `input` passend zum
+  Werttyp (`type="date"`, `datetime-local`, Text mit `inputmode="decimal"`), Radios für und/oder,
+  Checkboxen für die Werteliste. Jedes hat einen zugänglichen Namen aus der Locale. Die
+  Umschaltung „Bedingung / Werte" sind Knöpfe mit `aria-pressed`.
+- **Werteliste:** eine Liste von beschrifteten Checkboxen, der Name enthält Wert und Anzahl
+  („engineering (3)"). Während sie lädt, steht ein `role="status"` darin.
+- **Gefilterte Spalten** tragen `data-filtered="true"` am Kopf und am Menü; die Komponente zeigt es
+  zusätzlich zur Farbe mit einer Unterstreichung.
+
 ## Automatisiert geprüft
 
 - **Markup:** SSR-Tests in `crates/dioxus-datagrid/tests/aria.rs`.
@@ -183,6 +204,8 @@ Bei `use_grid_remote` kommen die Zeilen seitenweise vom Server.
 - **Spalten:** `tests/e2e/columns.spec.ts` — Ziehen, Mindestbreite, `Alt`+Pfeiltasten,
   Zurücksetzen, Ausblenden bis zur letzten Spalte, Tab-Stopp nach Ausblenden der fokussierten
   Spalte.
+- **Filtermenü:** `tests/e2e/filter.spec.ts` — Fokus beim Öffnen und nach dem Schließen,
+  `Escape`, Klick daneben, Werteliste, Deutsch, und axe bei geöffnetem Menü in beiden Ansichten.
 - **Serverseitige Daten:** `crates/dioxus-datagrid/tests/remote.rs` (`aria-busy`, Statusregion,
   Zählung über die Server-Gesamtzahl) und `tests/e2e/server.spec.ts` im Browser.
 - **`axe`:** `@axe-core/playwright` über die ganze Komponente, im hellen **und** im dunklen Theme,
