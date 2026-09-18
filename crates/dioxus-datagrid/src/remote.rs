@@ -1,6 +1,6 @@
 //! The `use_grid_remote` hook: a grid whose rows come from a server.
 
-use crate::grid::{GridHandle, GridOptions, IntoReadSignal, use_grid_base};
+use crate::grid::{DistinctSource, GridHandle, GridOptions, IntoReadSignal, use_grid_base};
 use crate::{Column, DEFAULT_DEBOUNCE, timer};
 use datagrid_core::{
     DEFAULT_REMOTE_PAGE_SIZE, DataSource, GridQuery, GridRow, RequestTracker, View,
@@ -114,7 +114,22 @@ where
     let mut total = use_signal(|| 0_usize);
     let data = use_hook(move || ReadSignal::new(rows));
 
-    let base = use_grid_base(data, columns, options);
+    // Value lists ask the same source, type-erased so the handle stays generic
+    // over the row type only.
+    let distinct = {
+        let source = Rc::clone(&source);
+        let answer: DistinctSource = Rc::new(move |column, query, limit| {
+            let source = Rc::clone(&source);
+            Box::pin(async move {
+                source
+                    .distinct_values(column, query, limit)
+                    .await
+                    .map_err(|error| error.to_string())
+            })
+        });
+        answer
+    };
+    let base = use_grid_base(data, columns, options, Some(distinct));
     let mut state = base.state;
     let mut loading = base.loading;
     let mut load_error = base.load_error;

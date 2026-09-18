@@ -2,15 +2,18 @@
 
 use crate::Column;
 use datagrid_core::{
-    CellFocus, ColumnId, ColumnSpec, ColumnWidth, GridLocale, GridRow, GridState, NavKey,
-    Selection, SelectionMode, SortDirection, View, compute_view, navigate, reveal_scroll_top,
+    CellFocus, ColumnFilter, ColumnId, ColumnSpec, ColumnWidth, DEFAULT_REMOTE_PAGE_SIZE,
+    DistinctValues, GridLocale, GridQuery, GridRow, GridState, NavKey, Selection, SelectionMode,
+    SortDirection, ValueKind, View, compute_view, distinct_values, navigate, reveal_scroll_top,
     rows_per_viewport, visible_range,
 };
 use dioxus::html::ScrollBehavior;
 use dioxus::html::geometry::PixelsVector2D;
 use dioxus::prelude::*;
 use std::collections::HashSet;
+use std::future::Future;
 use std::ops::Range;
+use std::pin::Pin;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -31,6 +34,16 @@ pub struct Layout {
     /// viewport and hides whatever body rows are beneath it.
     pub header_height: f64,
 }
+
+/// Answers a remote grid's value lists: the column, the query without paging,
+/// and the most values wanted.
+pub(crate) type DistinctSource = Rc<
+    dyn Fn(
+        ColumnId,
+        GridQuery,
+        usize,
+    ) -> Pin<Box<dyn Future<Output = Result<DistinctValues, String>>>>,
+>;
 
 /// How a grid behaves, passed once to [`use_grid`].
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -218,6 +231,9 @@ pub struct GridHandle<T: GridRow + 'static> {
     /// Bumped by [`GridHandle::reload`] to repeat the current request.
     /// Texts and formats; see [`GridOptions::locale`].
     locale: Signal<GridLocale>,
+    /// Where a remote grid gets value lists from; `None` for a local grid,
+    /// which computes them from its rows.
+    distinct: CopyValue<Option<DistinctSource>>,
     reload_nonce: Signal<u64>,
     view: Memo<View>,
 }
@@ -290,7 +306,7 @@ where
     let data = use_hook(move || data.into_read_signal());
     let columns = use_hook(move || columns.into_read_signal());
 
-    let base = use_grid_base(data, columns, options);
+    let base = use_grid_base(data, columns, options, None);
     let state = base.state;
 
     // A selected row that is no longer in the data cannot be seen or
@@ -342,6 +358,7 @@ pub(crate) struct GridBase<T: GridRow + 'static> {
     pub(crate) load_error: Signal<Option<String>>,
     pub(crate) reload_nonce: Signal<u64>,
     locale: Signal<GridLocale>,
+    distinct: CopyValue<Option<DistinctSource>>,
 }
 
 /// Creates the signals shared by local and remote grids, in a fixed hook order.
@@ -349,6 +366,7 @@ pub(crate) fn use_grid_base<T>(
     data: ReadSignal<Vec<T>>,
     columns: ReadSignal<Vec<Column<T>>>,
     options: GridOptions,
+    distinct: Option<DistinctSource>,
 ) -> GridBase<T>
 where
     T: GridRow + PartialEq + 'static,
@@ -403,6 +421,7 @@ where
         load_error: use_signal(|| None::<String>),
         reload_nonce: use_signal(|| 0_u64),
         locale,
+        distinct: use_hook(move || CopyValue::new(distinct)),
     }
 }
 
@@ -431,6 +450,7 @@ impl<T: GridRow> GridBase<T> {
             load_error: self.load_error,
             reload_nonce: self.reload_nonce,
             locale: self.locale,
+            distinct: self.distinct,
             view,
         }
     }
@@ -585,6 +605,69 @@ impl<T: GridRow> GridHandle<T> {
     #[must_use]
     pub fn filter(&self, column: &ColumnId) -> Option<String> {
         self.state.read().filter(column).map(ToOwned::to_owned)
+    }
+
+    /// Sets a column's typed filter, as a filter menu builds it; an empty
+    /// filter removes it.
+    pub fn set_column_filter(&mut self, column: impl Into<ColumnId>, filter: ColumnFilter) {
+        self.state.write().set_column_filter(column, filter);
+    }
+
+    /// The typed filter currently set for a column.
+    #[must_use]
+    pub fn column_filter(&self, column: &ColumnId) -> Option<ColumnFilter> {
+        self.state.read().column_filter(column).cloned()
+    }
+
+    /// Removes every filter on a column: its filter text and its typed filter.
+    pub fn clear_column_filters(&mut self, column: &ColumnId) {
+        let mut state = self.state.write();
+        state.set_filter(column.clone(), "");
+        state.set_column_filter(column.clone(), ColumnFilter::default());
+    }
+
+    /// Whether a column is filtered, by text or by a typed filter.
+    #[must_use]
+    pub fn is_filtered(&self, column: &ColumnId) -> bool {
+        self.state.read().is_filtered(column)
+    }
+
+    /// What kind of value a column holds, from its declared kind or the rows
+    /// at hand. See [`ColumnSpec::value_kind`].
+    #[must_use]
+    pub fn value_kind(&self, column: &ColumnId) -> Option<ValueKind> {
+        let columns = self.columns.read();
+        let column = columns.iter().find(|candidate| candidate.id() == column)?;
+        column.spec().value_kind(&self.data.read())
+    }
+
+    /// The values a value list for `column` offers, with their counts, at most
+    /// `limit` of them. See [`distinct_values`].
+    ///
+    /// A local grid computes them from its rows at once; a remote grid asks its
+    /// [`DataSource`](datagrid_core::DataSource). Does not subscribe to
+    /// anything, so call it when the list is needed, such as when a menu opens.
+    pub fn distinct_values(
+        &self,
+        column: ColumnId,
+        limit: usize,
+    ) -> Pin<Box<dyn Future<Output = Result<DistinctValues, String>>>> {
+        let state = self.state.peek().clone();
+        let remote = self.distinct.peek().clone();
+        if let Some(source) = remote {
+            let query = GridQuery::from_state(&state, DEFAULT_REMOTE_PAGE_SIZE);
+            return source(column, query, limit);
+        }
+
+        let specs: Vec<ColumnSpec<T>> = self
+            .columns
+            .peek()
+            .iter()
+            .map(|column| column.spec().clone())
+            .collect();
+        let values =
+            distinct_values(&self.data.peek(), &specs, &state, &column, limit).unwrap_or_default();
+        Box::pin(async move { Ok(values) })
     }
 
     /// Sets the global search term; an empty string clears it.

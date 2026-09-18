@@ -1,7 +1,7 @@
 //! Every text the grid shows and every number and date format it uses, in one
 //! place.
 
-use crate::{CellFormat, CellValue};
+use crate::{CellFormat, CellValue, FilterOp};
 use std::borrow::Cow;
 #[cfg(feature = "chrono")]
 use std::fmt::Write as _;
@@ -81,6 +81,62 @@ pub struct GridLocale {
     pub row_count: Cow<'static, str>,
     /// How many rows are selected, with `{count}`.
     pub selected_count: Cow<'static, str>,
+    /// Accessible name of the button that opens a column's filter menu, with `{column}`.
+    pub filter_menu: Cow<'static, str>,
+    /// Tab of the filter menu with conditions.
+    pub filter_by_condition: Cow<'static, str>,
+    /// Tab of the filter menu with the value list.
+    pub filter_by_values: Cow<'static, str>,
+    /// Accessible name of an operator choice.
+    pub filter_operator: Cow<'static, str>,
+    /// Accessible name of an operand input.
+    pub filter_value: Cow<'static, str>,
+    /// Accessible name of the second operand of a range.
+    pub filter_value_to: Cow<'static, str>,
+    /// Combines two conditions so both must hold.
+    pub filter_and: Cow<'static, str>,
+    /// Combines two conditions so either may hold.
+    pub filter_or: Cow<'static, str>,
+    /// The operator choice that leaves the second condition out.
+    pub filter_none: Cow<'static, str>,
+    /// Applies the filter menu.
+    pub filter_apply: Cow<'static, str>,
+    /// Removes the column's filters.
+    pub filter_clear: Cow<'static, str>,
+    /// Search box of the value list.
+    pub filter_search_values: Cow<'static, str>,
+    /// Ticks or unticks every value in the list.
+    pub filter_select_all: Cow<'static, str>,
+    /// The entry for rows without a value.
+    pub filter_empty_value: Cow<'static, str>,
+    /// Shown when the value list is cut short, with `{count}`.
+    pub filter_more_values: Cow<'static, str>,
+    /// Operator name.
+    pub op_contains: Cow<'static, str>,
+    /// Operator name.
+    pub op_starts_with: Cow<'static, str>,
+    /// Operator name.
+    pub op_ends_with: Cow<'static, str>,
+    /// Operator name.
+    pub op_equals: Cow<'static, str>,
+    /// Operator name.
+    pub op_not_equals: Cow<'static, str>,
+    /// Operator name.
+    pub op_less: Cow<'static, str>,
+    /// Operator name.
+    pub op_less_or_equal: Cow<'static, str>,
+    /// Operator name.
+    pub op_greater: Cow<'static, str>,
+    /// Operator name.
+    pub op_greater_or_equal: Cow<'static, str>,
+    /// Operator name.
+    pub op_between: Cow<'static, str>,
+    /// Operator name.
+    pub op_is_empty: Cow<'static, str>,
+    /// Operator name.
+    pub op_is_not_empty: Cow<'static, str>,
+    /// Operator name.
+    pub op_one_of: Cow<'static, str>,
 }
 
 impl Default for GridLocale {
@@ -117,6 +173,34 @@ impl GridLocale {
             row_count_one: Cow::Borrowed("1 row"),
             row_count: Cow::Borrowed("{count} rows"),
             selected_count: Cow::Borrowed("{count} selected"),
+            filter_menu: Cow::Borrowed("Filter options for {column}"),
+            filter_by_condition: Cow::Borrowed("Condition"),
+            filter_by_values: Cow::Borrowed("Values"),
+            filter_operator: Cow::Borrowed("Operator"),
+            filter_value: Cow::Borrowed("Value"),
+            filter_value_to: Cow::Borrowed("Up to"),
+            filter_and: Cow::Borrowed("and"),
+            filter_or: Cow::Borrowed("or"),
+            filter_none: Cow::Borrowed("(none)"),
+            filter_apply: Cow::Borrowed("Apply"),
+            filter_clear: Cow::Borrowed("Clear"),
+            filter_search_values: Cow::Borrowed("Search values"),
+            filter_select_all: Cow::Borrowed("Select all"),
+            filter_empty_value: Cow::Borrowed("(Empty)"),
+            filter_more_values: Cow::Borrowed("Only the first {count} values are listed"),
+            op_contains: Cow::Borrowed("contains"),
+            op_starts_with: Cow::Borrowed("starts with"),
+            op_ends_with: Cow::Borrowed("ends with"),
+            op_equals: Cow::Borrowed("equals"),
+            op_not_equals: Cow::Borrowed("does not equal"),
+            op_less: Cow::Borrowed("less than"),
+            op_less_or_equal: Cow::Borrowed("at most"),
+            op_greater: Cow::Borrowed("greater than"),
+            op_greater_or_equal: Cow::Borrowed("at least"),
+            op_between: Cow::Borrowed("between"),
+            op_is_empty: Cow::Borrowed("is empty"),
+            op_is_not_empty: Cow::Borrowed("is not empty"),
+            op_one_of: Cow::Borrowed("is one of"),
         }
     }
 
@@ -147,6 +231,34 @@ impl GridLocale {
             row_count_one: Cow::Borrowed("1 Zeile"),
             row_count: Cow::Borrowed("{count} Zeilen"),
             selected_count: Cow::Borrowed("{count} ausgewählt"),
+            filter_menu: Cow::Borrowed("Filteroptionen für {column}"),
+            filter_by_condition: Cow::Borrowed("Bedingung"),
+            filter_by_values: Cow::Borrowed("Werte"),
+            filter_operator: Cow::Borrowed("Operator"),
+            filter_value: Cow::Borrowed("Wert"),
+            filter_value_to: Cow::Borrowed("Bis"),
+            filter_and: Cow::Borrowed("und"),
+            filter_or: Cow::Borrowed("oder"),
+            filter_none: Cow::Borrowed("(keine)"),
+            filter_apply: Cow::Borrowed("Anwenden"),
+            filter_clear: Cow::Borrowed("Zurücksetzen"),
+            filter_search_values: Cow::Borrowed("Werte durchsuchen"),
+            filter_select_all: Cow::Borrowed("Alle auswählen"),
+            filter_empty_value: Cow::Borrowed("(Leer)"),
+            filter_more_values: Cow::Borrowed("Nur die ersten {count} Werte werden angezeigt"),
+            op_contains: Cow::Borrowed("enthält"),
+            op_starts_with: Cow::Borrowed("beginnt mit"),
+            op_ends_with: Cow::Borrowed("endet mit"),
+            op_equals: Cow::Borrowed("gleich"),
+            op_not_equals: Cow::Borrowed("ungleich"),
+            op_less: Cow::Borrowed("kleiner als"),
+            op_less_or_equal: Cow::Borrowed("höchstens"),
+            op_greater: Cow::Borrowed("größer als"),
+            op_greater_or_equal: Cow::Borrowed("mindestens"),
+            op_between: Cow::Borrowed("zwischen"),
+            op_is_empty: Cow::Borrowed("ist leer"),
+            op_is_not_empty: Cow::Borrowed("ist nicht leer"),
+            op_one_of: Cow::Borrowed("ist eines von"),
         }
     }
 
@@ -175,6 +287,39 @@ impl GridLocale {
             self.row_count_one.clone().into_owned()
         } else {
             fill(&self.row_count, &[("count", &self.integer(count))])
+        }
+    }
+
+    /// "Filter options for Name", the accessible name of a filter menu's
+    /// button.
+    #[must_use]
+    pub fn filter_menu(&self, column: &str) -> String {
+        fill(&self.filter_menu, &[("column", column)])
+    }
+
+    /// "Only the first 1,000 values are listed".
+    #[must_use]
+    pub fn filter_more_values(&self, count: usize) -> String {
+        fill(&self.filter_more_values, &[("count", &self.integer(count))])
+    }
+
+    /// The name of a filter operator, as a menu lists it.
+    #[must_use]
+    pub fn operator(&self, op: FilterOp) -> &str {
+        match op {
+            FilterOp::Contains => &self.op_contains,
+            FilterOp::StartsWith => &self.op_starts_with,
+            FilterOp::EndsWith => &self.op_ends_with,
+            FilterOp::Equals => &self.op_equals,
+            FilterOp::NotEquals => &self.op_not_equals,
+            FilterOp::Less => &self.op_less,
+            FilterOp::LessOrEqual => &self.op_less_or_equal,
+            FilterOp::Greater => &self.op_greater,
+            FilterOp::GreaterOrEqual => &self.op_greater_or_equal,
+            FilterOp::Between => &self.op_between,
+            FilterOp::IsEmpty => &self.op_is_empty,
+            FilterOp::IsNotEmpty => &self.op_is_not_empty,
+            FilterOp::OneOf => &self.op_one_of,
         }
     }
 

@@ -8,6 +8,7 @@
 //! is called `GridRow`, which would collide with the
 //! [`GridRow`](datagrid_core::GridRow) trait you implement on your row type.
 
+pub use crate::filter_menu::{DEFAULT_VALUE_LIMIT, GridFilterMenu};
 use crate::{COLUMN_RESIZE_STEP, GridHandle};
 use datagrid_core::{
     CellFocus, GridRow as GridRowKey, NavKey, SelectionMode, SortDirection, offset_of, total_height,
@@ -314,6 +315,7 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
             },
             "data-sort-priority": priority.map(|value| value.to_string()),
             "data-align": column.spec().effective_align().as_str(),
+            "data-filtered": grid.is_filtered(column.id()).then_some("true"),
             "aria-keyshortcuts": show_handle.then_some("Alt+ArrowLeft Alt+ArrowRight"),
             onmounted,
             onclick,
