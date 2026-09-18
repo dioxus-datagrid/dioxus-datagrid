@@ -6,6 +6,43 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-18
+
+### Added
+
+- Typed column filters: `ColumnFilter` holds conditions (`Condition`, with a `FilterOp` and
+  `FilterValue` operands) joined by and or or. Operators per kind of value: contains, starts
+  with, ends with, equals, not equals, less, at most, greater, at least, between, empty, not
+  empty, and one of. Kept per column in `GridState::filters`, next to the filter bar's text.
+- The filter bar understands `>100`, `<=`, `!=`, `=` and `a..b`. Plain text stays a substring
+  test on text columns and means "equals" on number, date and boolean columns.
+  `ColumnFilter::from_bar_text` gives servers the same reading.
+- `GridFilterMenu`, an unstyled filter menu per column: one or two conditions, or a searchable
+  value list with counts. The `data_grid` component shows it with `filter_menu: true`.
+- `distinct_values` and `DistinctValues` for value lists, among the rows that pass every other
+  filter. `DataSource::distinct_values` answers them remotely; it has a default, so existing
+  sources compile unchanged.
+- `GridHandle::set_column_filter`, `column_filter`, `clear_column_filters`, `is_filtered`,
+  `value_kind`, `distinct_values`, `column_template` and `pickable_columns`.
+- `ValueKind`, and `ColumnSpec::kind` / `Column::kind` to declare it. Otherwise it is read from
+  the rows.
+- `GridLocale` has the filter menu's texts and operator names, in English and German.
+- Filtered header cells carry `data-filtered`.
+- `examples/fullstack` translates every operator, and/or and value lists into SQL, tested
+  against the grid's own filtering.
+
+### Changed
+
+- A column with a value is filterable even without `filter_by`, so it gets a filter bar input.
+  Search still looks only at `filter_by` text.
+- `GridQuery` has a `filters` field; it is `serde(default)`, so queries from older clients still
+  parse.
+
+### Fixed
+
+- `dioxus-datagrid` compiles when another crate enables `chrono` in `datagrid-core` only.
+
+
 ## [0.5.0] - 2026-09-18
 
 ### Added
@@ -147,7 +184,8 @@ The first release.
 - The `data_grid` component, installable with `dx components add data_grid`, styled entirely with
   the dx-components theme variables, with optional search, per-column filters and paging.
 
-[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.2.0...v0.3.0
