@@ -4,7 +4,10 @@
 //! `rusqlite` or this module.
 
 use crate::Employee;
-use datagrid_core::{GridQuery, Page, SortDirection};
+use datagrid_core::{
+    ColumnFilter, ColumnId, Condition, DistinctValues, FilterOp, FilterValue, GridQuery, Page,
+    SortDirection, ValueKind,
+};
 use rusqlite::{Connection, params_from_iter, types::Value};
 use std::sync::{LazyLock, Mutex};
 
@@ -17,8 +20,9 @@ struct SqlColumn {
     id: &'static str,
     /// Trusted SQL, written here rather than received.
     expr: &'static str,
-    /// Text columns sort case-insensitively, as the grid does by default.
-    text: bool,
+    /// What the column holds, which decides how operands are read. Text
+    /// columns also sort and compare case-insensitively, as the grid does.
+    kind: ValueKind,
     /// Whether the global search scans this column.
     searchable: bool,
 }
@@ -27,25 +31,25 @@ const COLUMNS: [SqlColumn; 4] = [
     SqlColumn {
         id: "name",
         expr: "name",
-        text: true,
+        kind: ValueKind::Text,
         searchable: true,
     },
     SqlColumn {
         id: "department",
         expr: "department",
-        text: true,
+        kind: ValueKind::Text,
         searchable: true,
     },
     SqlColumn {
         id: "city",
         expr: "city",
-        text: true,
+        kind: ValueKind::Text,
         searchable: true,
     },
     SqlColumn {
         id: "salary",
         expr: "salary",
-        text: false,
+        kind: ValueKind::Number,
         searchable: false,
     },
 ];
@@ -54,13 +58,137 @@ fn column(id: &str) -> Option<&'static SqlColumn> {
     COLUMNS.iter().find(|column| column.id == id)
 }
 
+/// Escapes `LIKE` wildcards so user text matches literally.
+fn escape_like(text: &str) -> String {
+    text.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
 /// A `LIKE` pattern matching `text` anywhere, with its wildcards taken literally.
 fn contains_pattern(text: &str) -> Value {
-    let escaped = text
-        .replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_");
-    Value::Text(format!("%{escaped}%"))
+    Value::Text(format!("%{}%", escape_like(text)))
+}
+
+/// A filter operand as a bound parameter.
+fn param(value: &FilterValue) -> Value {
+    match value {
+        FilterValue::Text(text) => Value::Text(text.clone()),
+        FilterValue::Int(value) => Value::Integer(*value),
+        FilterValue::Float(value) => Value::Real(*value),
+        FilterValue::Bool(value) => Value::Integer(i64::from(*value)),
+        // SQLite has no date type; ISO 8601 text sorts and compares correctly.
+        FilterValue::Date(value) => Value::Text(value.format("%Y-%m-%d").to_string()),
+        FilterValue::DateTime(value) => Value::Text(value.format("%Y-%m-%d %H:%M:%S").to_string()),
+    }
+}
+
+/// SQL for one condition on `column`, pushing its operands onto `params`.
+///
+/// Mirrors [`Condition::matches`]: operands are read as the column's kind
+/// first, text compares ignoring case (SQLite's `NOCASE`, which folds ASCII —
+/// enough for this data), an empty cell passes "is empty" and nothing that
+/// compares, and an operand that does not read as the column's kind compares
+/// with nothing.
+fn condition_sql(column: &SqlColumn, condition: &Condition, params: &mut Vec<Value>) -> String {
+    let expr = column.expr;
+    let text = column.kind == ValueKind::Text;
+    let collate = if text { " COLLATE NOCASE" } else { "" };
+    let prepared = condition.prepared(column.kind);
+    let operand = |index: usize| {
+        prepared
+            .values
+            .get(index)
+            .filter(|value| value.coerce(column.kind).is_some())
+            .map(param)
+    };
+    // A number searched as text: its plain form, as locally.
+    let as_text = if text {
+        expr.to_owned()
+    } else {
+        format!("CAST({expr} AS TEXT)")
+    };
+
+    match prepared.op {
+        FilterOp::IsEmpty if text => format!("({expr} IS NULL OR trim({expr}) = '')"),
+        FilterOp::IsEmpty => format!("{expr} IS NULL"),
+        FilterOp::IsNotEmpty if text => format!("({expr} IS NOT NULL AND trim({expr}) <> '')"),
+        FilterOp::IsNotEmpty => format!("{expr} IS NOT NULL"),
+        FilterOp::Contains | FilterOp::StartsWith | FilterOp::EndsWith => {
+            // No operand filters nothing; a number operand is searched as text.
+            let Some(needle) = prepared.values.first().map(FilterValue::edit_text) else {
+                return "1".to_owned();
+            };
+            let needle = needle.as_str();
+            let pattern = match prepared.op {
+                FilterOp::StartsWith => format!("{}%", escape_like(needle)),
+                FilterOp::EndsWith => format!("%{}", escape_like(needle)),
+                _ => format!("%{}%", escape_like(needle)),
+            };
+            params.push(Value::Text(pattern));
+            format!("{as_text} LIKE ? ESCAPE '\\'")
+        }
+        FilterOp::OneOf => {
+            let values: Vec<Value> = prepared
+                .values
+                .iter()
+                .filter(|value| value.coerce(column.kind).is_some())
+                .map(param)
+                .collect();
+            if values.is_empty() {
+                return "0".to_owned();
+            }
+            let marks = vec!["?"; values.len()].join(", ");
+            params.extend(values);
+            format!("{expr}{collate} IN ({marks})")
+        }
+        FilterOp::NotEquals => match operand(0) {
+            Some(value) => {
+                params.push(value);
+                format!("({expr} IS NOT NULL AND {expr}{collate} <> ?)")
+            }
+            // Nothing to be equal to, so every value differs.
+            None => format!("{expr} IS NOT NULL"),
+        },
+        FilterOp::Between => match (operand(0), operand(1)) {
+            // Either order, as locally: `20..10` is the range `10..20`.
+            (Some(low), Some(high)) => {
+                params.extend([low.clone(), high.clone(), high, low]);
+                format!(
+                    "(({expr}{collate} >= ? AND {expr}{collate} <= ?) \
+                     OR ({expr}{collate} >= ? AND {expr}{collate} <= ?))"
+                )
+            }
+            _ => "0".to_owned(),
+        },
+        op => {
+            let symbol = match op {
+                FilterOp::Less => "<",
+                FilterOp::LessOrEqual => "<=",
+                FilterOp::Greater => ">",
+                FilterOp::GreaterOrEqual => ">=",
+                _ => "=",
+            };
+            match operand(0) {
+                Some(value) => {
+                    params.push(value);
+                    format!("{expr}{collate} {symbol} ?")
+                }
+                None => "0".to_owned(),
+            }
+        }
+    }
+}
+
+/// SQL for a column's filter: its conditions joined with `AND` or `OR`.
+fn filter_sql(column: &SqlColumn, filter: &ColumnFilter, params: &mut Vec<Value>) -> String {
+    let parts: Vec<String> = filter
+        .conditions
+        .iter()
+        .map(|condition| condition_sql(column, condition, params))
+        .collect();
+    let joiner = if filter.any { " OR " } else { " AND " };
+    format!("({})", parts.join(joiner))
 }
 
 /// `WHERE`, `ORDER BY` and the bound parameters for `query`.
@@ -73,15 +201,25 @@ struct Sql {
     params: Vec<Value>,
 }
 
-fn translate(query: &GridQuery) -> Sql {
+/// Translates `query`, leaving out the filters on `except`: a value list shows
+/// the values its own column's filter would hide.
+fn translate(query: &GridQuery, except: Option<&ColumnId>) -> Sql {
     let mut conditions = Vec::new();
     let mut params = Vec::new();
 
-    // Column filters: every one must match.
-    for (id, text) in &query.column_filters {
-        if let Some(column) = column(id.as_str()) {
-            conditions.push(format!("{} LIKE ? ESCAPE '\\'", column.expr));
-            params.push(contains_pattern(text));
+    // The filter bar's text, read exactly as the grid reads it locally, then
+    // the typed filters of the filter menus.
+    let bar = query.column_filters.iter().filter_map(|(id, text)| {
+        let column = column(id.as_str())?;
+        Some((id, column, ColumnFilter::from_bar_text(text, column.kind)?))
+    });
+    let typed = query
+        .filters
+        .iter()
+        .filter_map(|(id, filter)| Some((id, column(id.as_str())?, filter.clone())));
+    for (id, column, filter) in bar.chain(typed) {
+        if except != Some(id) && !filter.is_empty() {
+            conditions.push(filter_sql(column, &filter, &mut params));
         }
     }
 
@@ -112,7 +250,11 @@ fn translate(query: &GridQuery) -> Sql {
         .iter()
         .filter_map(|sort| {
             let column = column(sort.column.as_str())?;
-            let collation = if column.text { " COLLATE NOCASE" } else { "" };
+            let collation = if column.kind == ValueKind::Text {
+                " COLLATE NOCASE"
+            } else {
+                ""
+            };
             let direction = match sort.direction {
                 SortDirection::Asc => "ASC",
                 SortDirection::Desc => "DESC",
@@ -129,12 +271,82 @@ fn translate(query: &GridQuery) -> Sql {
     }
 }
 
+/// `where_clause` with one more condition.
+fn and(where_clause: &str, condition: &str) -> String {
+    if where_clause.is_empty() {
+        format!("WHERE {condition}")
+    } else {
+        format!("{where_clause} AND {condition}")
+    }
+}
+
+/// The distinct values of `column_id` among the rows that pass every filter in
+/// `query` but the column's own, with counts, at most `limit` of them: the
+/// answer to a filter menu's value list.
+pub fn distinct_values(
+    connection: &Connection,
+    column_id: &ColumnId,
+    query: &GridQuery,
+    limit: usize,
+) -> rusqlite::Result<DistinctValues> {
+    let Some(column) = column(column_id.as_str()) else {
+        return Ok(DistinctValues::default());
+    };
+    let sql = translate(query, Some(column_id));
+    let expr = column.expr;
+    // As the grid sorts: text ignoring case, ties by exact text.
+    let order = if column.kind == ValueKind::Text {
+        format!("{expr} COLLATE NOCASE, {expr}")
+    } else {
+        expr.to_owned()
+    };
+
+    let mut params = sql.params.clone();
+    // One more than wanted, to know whether there were more.
+    params.push(Value::Integer(
+        i64::try_from(limit.saturating_add(1)).unwrap_or(i64::MAX),
+    ));
+    let mut statement = connection.prepare(&format!(
+        "SELECT {expr}, COUNT(*) FROM employees {} GROUP BY {expr} ORDER BY {order} LIMIT ?",
+        and(&sql.where_clause, &format!("{expr} IS NOT NULL")),
+    ))?;
+    let mut values = statement
+        .query_map(params_from_iter(params.iter()), |row| {
+            let value = match row.get::<_, Value>(0)? {
+                Value::Integer(value) => FilterValue::Int(value),
+                Value::Real(value) => FilterValue::Float(value),
+                Value::Text(value) => FilterValue::Text(value),
+                other => FilterValue::Text(format!("{other:?}")),
+            };
+            let count: i64 = row.get(1)?;
+            Ok((value, usize::try_from(count).unwrap_or(0)))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let truncated = values.len() > limit;
+    values.truncate(limit);
+
+    let empty: i64 = connection.query_row(
+        &format!(
+            "SELECT COUNT(*) FROM employees {}",
+            and(&sql.where_clause, &format!("{expr} IS NULL"))
+        ),
+        params_from_iter(sql.params.iter()),
+        |row| row.get(0),
+    )?;
+
+    Ok(DistinctValues {
+        values,
+        empty: usize::try_from(empty).unwrap_or(0),
+        truncated,
+    })
+}
+
 /// Runs `query` against `connection`: one page of rows and the total match count.
 pub fn query_employees(
     connection: &Connection,
     query: &GridQuery,
 ) -> rusqlite::Result<Page<Employee>> {
-    let sql = translate(query);
+    let sql = translate(query, None);
 
     let total: i64 = connection.query_row(
         &format!("SELECT COUNT(*) FROM employees {}", sql.where_clause),
@@ -239,6 +451,7 @@ mod tests {
         let state = GridState {
             sort: query.sort.clone(),
             column_filters: query.column_filters.clone(),
+            filters: query.filters.clone(),
             search: query.search.clone(),
             page: Some(PageState {
                 index: query.page,
@@ -336,5 +549,180 @@ mod tests {
         let page = query_employees(&connection, &far).unwrap();
         assert!(page.rows.is_empty());
         assert_eq!(page.total, employees.len());
+    }
+
+    /// Operands for every operator: numbers as the menu or the bar send them
+    /// (text), typed numbers, text of both cases, empties and nonsense.
+    fn operands() -> Vec<FilterValue> {
+        [
+            "50000",
+            "71919",
+            "40000",
+            "99999",
+            "abc",
+            "",
+            " ",
+            "berlin",
+            "BERLIN",
+            "Ber",
+            "lin",
+            "engineering",
+            "a",
+            "Ada Bauer",
+            "50000.5",
+            "5,5",
+        ]
+        .into_iter()
+        .map(FilterValue::from)
+        .chain([
+            FilterValue::Int(60_000),
+            FilterValue::Float(71_919.0),
+            FilterValue::Float(45_000.5),
+        ])
+        .collect()
+    }
+
+    /// Phase 8 acceptance: for every operator, on text and on number columns,
+    /// with every operand, the SQL filters exactly as the grid does locally.
+    #[test]
+    fn every_operator_filters_like_the_grid() {
+        let (connection, employees) = database();
+        let ops = [
+            FilterOp::Contains,
+            FilterOp::StartsWith,
+            FilterOp::EndsWith,
+            FilterOp::Equals,
+            FilterOp::NotEquals,
+            FilterOp::Less,
+            FilterOp::LessOrEqual,
+            FilterOp::Greater,
+            FilterOp::GreaterOrEqual,
+            FilterOp::Between,
+            FilterOp::IsEmpty,
+            FilterOp::IsNotEmpty,
+            FilterOp::OneOf,
+        ];
+        let operands = operands();
+
+        for id in ["city", "name", "salary"] {
+            for op in ops {
+                for (index, first) in operands.iter().enumerate() {
+                    let second = &operands[(index + 3) % operands.len()];
+                    let values = match op.operands() {
+                        Some(0) => Vec::new(),
+                        Some(2) => vec![first.clone(), second.clone()],
+                        Some(_) => vec![first.clone()],
+                        None => vec![first.clone(), second.clone()],
+                    };
+                    let mut case = query();
+                    case.page_size = 10_000;
+                    case.filters = vec![(id.into(), Condition::new(op, values).into())];
+
+                    let remote = query_employees(&connection, &case).unwrap();
+                    let expected = local(&employees, &case);
+                    assert_eq!(remote.total, expected.total, "{id} {op:?} {first:?}");
+                    assert_eq!(remote.rows, expected.rows, "{id} {op:?} {first:?}");
+                }
+            }
+        }
+    }
+
+    /// The filter bar's shortcuts, and conditions joined with and and or.
+    #[test]
+    fn bar_text_and_combined_conditions_filter_like_the_grid() {
+        let (connection, employees) = database();
+        let mut cases = Vec::new();
+
+        for (id, text) in [
+            ("salary", ">90000"),
+            ("salary", "<=41000"),
+            ("salary", "50000..60000"),
+            ("salary", "60000..50000"),
+            ("salary", "71919"),
+            ("salary", "!=71919"),
+            ("salary", "7191"),
+            ("city", "=berlin"),
+            ("city", "!=Munich"),
+            ("city", "ber"),
+            ("city", " ber"),
+            ("name", ">m"),
+            ("name", "Ada..Ben"),
+        ] {
+            let mut case = query();
+            case.page_size = 10_000;
+            case.column_filters = vec![(id.into(), text.to_owned())];
+            cases.push(case);
+        }
+
+        let mut combined = query();
+        combined.filters = vec![
+            (
+                "salary".into(),
+                ColumnFilter::new(Condition::less("45000")).or(Condition::greater("95000")),
+            ),
+            (
+                "city".into(),
+                ColumnFilter::new(Condition::one_of(["berlin", "Munich"])),
+            ),
+        ];
+        combined.column_filters = vec![("department".into(), "eng".to_owned())];
+        combined.sort = vec![SortState::new("salary", SortDirection::Desc)];
+        combined.page = 1;
+        cases.push(combined);
+
+        for case in cases {
+            let remote = query_employees(&connection, &case).unwrap();
+            let expected = local(&employees, &case);
+            assert_eq!(remote.total, expected.total, "total for {case:?}");
+            assert_eq!(remote.rows, expected.rows, "rows for {case:?}");
+        }
+    }
+
+    /// The value list from SQL matches the grid's, including leaving out the
+    /// column's own filter.
+    #[test]
+    fn value_lists_match_the_grid() {
+        let (connection, employees) = database();
+        let mut case = query();
+        case.column_filters = vec![
+            ("salary".into(), ">80000".to_owned()),
+            ("city".into(), "=Berlin".to_owned()),
+        ];
+
+        for (id, limit) in [("city", 100), ("department", 100), ("salary", 7)] {
+            let column_id = ColumnId::from(id);
+            let remote = distinct_values(&connection, &column_id, &case, limit).unwrap();
+            let state = GridState {
+                column_filters: case.column_filters.clone(),
+                ..GridState::new()
+            };
+            let expected = datagrid_core::distinct_values(
+                &employees,
+                &local_columns(),
+                &state,
+                &column_id,
+                limit,
+            )
+            .unwrap();
+            assert_eq!(remote, expected, "{id}");
+        }
+    }
+
+    #[test]
+    fn hostile_operands_stay_parameters() {
+        let (connection, employees) = database();
+        let mut hostile = query();
+        hostile.filters = vec![(
+            "city".into(),
+            Condition::one_of(["x') OR 1=1 --", "%", "_"]).into(),
+        )];
+        assert_eq!(query_employees(&connection, &hostile).unwrap().total, 0);
+
+        // A filter on an unknown column is ignored, like locally.
+        hostile.filters = vec![("1=1; --".into(), Condition::equals("x").into())];
+        assert_eq!(
+            query_employees(&connection, &hostile).unwrap().total,
+            employees.len()
+        );
     }
 }

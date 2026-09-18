@@ -56,6 +56,21 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo check -p dioxus-datagrid --target wasm32-unknown-unknown
 
+  # Cargo unifies features: another crate in an app can turn on `chrono` in
+  # datagrid-core while dioxus-datagrid's own `chrono` stays off. Both crates
+  # must compile in every mix of the two.
+  feature-mix:
+    name: feature combinations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check -p datagrid-core --no-default-features
+      - run: cargo check -p dioxus-datagrid --no-default-features
+      - run: cargo check -p dioxus-datagrid --features datagrid-core/chrono
+      - run: cargo check -p dioxus-datagrid --features datagrid-core/serde
+
   platform-build:
     name: build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

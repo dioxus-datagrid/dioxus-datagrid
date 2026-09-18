@@ -8,7 +8,7 @@ license.workspace = true
 
 [dependencies]
 dioxus = { workspace = true, features = ["fullstack"] }
-datagrid-core = { workspace = true, features = ["serde"] }
+datagrid-core = { workspace = true, features = ["serde", "chrono"] }
 dioxus-datagrid = { workspace = true, features = ["serde"] }
 serde = { workspace = true }
 # Server only: the database never reaches the client build.

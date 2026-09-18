@@ -2,7 +2,7 @@
 
 use datagrid_core::{
     CellAlign, CellFormat, CellOverflow, CellValue, ColumnId, ColumnSpec, ColumnWidth, GridLocale,
-    SortValue, TextCollation,
+    SortValue, TextCollation, ValueKind,
 };
 use dioxus::prelude::*;
 use std::fmt;
@@ -147,6 +147,15 @@ impl<T> Column<T> {
     #[must_use]
     pub fn overflow(mut self, overflow: CellOverflow) -> Self {
         self.spec = self.spec.overflow(overflow);
+        self
+    }
+
+    /// Declares what kind of value the column holds, instead of reading it
+    /// from the rows: for a remote grid before its first page, or a column
+    /// that is often empty. It decides the operators a filter menu offers.
+    #[must_use]
+    pub fn kind(mut self, kind: ValueKind) -> Self {
+        self.spec = self.spec.kind(kind);
         self
     }
 

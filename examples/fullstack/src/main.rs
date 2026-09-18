@@ -11,12 +11,13 @@
 #[cfg(feature = "server")]
 mod db;
 
-use datagrid_core::{DataSource, GridQuery, GridRow, Page};
+use datagrid_core::{ColumnId, DataSource, DistinctValues, GridQuery, GridRow, Page};
 use dioxus::prelude::*;
 use dioxus_datagrid::primitives::{
-    GridBody, GridColumnFilter, GridHeader, GridPagination, GridRoot, GridSearch, GridStatus,
+    GridBody, GridColumnFilter, GridFilterMenu, GridHeader, GridPagination, GridRoot, GridSearch,
+    GridStatus,
 };
-use dioxus_datagrid::{Column, ColumnWidth, GridOptions, use_grid_remote};
+use dioxus_datagrid::{CellFormat, Column, ColumnWidth, GridOptions, ValueKind, use_grid_remote};
 use serde::{Deserialize, Serialize};
 
 const STYLE: Asset = asset!("/assets/fullstack.css");
@@ -76,7 +77,21 @@ async fn load_employees(query: GridQuery) -> Result<Page<Employee>, ServerFnErro
     db::query_employees(&connection, &query).map_err(ServerFnError::new)
 }
 
-/// The grid's view of the server: one method, one server function call.
+/// Answers a filter menu's value list from the database.
+#[post("/api/employees/values")]
+async fn load_values(
+    column: ColumnId,
+    query: GridQuery,
+    limit: usize,
+) -> Result<DistinctValues, ServerFnError> {
+    let database = db::DATABASE.as_ref().map_err(ServerFnError::new)?;
+    let connection = database
+        .lock()
+        .map_err(|_| ServerFnError::new("database lock poisoned"))?;
+    db::distinct_values(&connection, &column, &query, limit).map_err(ServerFnError::new)
+}
+
+/// The grid's view of the server: each method one server function call.
 struct Api;
 
 impl DataSource<Employee> for Api {
@@ -84,6 +99,15 @@ impl DataSource<Employee> for Api {
 
     async fn fetch(&self, query: GridQuery) -> Result<Page<Employee>, ServerFnError> {
         load_employees(query).await
+    }
+
+    async fn distinct_values(
+        &self,
+        column: ColumnId,
+        query: GridQuery,
+        limit: usize,
+    ) -> Result<DistinctValues, ServerFnError> {
+        load_values(column, query, limit).await
     }
 }
 
@@ -105,9 +129,12 @@ fn App() -> Element {
                 .cell(|row: &Employee| rsx! { "{row.city}" })
                 .sort_by_text(|row: &Employee| row.city.as_str())
                 .filter_by(|row: &Employee| row.city.clone()),
+            // No `.cell()`: the value, formatted. The kind is declared because
+            // a remote grid has no rows to read it from before the first page.
             Column::new("salary", "Salary")
-                .cell(|row: &Employee| rsx! { "{row.salary} €" })
-                .sort_by_value(|row: &Employee| row.salary)
+                .value_of(|row: &Employee| row.salary)
+                .format(CellFormat::currency("€", 0))
+                .kind(ValueKind::Number)
                 .width(ColumnWidth::Px(120.0)),
         ]
     });
@@ -127,14 +154,17 @@ fn App() -> Element {
                 GridSearch { grid, placeholder: "Search name, department or city" }
                 GridStatus { grid, class: "status" }
             }
+            // The bar takes `>50000` or `40000..60000` as well as plain text;
+            // the menus build conditions or value lists. Both go to the server.
             div { class: "filters",
-                label {
-                    "Department "
-                    GridColumnFilter { grid, column_index: 1 }
-                }
-                label {
-                    "City "
-                    GridColumnFilter { grid, column_index: 2 }
+                for (index , label) in ["Name", "Department", "City", "Salary"].into_iter().enumerate() {
+                    div { key: "{label}", class: "filter",
+                        label {
+                            "{label} "
+                            GridColumnFilter { grid, column_index: index }
+                        }
+                        GridFilterMenu { grid, column_index: index, class: "filter-menu" }
+                    }
                 }
             }
 

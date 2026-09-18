@@ -191,6 +191,23 @@ impl FilterValue {
         }
     }
 
+    /// How this value reads in a form input, and back through
+    /// [`FilterValue::parse`]: dates in the ISO forms that `type="date"` and
+    /// `type="datetime-local"` inputs use.
+    #[must_use]
+    pub fn edit_text(&self) -> String {
+        match self {
+            Self::Text(text) => text.clone(),
+            Self::Int(value) => value.to_string(),
+            Self::Float(value) => value.to_string(),
+            Self::Bool(value) => value.to_string(),
+            #[cfg(feature = "chrono")]
+            Self::Date(value) => value.format("%Y-%m-%d").to_string(),
+            #[cfg(feature = "chrono")]
+            Self::DateTime(value) => value.format("%Y-%m-%dT%H:%M").to_string(),
+        }
+    }
+
     /// Reads `text` as a value of `kind`. See [`FilterValue::coerce`].
     #[must_use]
     pub fn parse(kind: ValueKind, text: &str) -> Option<Self> {
@@ -672,6 +689,34 @@ impl ColumnFilter {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.conditions.is_empty()
+    }
+
+    /// What the filter bar's `text` means on a column of `kind`: the
+    /// condition from [`Condition::from_text`], except that plain text is a
+    /// substring test only on text columns and equality on every other kind —
+    /// `30` on a number column means "equals 30", not "contains the digits 3
+    /// and 0". `None` for empty text.
+    ///
+    /// This is exactly what a local grid does with
+    /// [`GridState::column_filters`](crate::GridState::column_filters), so a
+    /// server that reads [`GridQuery::column_filters`](crate::GridQuery) with it
+    /// answers the same.
+    #[must_use]
+    pub fn from_bar_text(text: &str, kind: ValueKind) -> Option<Self> {
+        let mut condition = Condition::from_text(text)?;
+        if kind != ValueKind::Text && condition.op == FilterOp::Contains {
+            condition.op = FilterOp::Equals;
+            // Equality is on the value, not on what was typed around it.
+            condition.values = condition
+                .values
+                .into_iter()
+                .map(|value| match value {
+                    FilterValue::Text(text) => FilterValue::Text(text.trim().to_owned()),
+                    other => other,
+                })
+                .collect();
+        }
+        Some(Self::new(condition))
     }
 
     /// This filter with every operand read as `kind`. See

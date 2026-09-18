@@ -195,6 +195,7 @@ impl DataSource<Employee> for SimulatedServer {
         let state = GridState {
             sort: query.sort.clone(),
             column_filters: query.column_filters.clone(),
+            filters: query.filters.clone(),
             search: query.search.clone(),
             page: Some(PageState {
                 index: query.page,

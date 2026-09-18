@@ -183,19 +183,9 @@ impl Draft {
     }
 }
 
-/// How an operand reads in an input: dates in the ISO form that `type="date"`
-/// and `type="datetime-local"` inputs use.
+/// How an operand reads in an input.
 fn edit_text(value: &FilterValue) -> String {
-    match value {
-        FilterValue::Text(text) => text.clone(),
-        FilterValue::Int(value) => value.to_string(),
-        FilterValue::Float(value) => value.to_string(),
-        FilterValue::Bool(value) => value.to_string(),
-        #[cfg(feature = "chrono")]
-        FilterValue::Date(value) => value.format("%Y-%m-%d").to_string(),
-        #[cfg(feature = "chrono")]
-        FilterValue::DateTime(value) => value.format("%Y-%m-%dT%H:%M").to_string(),
-    }
+    value.edit_text()
 }
 
 /// The input type for operands of `kind`.

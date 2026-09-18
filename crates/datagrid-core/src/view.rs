@@ -3,8 +3,8 @@
 use crate::column::{FilterTextFn, ValueFn};
 use crate::filter::contains_ignore_case;
 use crate::{
-    ColumnFilter, ColumnId, ColumnSpec, Condition, FilterOp, FilterValue, GridState, SortDirection,
-    SortValue, TextCollation, ValueKind,
+    ColumnFilter, ColumnId, ColumnSpec, Condition, FilterValue, GridState, SortDirection,
+    SortValue, TextCollation,
 };
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -155,9 +155,9 @@ fn filter_indices_except<T>(
 }
 
 /// The filters in effect, each paired with its column and prepared for the
-/// column's kind: the filter bar's text read by [`Condition::from_text`], then
-/// the typed filters. `except` leaves one column's filters out, which is what a
-/// value list needs to show the values its own filter would hide.
+/// column's kind: the filter bar's text read by [`ColumnFilter::from_bar_text`],
+/// then the typed filters. `except` leaves one column's filters out, which is
+/// what a value list needs to show the values its own filter would hide.
 ///
 /// Filters naming an unknown or unfilterable column are dropped.
 pub(crate) fn active_filters<'c, T>(
@@ -166,53 +166,35 @@ pub(crate) fn active_filters<'c, T>(
     state: &GridState,
     except: Option<&ColumnId>,
 ) -> Vec<(&'c ColumnSpec<T>, ColumnFilter)> {
-    let from_text = state
-        .column_filters
-        .iter()
-        .filter_map(|(id, text)| Some((id, ColumnFilter::new(Condition::from_text(text)?), true)));
+    let find = |id: &ColumnId| {
+        columns
+            .iter()
+            .find(|column| &column.id == id)
+            .filter(|column| column.is_filterable() && except != Some(id))
+    };
+
+    let from_bar = state.column_filters.iter().filter_map(|(id, text)| {
+        let column = find(id)?;
+        let filter = match column.value_kind(rows) {
+            Some(kind) => ColumnFilter::from_bar_text(text, kind)?.prepared(kind),
+            None => ColumnFilter::new(Condition::from_text(text)?),
+        };
+        Some((column, filter))
+    });
     let typed = state
         .filters
         .iter()
         .filter(|(_, filter)| !filter.is_empty())
-        .map(|(id, filter)| (id, filter.clone(), false));
-
-    from_text
-        .chain(typed)
-        .filter(|(id, ..)| except != Some(*id))
-        .filter_map(|(id, filter, from_bar)| {
-            let column = columns
-                .iter()
-                .find(|column| &column.id == id)
-                .filter(|column| column.is_filterable())?;
+        .filter_map(|(id, filter)| {
+            let column = find(id)?;
             let filter = match column.value_kind(rows) {
-                Some(kind) if from_bar => bar_semantics(filter, kind).prepared(kind),
                 Some(kind) => filter.prepared(kind),
-                None => filter,
+                None => filter.clone(),
             };
             Some((column, filter))
-        })
-        .collect()
-}
+        });
 
-/// Typing `30` into the filter bar of a number column means "equals 30", not
-/// "contains the digits 3 and 0": plain bar text is a substring test only on
-/// text. A typed filter is left alone — its `Contains` was chosen on purpose.
-fn bar_semantics(filter: ColumnFilter, kind: ValueKind) -> ColumnFilter {
-    if kind == ValueKind::Text {
-        return filter;
-    }
-    let conditions = filter
-        .conditions
-        .into_iter()
-        .map(|condition| match condition.op {
-            FilterOp::Contains => Condition::new(FilterOp::Equals, condition.values),
-            _ => condition,
-        })
-        .collect();
-    ColumnFilter {
-        conditions,
-        ..filter
-    }
+    from_bar.chain(typed).collect()
 }
 
 /// Whether `row` passes one column's filter.
