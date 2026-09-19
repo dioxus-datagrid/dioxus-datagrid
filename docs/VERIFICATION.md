@@ -287,3 +287,28 @@ Geprüft am 2026-09-18 mit dx 0.7.10, Quelle `packages/cli/src/cli/component.rs`
 
 **Folge:** Solange dx das nicht behebt, nennen unsere Zusatzkomponenten keine
 `componentDependencies`. Siehe ADR-0025.
+
+## 10. Phase 9: Callbacks, die asynchron speichern
+
+Geprüft am 2026-09-19 an `dioxus-core`, `dioxus-hooks` und `dioxus-signals` 0.7.10 (Quelle im
+Cargo-Register), dann per SSR-Test (`crates/dioxus-datagrid/tests/editing.rs`) und Playwright.
+
+- **`EventHandler<T>` nimmt synchrone Closures und `async`-Blöcke.** `SpawnIfAsync` (in
+  `events.rs`) startet einen zurückgegebenen `Future<Output = ()>` selbst per `spawn`. Ein
+  `on_save: move |save| async move { … }` braucht also keinen eigenen Rückgabetyp.
+- **`Callback::call` läuft im Scope, in dem der Callback erzeugt wurde** (`origin`, über
+  `with_scope_on_stack`), nicht im Scope des Aufrufers. Das `spawn` eines asynchronen Handlers hängt
+  damit an der Komponente der App, nicht an der Editor-Zelle, die beim Übernehmen verschwindet.
+  Ein Umweg über `Runtime::in_scope` ist nicht nötig.
+- **`Callback`s vergleichen ihre Identität** (`ptr_eq` plus `origin`). Callback-Props behalten sie
+  über Renders hinweg, weil Dioxus beim Diffing nur die innere Funktion austauscht.
+  `GridHandle::set_editing` kann daher bei jedem Render aufgerufen werden und schreibt nur bei
+  echter Änderung. Ein `EventHandler::new(…)` im Render-Körper erzeugte dagegen jedes Mal einen
+  neuen — in Tests und eigenen Komponenten deshalb in `use_hook` oder `use_callback`.
+- **`use_callback`** (dioxus-hooks) hält einen `Callback` über Renders stabil und tauscht nur die
+  Closure. Die Editoren reichen so `set_text`, `onkeydown` und `onmounted` an eigene Editoren
+  weiter, ohne bei jedem Render neue Callbacks anzulegen.
+- **`Writable::try_write`** liefert einen Fehler statt zu paniken, wenn das Signal schon verworfen
+  ist. Ein Speichervorgang, der erst endet, nachdem die Seite verlassen wurde, schreibt so nichts.
+- **`VirtualDom::in_scope(ScopeId::ROOT, …)`** führt Code im Runtime aus; so treiben die Tests das
+  Handle Schritt für Schritt, ohne Browser-Events.

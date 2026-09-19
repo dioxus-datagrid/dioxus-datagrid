@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Editing. Columns become editable with a setter of the field's own type,
+  `.editable(|row, age: u32| row.age = age)`; what a user types is read as the column's kind of
+  value and converted with the new `FromValue` trait, and refused with a message if it does not
+  fit. `.edit` takes the raw `Value`, `.validate` checks a row after a column changed, `.choices`
+  offers a list, and `.editor` replaces the editor with your own (`CellEditor`).
+- Four ways to edit, set with `GridHandle::set_editing` and `Editing`: one cell at a time
+  (`EditMode::Cell`), a whole row inline (`Row`), a row in a form dialog (`Dialog`), and cells
+  collected into a batch (`Batch`). `Enter` or `F2` starts, `Enter` and `Tab` commit and move on,
+  `Escape` cancels, `Delete` deletes.
+- The grid never writes the data. `on_save`, `on_create`, `on_delete` and `on_batch_save` receive a
+  token with the rows (`Save`, `Create`, `Delete`, `SaveBatch`); dropping it means success, `fail`
+  reports an error. The callbacks may be `async`. While a save runs the grid shows the edited row,
+  and takes it back if the save fails.
+- Primitives: editors in `GridCell` (`GridCellEditor`), `GridEditDialog` for forms and new rows,
+  `GridDeleteConfirm`, `GridEditToolbar` and `GridEditStatus`. Cells carry `data-editing`,
+  `data-changed` and, in an editable grid, `aria-readonly`; rows carry `data-editing`,
+  `data-deleted` and `data-saving`.
+- In the core: `ColumnSpec::edit`, `editable`, `validate`, `choices`, `apply_edit` and
+  `edit_text`, `EditError`, `FromValue`, `Changes` for batches and `changed_columns`.
+- `GridLocale` has the texts for editing, in English and German.
+- The `data_grid_editor` registry component: `DataGridEditor` inside a `DataGrid` makes it
+  editable, with a toolbar, status line, form dialog and delete confirmation.
+- `data_grid` takes children and provides its `GridHandle` as context, for add-ons like the editor.
+- `examples/fullstack` saves edits through a server function that has rules of its own.
+
 ### Changed
 
 - `FilterValue` is now `Value`, since edits write it too. `FilterValue` remains as a deprecated

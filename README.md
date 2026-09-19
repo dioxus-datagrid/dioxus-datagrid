@@ -19,6 +19,7 @@ project by `dx components add` and is yours to change from then on.
 | [`datagrid-core`](crates/datagrid-core) | Sorting, filtering, paging, selection, virtualization math. Pure Rust, no UI framework. |
 | [`dioxus-datagrid`](crates/dioxus-datagrid) | The `use_grid` hook and unstyled primitives implementing the ARIA grid pattern. No `web-sys`. |
 | [`registry/data_grid`](registry/data_grid) | The styled component that `dx components add data_grid` installs. |
+| [`registry/data_grid_editor`](registry/data_grid_editor) | Editing for it: cells, rows, a form dialog or batches, installed next to `data_grid`. |
 
 ## Installation
 
@@ -117,6 +118,36 @@ text the grid writes comes from a `GridLocale`: English by default, German inclu
 
 The installed [`docs.md`](registry/data_grid/docs.md) lists every prop and column option.
 
+## Editing
+
+`dx components add data_grid_editor` adds editing. Mark columns editable with a setter of the
+field's own type, and put a `DataGridEditor` inside the `DataGrid`:
+
+```rust
+Column::new("age", "Age")
+    .value_of(|user: &User| user.age)
+    // "abc" or "-3" is refused at the cell before the setter runs.
+    .editable(|user: &mut User, age: u32| user.age = age),
+```
+
+```rust
+DataGrid { data: users, columns,
+    DataGridEditor {
+        mode: EditMode::Row,
+        on_save: move |save: Save<User>| async move {
+            if let Err(error) = api::update(save.row()).await {
+                save.fail(error.to_string());
+            }
+        },
+    }
+}
+```
+
+The grid never writes your data: it hands the edited row to the callback and shows it while the
+save runs. If the save fails, the old value comes back with the message. Cells, whole rows, a form
+dialog and batches are supported, with adding, deleting and validation at the cell;
+[`docs.md`](registry/data_grid_editor/docs.md) has the details.
+
 ## Headless usage
 
 If you want your own markup, skip the registry component and compose the primitives. They render
@@ -140,7 +171,9 @@ rsx! {
 
 `GridHandle` is `Copy` and exposes the state directly — `toggle_sort`, `set_filter`, `set_search`,
 `set_page`, `set_column_hidden`, `set_column_width`, `select`, `toggle_select`, `clear_selection`,
-`state` / `set_state` — for building controls of your own.
+`state` / `set_state`, and for editing `set_editing`, `start_edit`, `commit_edit`, `request_delete`
+and `save_changes` — for building controls of your own. The editing primitives (`GridEditToolbar`,
+`GridEditDialog`, `GridDeleteConfirm`, `GridEditStatus`) work the same way.
 
 ## Server-side data
 

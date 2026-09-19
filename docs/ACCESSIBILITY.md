@@ -192,6 +192,41 @@ Bei `use_grid_remote` kommen die Zeilen seitenweise vom Server.
 - **Gefilterte Spalten** tragen `data-filtered="true"` am Kopf und am Menü; die Komponente zeigt es
   zusätzlich zur Farbe mit einer Unterstreichung.
 
+## Bearbeiten
+
+Nach dem WAI-ARIA-Grid-Muster: **Navigationsmodus** mit Pfeiltasten wie bisher, **Bearbeitungsmodus**
+in der Zelle.
+
+- **Einstieg:** `Enter` oder `F2` auf einer Zelle, oder Doppelklick. Der Editor ist ein natives
+  Formularelement und bekommt den DOM-Fokus; die Gitterposition bleibt auf seiner Zelle.
+- **Im Editor** gehören alle Tasten dem Editor: Das Grid wertet während der Bearbeitung keine
+  Tasten aus (Leertaste wählt keine Zeile, Pfeile bewegen den Cursor im Text). `Enter` übernimmt,
+  `Escape` bricht ab, `Tab` übernimmt und bearbeitet die nächste bearbeitbare Zelle — bei
+  Zeilenbearbeitung wechselt `Tab` zwischen den Editoren der Zeile und kehrt am Ende zum ersten
+  zurück. Danach steht der Fokus wieder auf einer Zelle, und die Pfeiltasten gelten wieder.
+- **Name:** Ein Editor in der Zelle heißt wie seine Spalte (`aria-label`). Im Formular benennt ein
+  `<label for>` das Feld.
+- **Werteart:** Text- und Zahlfelder (`inputmode="decimal"`), `type="date"` und
+  `datetime-local`, Checkbox für Wahrheitswerte, `select` für Spalten mit Auswahlliste.
+- **Fehler:** Ein abgelehnter Wert setzt `aria-invalid="true"` und `aria-describedby` auf die
+  Meldung, die mit `role="alert"` sofort angesagt wird. Der Editor bleibt offen und behält den
+  Fokus. Fehler, die die ganze Zeile betreffen, stehen im Formular unter den Feldern (`role="alert"`)
+  oder, bei Zeilenbearbeitung, in `GridEditStatus`.
+- **Nur lesbar:** In einem bearbeitbaren Grid tragen Zellen ohne Setter `aria-readonly="true"`.
+- **Formular (`GridEditDialog`):** modal, `role="dialog"`, `aria-modal="true"`, benannt über seine
+  Überschrift. Der Fokus startet im ersten Feld und bleibt im Dialog: Fokuswächter an beiden Enden
+  schicken `Tab` und `Shift+Tab` zum jeweils anderen Ende. `Escape` schließt, danach steht der Fokus
+  wieder im Grid.
+- **Löschen (`GridDeleteConfirm`):** `role="alertdialog"`, modal, benannt über die Frage („Diese
+  Zeile löschen?"). Der Fokus startet auf **„Behalten"**, der Wahl, die nichts verliert; `Escape`
+  behält die Zeilen.
+- **Status (`GridEditStatus`):** Live-Region für „Wird gespeichert …", „Gespeichert", den Grund
+  eines Fehlschlags und die Zahl ungespeicherter Änderungen im Batch. Der Container steht immer im
+  DOM.
+- **Markierungen** (`data-changed`, `data-deleted`, `data-saving`) sind nur optisch; was sie
+  bedeuten, sagt die Status-Region als Zahl an. Die Komponente zeigt geänderte Zellen mit einem
+  Balken, gelöschte Zeilen durchgestrichen, speichernde kursiv — nie nur über Farbe.
+
 ## Automatisiert geprüft
 
 - **Markup:** SSR-Tests in `crates/dioxus-datagrid/tests/aria.rs`.
@@ -206,6 +241,10 @@ Bei `use_grid_remote` kommen die Zeilen seitenweise vom Server.
   Spalte.
 - **Filtermenü:** `tests/e2e/filter.spec.ts` — Fokus beim Öffnen und nach dem Schließen,
   `Escape`, Klick daneben, Werteliste, Deutsch, und axe bei geöffnetem Menü in beiden Ansichten.
+- **Bearbeiten:** `tests/e2e/editing.spec.ts` — jede Bearbeitungsart nur mit der Tastatur (Zelle,
+  Zeile, Formular, Batch, Anlegen, Löschen), Fokus nach Übernehmen und Abbrechen, Fokusfalle im
+  Formular, und axe mit offenem Editor, mit Fehlermeldung, mit offenem Formular und offener
+  Löschabfrage. Markup in `crates/dioxus-datagrid/tests/editing.rs`.
 - **Serverseitige Daten:** `crates/dioxus-datagrid/tests/remote.rs` (`aria-busy`, Statusregion,
   Zählung über die Server-Gesamtzahl) und `tests/e2e/server.spec.ts` im Browser.
 - **`axe`:** `@axe-core/playwright` über die ganze Komponente, im hellen **und** im dunklen Theme,

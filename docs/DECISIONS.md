@@ -715,3 +715,56 @@ Abweichung (Zahl als Operand von „enthält").
 **Gefunden nebenbei.** `dioxus-datagrid` passte `match` auf Varianten hinter dem `chrono`-Feature des
 Cores an. Aktiviert eine andere Crate `chrono` nur im Core, kompilierte `dioxus-datagrid` nicht mehr.
 Solche Matches liegen jetzt im Core (`FilterValue::edit_text`), und die CI prüft die Mischungen.
+
+## ADR-0027 — Bearbeiten: Das Grid schreibt nie, es übergibt
+
+**Kontext.** Phase 9 (`docs/ROADMAP.md`) verlangt Bearbeiten in der Zelle, in der Zeile, im Dialog
+und als Batch, Anlegen und Löschen, Validierung an der Zelle und — für Remote-Daten — eine
+optimistische Anzeige, die bei einem Fehler zurückgenommen wird. Die Daten eines Grids sind ein
+`ReadSignal` der App; das Grid besitzt sie nicht.
+
+**Entscheidung.**
+
+- **Das Grid schreibt die Daten nie.** Eine Bearbeitung arbeitet auf einer Kopie der Zeile. Beim
+  Übernehmen bekommt die App die bearbeitete Kopie über einen Callback (`on_save`, `on_create`,
+  `on_delete`, `on_batch_save`) und speichert sie, wo sie will. Lokal und remote dieselbe API:
+  lokal schreibt der Callback das Signal, remote ruft er den Server.
+- **Ergebnis über ein Token.** Jeder Callback bekommt ein Token (`Save`, `Create`, `Delete`,
+  `SaveBatch`) mit den Zeilen. Wird es fallen gelassen, gilt das Speichern als gelungen; `fail(msg)`
+  meldet einen Fehler. Das Token darf in einen `async`-Block wandern — `EventHandler` startet ihn
+  selbst, im Scope der App (VERIFICATION.md §10). So braucht ein synchroner lokaler Callback keine
+  Zeile extra, und ein asynchroner meldet sich, wenn er fertig ist.
+- **Optimistisch, mit Rücknahme.** Solange ein Speichern läuft, zeigt das Grid die bearbeitete
+  Zeile (`data-saving`). Scheitert es, verschwindet die Kopie, die Daten zeigen wieder den alten
+  Stand, und `GridEditStatus` sagt warum. Ein Remote-Grid lädt nach Erfolg seine Seite neu und zeigt
+  die Kopie, bis die neue Seite da ist, damit der alte Wert nicht aufblitzt.
+- **Typisierte Setter** (`.editable(|row, age: u32| …)`): Der Core liest den getippten Text als
+  Werteart der Spalte (`Value::parse`, wie beim Filtern) und wandelt ihn über `FromValue` in den Typ
+  des Feldes. Was nicht passt — kein Zahlwert, negativ für `u32`, `2,5` für eine Ganzzahl, leer ohne
+  `Option` —, wird mit einer Meldung aus der Locale abgelehnt, bevor der Setter läuft. Dazu
+  `.validate` je Spalte und `validate_row` je Zeile. Unveränderte Felder einer bestehenden Zeile
+  werden nicht neu geprüft (alte Daten dürfen heutige Regeln verletzen); neue Zeilen vollständig.
+- **Vier Modi:** `Cell` (speichert je Zelle, zusätzlich zu SfGrid, weil in Tabellen üblich),
+  `Row`, `Dialog`, `Batch`. `Enter` in der Zelle übernimmt und geht nach unten wie in einer
+  Tabellenkalkulation, `Tab` zur nächsten bearbeitbaren Zelle; in der Zeile wechselt `Tab` zwischen
+  deren Editoren.
+- **Die Bearbeitung folgt ihrer Zeile per Schlüssel**, nicht per Position. Sortiert oder lädt das
+  Grid während einer Bearbeitung neu, wandert der Editor mit; verlässt die Zeile die Seite, wird die
+  Bearbeitung verworfen, damit das Grid seine Tasten zurückbekommt.
+- **Eigene Dialoge statt dx-components** (wie ADR-0025): modal mit `aria-modal`, Fokuswächtern an
+  beiden Enden und einer `position: fixed`-Ebene dahinter. `<dialog>.showModal()` oder `inert`
+  bräuchten `web-sys` oder `eval`.
+- **Registry:** `data_grid` nimmt `children` und legt sein Handle in den Context (A3, ROADMAP §9).
+  `data_grid_editor` ist die erste Zusatzkomponente: `DataGridEditor` als Kind von `DataGrid`, mit
+  Werkzeugleiste, Status, Formular und Löschabfrage. Ohne `componentDependencies` (ADR-0025) — die
+  Doku sagt, `data_grid` zuerst zu installieren. Die Zell-Editoren selbst rendert die Crate in
+  `GridCell`, `data_grid` muss sie nicht kennen.
+- **`FilterValue` heißt jetzt `Value`**, weil derselbe Typ geschrieben wird; der alte Name bleibt
+  als veralteter Alias.
+
+**Abweichung vom Plan.** Neue Zeilen werden **immer im Formular** angelegt und erscheinen im Grid
+erst, wenn sie gespeichert sind — auch im Batch, wo sie nur gezählt werden. Eine neue Zeile inline
+im Grid bräuchte eine Zeile, die nicht in den Daten steht, mitten in `aria-rowindex`, Tastatur und
+Virtualisierung; das ist genau die View aus Zeilenarten (A2), die Phase 10 ohnehin baut. Gelöschte
+Zeilen verschwinden, wenn die App sie aus den Daten nimmt; im Batch werden sie bis zum Speichern
+durchgestrichen gezeigt.
