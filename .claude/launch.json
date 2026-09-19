@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "playground",
+      "runtimeExecutable": "dx",
+      "runtimeArgs": ["serve", "--web", "--package", "playground", "--port", "8080", "--open", "false"],
+      "port": 8080
+    }
+  ]
+}
