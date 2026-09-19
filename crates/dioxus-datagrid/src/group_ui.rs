@@ -88,6 +88,8 @@ pub fn GridGroupRow<T: GridRowKey + PartialEq + 'static>(
     };
     let caption = locale.group_caption(label, &value);
     let count = locale.row_count(group.count);
+    // Of the visible columns only, as the footers show them.
+    let visible = grid.visible_columns();
     let aggregates: Vec<String> = if group.expanded {
         Vec::new()
     } else {
@@ -96,7 +98,7 @@ pub fn GridGroupRow<T: GridRowKey + PartialEq + 'static>(
             .iter()
             .filter(|aggregate| aggregate.value.is_some())
             .filter_map(|aggregate| {
-                let column = columns
+                let column = visible
                     .iter()
                     .find(|column| column.id() == &aggregate.column)?;
                 let value = locale.format_aggregate(aggregate, &column.spec().format);
@@ -222,24 +224,33 @@ pub fn GridAggregateCell<T: GridRowKey + PartialEq + 'static>(
     let focused = grid.focus() == at;
     let locale = grid.locale();
     let locale = locale.read();
-    let aggregates: Vec<(String, String, String)> = source
+    let aggregates: Vec<(&str, String, String)> = source
         .read(&grid, column.id())
         .iter()
         .map(|aggregate| {
             (
-                format!("{:?}", aggregate.kind).to_lowercase(),
+                aggregate.kind.as_str(),
                 locale.aggregate_name(&aggregate.kind).to_owned(),
                 locale.format_aggregate(aggregate, &column.spec().format),
             )
         })
         .collect();
     let label = label.filter(|_| aggregates.is_empty());
+    // All of it, for when a fixed row height cuts some of it off.
+    let title = (!aggregates.is_empty()).then(|| {
+        aggregates
+            .iter()
+            .map(|(_, name, value)| format!("{name} {value}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    });
 
     rsx! {
         div {
             role: "gridcell",
             aria_colindex: "{column_index + 1}",
             tabindex: if focused { "0" } else { "-1" },
+            title,
             "data-align": column.spec().effective_align().as_str(),
             onmounted,
             onclick: move |_| grid.set_focus(at),
@@ -264,6 +275,9 @@ pub fn GridAggregateCell<T: GridRowKey + PartialEq + 'static>(
 /// Put it inside [`GridRoot`](crate::primitives::GridRoot), after the body.
 /// The keyboard reaches it after the last row; `aria-rowindex` makes it the
 /// last row of the grid. Renders `data-footer` on its row group.
+///
+/// Made sticky at the bottom of a virtualized grid, it reports its height so
+/// that rows scrolled into view by the keyboard do not end up beneath it.
 #[component]
 pub fn GridFooter<T: GridRowKey + PartialEq + 'static>(
     grid: GridHandle<T>,
@@ -273,8 +287,12 @@ pub fn GridFooter<T: GridRowKey + PartialEq + 'static>(
     let shown = grid.has_aggregates();
     // Compared before writing, so registering in render cannot loop.
     grid.set_footer(shown);
-    use_drop(move || grid.set_footer(false));
+    use_drop(move || {
+        grid.set_footer(false);
+        grid.record_footer_height(0.0);
+    });
     if !shown {
+        grid.record_footer_height(0.0);
         return rsx! {};
     }
 
@@ -287,7 +305,17 @@ pub fn GridFooter<T: GridRowKey + PartialEq + 'static>(
     let totals = grid.locale().read().totals.to_string();
 
     rsx! {
-        div { role: "rowgroup", "data-footer": "", ..attributes,
+        div {
+            role: "rowgroup",
+            "data-footer": "",
+            // A footer that sticks to the bottom hides the rows beneath it,
+            // which a virtualized body has to know.
+            onresize: move |event| {
+                if let Ok(size) = event.data().get_border_box_size() {
+                    grid.record_footer_height(size.height);
+                }
+            },
+            ..attributes,
             div {
                 role: "row",
                 aria_rowindex: "{aria_row_index}",

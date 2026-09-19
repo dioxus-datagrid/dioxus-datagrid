@@ -3,7 +3,8 @@
 use crate::grid::{DistinctSource, GridHandle, GridOptions, IntoReadSignal, use_grid_base};
 use crate::{Column, DEFAULT_DEBOUNCE, timer};
 use datagrid_core::{
-    DEFAULT_REMOTE_PAGE_SIZE, DataSource, GridQuery, GridRow, RequestTracker, View,
+    AggregateValue, ColumnSpec, DEFAULT_REMOTE_PAGE_SIZE, DataSource, GridQuery, GridRow, Group,
+    RequestTracker, View, ViewRow,
 };
 use dioxus::core::Task;
 use dioxus::prelude::*;
@@ -111,7 +112,9 @@ where
     };
 
     let mut rows = use_signal(Vec::<T>::new);
-    let mut total = use_signal(|| 0_usize);
+    // Everything about the page but its rows: how many match, and where the
+    // groups go.
+    let mut shape = use_signal(PageShape::default);
     let data = use_hook(move || ReadSignal::new(rows));
 
     // Value lists ask the same source, type-erased so the handle stays generic
@@ -136,20 +139,46 @@ where
     let reload_nonce = base.reload_nonce;
     let mut edit_rows = base.edit_rows;
 
-    // The server already filtered, sorted and paged: the view is the page as
-    // received, with the server's total standing in for the filtered length.
+    // The server already filtered, sorted, grouped and paged: the view is the
+    // page as received, with the server's counts standing in for the local ones.
     let view = use_memo(move || {
         let received = rows.read().len();
-        let total = total();
+        let shape = shape.read();
         let page = state.read().page;
         let size = page.map_or(page_size, |page| page.size).max(1);
+        let row_count = shape.row_count.unwrap_or(shape.total);
         let offset = page
             .map_or(0, |page| page.index.saturating_mul(size))
-            .min(total);
-        View::of_data((0..received).collect(), total, total.div_ceil(size), offset)
+            .min(row_count);
+        let mut view = View::of_data(
+            (0..received).collect(),
+            shape.total,
+            row_count.div_ceil(size),
+            offset,
+        );
+        if !shape.layout.is_empty() {
+            view.indices = shape
+                .layout
+                .iter()
+                .filter_map(|row| row.data_index())
+                .collect();
+            view.rows = shape.layout.clone();
+            view.row_count = row_count;
+            view.groups = shape.groups.clone();
+            view.group_levels = state.read().group_by.len();
+        }
+        view.totals = shape.totals.clone();
+        view
     });
 
-    let query = use_memo(move || GridQuery::from_state(&state.read(), page_size));
+    let query = use_memo(move || {
+        let specs: Vec<ColumnSpec<T>> = columns
+            .read()
+            .iter()
+            .map(|column| column.spec().clone())
+            .collect();
+        GridQuery::from_state(&state.read(), page_size).with_aggregates(&specs)
+    });
     let mut tracker = use_signal(RequestTracker::new);
     let mut sent = use_signal(|| None::<GridQuery>);
     let mut in_flight = use_signal(|| None::<Task>);
@@ -189,16 +218,24 @@ where
 
             match result {
                 Ok(page) => {
-                    let last_page = page.page_count(query.page_size).saturating_sub(1);
-                    let past_the_end = page.rows.is_empty() && query.page > last_page;
+                    let count = page.row_count.unwrap_or(page.total);
+                    let last_page = count.div_ceil(query.page_size.max(1)).saturating_sub(1);
+                    let past_the_end = query.page > last_page;
+                    let matched = page.total;
                     rows.set(page.rows);
                     // Rows saved before this request now come from the server.
                     edit_rows.write().drop_confirmed();
-                    total.set(page.total);
+                    shape.set(PageShape {
+                        total: page.total,
+                        layout: page.layout,
+                        groups: page.groups,
+                        row_count: page.row_count,
+                        totals: page.totals,
+                    });
                     load_error.set(None);
                     // The data shrank, and the requested page no longer exists.
                     // Go to the last one that does, which is a new query.
-                    if past_the_end && page.total > 0 {
+                    if past_the_end && matched > 0 {
                         state.write().set_page(last_page);
                     }
                 }
@@ -210,4 +247,14 @@ where
     });
 
     base.with_view(view)
+}
+
+/// A page as received, without its rows.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct PageShape {
+    total: usize,
+    layout: Vec<ViewRow>,
+    groups: Vec<Group>,
+    row_count: Option<usize>,
+    totals: Vec<AggregateValue>,
 }

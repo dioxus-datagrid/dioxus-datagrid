@@ -34,6 +34,9 @@ pub struct Layout {
     /// The height of the header row group, which sticks to the top of the
     /// viewport and hides whatever body rows are beneath it.
     pub header_height: f64,
+    /// The height of a footer that sticks to the bottom of the viewport, such
+    /// as the totals, which hides the body rows beneath it.
+    pub footer_height: f64,
 }
 
 /// Answers a remote grid's value lists: the column, the query without paging,
@@ -1245,6 +1248,13 @@ impl<T: GridRow> GridHandle<T> {
         }
     }
 
+    /// Records the height of a sticky footer; `0` once it is gone.
+    pub fn record_footer_height(&mut self, height: f64) {
+        if self.layout.peek().footer_height != height {
+            self.layout.write().footer_height = height;
+        }
+    }
+
     /// Remembers the scroll container, so the grid can scroll and focus it.
     pub fn set_root(&mut self, root: Rc<MountedData>) {
         self.root.set(Some(root));
@@ -1275,11 +1285,11 @@ impl<T: GridRow> GridHandle<T> {
     }
 
     /// The part of the viewport that shows body rows: its height minus the
-    /// sticky header.
+    /// sticky header and footer.
     #[must_use]
     pub fn body_viewport_height(&self) -> f64 {
         let layout = self.layout();
-        (layout.viewport_height - layout.header_height).max(0.0)
+        (layout.viewport_height - layout.header_height - layout.footer_height).max(0.0)
     }
 
     /// Which body rows a virtualized body with this row height and overscan
@@ -1317,7 +1327,8 @@ impl<T: GridRow> GridHandle<T> {
             return;
         };
         let layout = *self.layout.peek();
-        let body_viewport = (layout.viewport_height - layout.header_height).max(0.0);
+        let body_viewport =
+            (layout.viewport_height - layout.header_height - layout.footer_height).max(0.0);
 
         let Some(scroll_top) =
             reveal_scroll_top(body_row, row_height, body_viewport, layout.scroll_top)
