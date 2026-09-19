@@ -12,12 +12,11 @@
 //!
 //! Run it with `dx serve --package example-server`.
 
-use datagrid_core::{
-    ColumnSpec, DataSource, GridQuery, GridRow, GridState, Page, PageState, compute_view,
-};
+use datagrid_core::{Aggregate, ColumnSpec, DataSource, GridQuery, GridRow, Page, compute_view};
 use dioxus::prelude::*;
 use dioxus_datagrid::primitives::{
-    GridBody, GridHeader, GridPagination, GridRoot, GridSearch, GridStatus,
+    GridBody, GridFooter, GridGroupPanel, GridHeader, GridPagination, GridRoot, GridSearch,
+    GridStatus,
 };
 use dioxus_datagrid::{Column, ColumnWidth, GridOptions, use_grid_remote};
 use std::rc::Rc;
@@ -147,6 +146,10 @@ fn summarize(query: &GridQuery) -> String {
     for (column, text) in &query.column_filters {
         parts.push(format!("{column} ~ \"{text}\""));
     }
+    if !query.group_by.is_empty() {
+        let columns: Vec<&str> = query.group_by.iter().map(|id| id.as_str()).collect();
+        parts.push(format!("group by {}", columns.join(", ")));
+    }
     for sort in &query.sort {
         parts.push(format!("sort {} {:?}", sort.column, sort.direction));
     }
@@ -192,26 +195,15 @@ impl DataSource<Employee> for SimulatedServer {
             return Err("The server did not respond. (Simulated.)".to_owned());
         }
 
-        let state = GridState {
-            sort: query.sort.clone(),
-            column_filters: query.column_filters.clone(),
-            filters: query.filters.clone(),
-            search: query.search.clone(),
-            page: Some(PageState {
-                index: query.page,
-                size: query.page_size,
-            }),
-            ..GridState::new()
-        };
-        let view = compute_view(&self.rows, &self.columns, &state);
-        let rows = view
-            .indices
-            .iter()
-            .filter_map(|&index| self.rows.get(index).cloned())
-            .collect();
+        // The server holds its rows in memory, so it answers as the grid would
+        // locally: the query as grid state, the aggregates it asks for, and
+        // the view turned into a page, groups included.
+        let mut columns = self.columns.as_ref().clone();
+        Aggregate::apply_query(&mut columns, &query);
+        let view = compute_view(&self.rows, &columns, &query.state());
 
         watch.finish(Outcome::Answered);
-        Ok(Page::new(rows, view.filtered_len))
+        Ok(Page::from_view(&view, &self.rows))
     }
 }
 
@@ -248,6 +240,8 @@ fn App() -> Element {
             Column::new("salary", "Salary")
                 .cell(|row: &Employee| rsx! { "{row.salary} €" })
                 .sort_by_value(|row: &Employee| row.salary)
+                .aggregate(Aggregate::Sum)
+                .aggregate(Aggregate::Average)
                 .width(ColumnWidth::Px(120.0)),
         ]
     });
@@ -273,9 +267,12 @@ fn App() -> Element {
                 GridStatus { grid, class: "status" }
             }
 
+            GridGroupPanel { grid, class: "group-panel" }
+
             GridRoot { grid, class: "grid",
                 GridHeader { grid, resizable: true, class: "head" }
                 GridBody { grid, class: "body" }
+                GridFooter { grid, class: "foot" }
             }
             GridPagination { grid, class: "pagination" }
 

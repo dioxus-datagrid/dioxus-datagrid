@@ -5,8 +5,8 @@
 
 use crate::Employee;
 use datagrid_core::{
-    ColumnFilter, ColumnId, Condition, DistinctValues, FilterOp, GridQuery, Page, SortDirection,
-    Value, ValueKind,
+    AggregateKind, AggregateValue, ColumnFilter, ColumnId, Condition, DistinctValues, FilterOp,
+    GridQuery, GroupKey, GroupSummary, GroupedPage, Page, SortDirection, Value, ValueKind,
 };
 use rusqlite::{Connection, params_from_iter, types::Value as SqlValue};
 use std::sync::{LazyLock, Mutex};
@@ -341,33 +341,207 @@ pub fn distinct_values(
     })
 }
 
-/// Runs `query` against `connection`: one page of rows and the total match count.
-pub fn query_employees(
+/// Reads a SQL result as a grid value; `NULL` is no value.
+fn value_of(value: SqlValue) -> Option<Value> {
+    match value {
+        SqlValue::Null => None,
+        SqlValue::Integer(value) => Some(Value::Int(value)),
+        SqlValue::Real(value) => Some(Value::Float(value)),
+        SqlValue::Text(value) => Some(Value::Text(value)),
+        SqlValue::Blob(_) => None,
+    }
+}
+
+/// The SQL for an aggregate, as the grid computes it locally: sums and means
+/// of numbers only, the smallest and largest in the column's order, counts of
+/// values. `None` for a custom aggregate, which only the client knows.
+fn aggregate_sql(column: &SqlColumn, kind: &AggregateKind) -> Option<String> {
+    let expr = column.expr;
+    let number = column.kind == ValueKind::Number;
+    let ordered = if column.kind == ValueKind::Text {
+        format!("{expr} COLLATE NOCASE")
+    } else {
+        expr.to_owned()
+    };
+    Some(match kind {
+        AggregateKind::Sum if number => format!("SUM({expr})"),
+        AggregateKind::Average if number => format!("AVG({expr})"),
+        AggregateKind::Sum | AggregateKind::Average => "NULL".to_owned(),
+        AggregateKind::Min => format!("MIN({ordered})"),
+        AggregateKind::Max => format!("MAX({ordered})"),
+        AggregateKind::Count => format!("COUNT({expr})"),
+        AggregateKind::Custom(_) => return None,
+    })
+}
+
+/// The aggregates `query` asks for that SQL can compute, with their SQL.
+fn aggregates(query: &GridQuery) -> Vec<(ColumnId, AggregateKind, String)> {
+    query
+        .aggregates
+        .iter()
+        .filter_map(|(id, kind)| {
+            let sql = aggregate_sql(column(id.as_str())?, kind)?;
+            Some((id.clone(), kind.clone(), sql))
+        })
+        .collect()
+}
+
+/// Reads the aggregates from `row`, starting at column `first`.
+fn read_aggregates(
+    row: &rusqlite::Row<'_>,
+    first: usize,
+    wanted: &[(ColumnId, AggregateKind, String)],
+) -> rusqlite::Result<Vec<AggregateValue>> {
+    wanted
+        .iter()
+        .enumerate()
+        .map(|(offset, (column, kind, _))| {
+            Ok(AggregateValue {
+                column: column.clone(),
+                kind: kind.clone(),
+                value: value_of(row.get(first + offset)?),
+            })
+        })
+        .collect()
+}
+
+/// How a grouped column orders its groups: in its sort direction, ascending
+/// if it is not sorted, empty values last as the grid has them.
+fn group_order(query: &GridQuery, column: &SqlColumn) -> String {
+    let direction = query
+        .sort
+        .iter()
+        .find(|sort| sort.column.as_str() == column.id)
+        .map_or(SortDirection::Asc, |sort| sort.direction);
+    let (direction, nulls) = match direction {
+        SortDirection::Asc => ("ASC", "NULLS LAST"),
+        SortDirection::Desc => ("DESC", "NULLS FIRST"),
+    };
+    let expr = column.expr;
+    if column.kind == ValueKind::Text {
+        // Ignoring case, then by exact text, as the grid sorts text.
+        format!("{expr} COLLATE NOCASE {direction} {nulls}, {expr} {direction}")
+    } else {
+        format!("{expr} {direction} {nulls}")
+    }
+}
+
+/// A grouped page: the groups of each level counted by one `GROUP BY`, the
+/// page planned from those counts, and only the rows the page shows fetched.
+fn query_grouped(
     connection: &Connection,
     query: &GridQuery,
+    grouped: &[&'static SqlColumn],
 ) -> rusqlite::Result<Page<Employee>> {
     let sql = translate(query, None);
+    let wanted = aggregates(query);
+    let aggregate_list: String = wanted
+        .iter()
+        .map(|(_, _, sql)| format!(", {sql}"))
+        .collect();
 
-    let total: i64 = connection.query_row(
-        &format!("SELECT COUNT(*) FROM employees {}", sql.where_clause),
+    let mut levels = Vec::with_capacity(grouped.len());
+    for depth in 1..=grouped.len() {
+        let columns = grouped.get(..depth).unwrap_or_default();
+        let keys: Vec<&str> = columns.iter().map(|column| column.expr).collect();
+        let keys = keys.join(", ");
+        let order: Vec<String> = columns
+            .iter()
+            .map(|column| group_order(query, column))
+            .collect();
+        let mut statement = connection.prepare(&format!(
+            "SELECT {keys}, COUNT(*){aggregate_list} FROM employees {} GROUP BY {keys} ORDER BY {}",
+            sql.where_clause,
+            order.join(", ")
+        ))?;
+        let level = statement
+            .query_map(params_from_iter(sql.params.iter()), |row| {
+                let key = (0..depth)
+                    .map(|index| row.get(index).map(value_of))
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                let count: i64 = row.get(depth)?;
+                Ok(GroupSummary {
+                    key: GroupKey(key),
+                    count: usize::try_from(count).unwrap_or(0),
+                    aggregates: read_aggregates(row, depth + 1, &wanted)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        levels.push(level);
+    }
+
+    // Plan with the columns the SQL knows, so levels and columns line up.
+    let known = GridQuery {
+        group_by: grouped
+            .iter()
+            .map(|column| ColumnId::new(column.id))
+            .collect(),
+        ..query.clone()
+    };
+    let plan = GroupedPage::plan(&levels, &known);
+
+    let mut fetched = Vec::new();
+    for (key, offset, limit) in plan.fetches() {
+        let mut params = sql.params.clone();
+        let mut conditions = Vec::new();
+        for (column, value) in grouped.iter().zip(&key.0) {
+            match value {
+                Some(value) => {
+                    conditions.push(format!("{} = ?", column.expr));
+                    params.push(param(value));
+                }
+                None => conditions.push(format!("{} IS NULL", column.expr)),
+            }
+        }
+        params.push(SqlValue::Integer(i64::try_from(limit).unwrap_or(i64::MAX)));
+        params.push(SqlValue::Integer(i64::try_from(offset).unwrap_or(i64::MAX)));
+        fetched.push(select_employees(
+            connection,
+            &format!(
+                "{} {} LIMIT ? OFFSET ?",
+                and(&sql.where_clause, &conditions.join(" AND ")),
+                sql.order_by
+            ),
+            &params,
+        )?);
+    }
+
+    let totals = totals(connection, &sql, &wanted)?;
+    Ok(plan.into_page(fetched, totals))
+}
+
+/// The aggregates over every row that matches.
+fn totals(
+    connection: &Connection,
+    sql: &Sql,
+    wanted: &[(ColumnId, AggregateKind, String)],
+) -> rusqlite::Result<Vec<AggregateValue>> {
+    if wanted.is_empty() {
+        return Ok(Vec::new());
+    }
+    let list: Vec<&str> = wanted.iter().map(|(_, _, sql)| sql.as_str()).collect();
+    connection.query_row(
+        &format!(
+            "SELECT {} FROM employees {}",
+            list.join(", "),
+            sql.where_clause
+        ),
         params_from_iter(sql.params.iter()),
-        |row| row.get(0),
-    )?;
+        |row| read_aggregates(row, 0, wanted),
+    )
+}
 
-    let mut page_params = sql.params;
-    page_params.push(SqlValue::Integer(
-        i64::try_from(query.page_size).unwrap_or(i64::MAX),
-    ));
-    page_params.push(SqlValue::Integer(
-        i64::try_from(query.offset()).unwrap_or(i64::MAX),
-    ));
-
+/// Employees selected by the SQL after `FROM employees`.
+fn select_employees(
+    connection: &Connection,
+    rest: &str,
+    params: &[SqlValue],
+) -> rusqlite::Result<Vec<Employee>> {
     let mut statement = connection.prepare(&format!(
-        "SELECT id, name, department, city, salary FROM employees {} {} LIMIT ? OFFSET ?",
-        sql.where_clause, sql.order_by
+        "SELECT id, name, department, city, salary FROM employees {rest}"
     ))?;
-    let rows = statement
-        .query_map(params_from_iter(page_params.iter()), |row| {
+    statement
+        .query_map(params_from_iter(params.iter()), |row| {
             Ok(Employee {
                 id: row.get(0)?,
                 name: row.get(1)?,
@@ -376,9 +550,47 @@ pub fn query_employees(
                 salary: row.get(4)?,
             })
         })?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
+        .collect()
+}
 
-    Ok(Page::new(rows, usize::try_from(total).unwrap_or(0)))
+/// Runs `query` against `connection`: one page of rows and the total match
+/// count, grouped if the query groups by columns the SQL knows.
+pub fn query_employees(
+    connection: &Connection,
+    query: &GridQuery,
+) -> rusqlite::Result<Page<Employee>> {
+    let grouped: Vec<&'static SqlColumn> = query
+        .group_by
+        .iter()
+        .filter_map(|id| column(id.as_str()))
+        .collect();
+    if !grouped.is_empty() {
+        return query_grouped(connection, query, &grouped);
+    }
+
+    let sql = translate(query, None);
+
+    let total: i64 = connection.query_row(
+        &format!("SELECT COUNT(*) FROM employees {}", sql.where_clause),
+        params_from_iter(sql.params.iter()),
+        |row| row.get(0),
+    )?;
+
+    let mut page_params = sql.params.clone();
+    page_params.push(SqlValue::Integer(
+        i64::try_from(query.page_size).unwrap_or(i64::MAX),
+    ));
+    page_params.push(SqlValue::Integer(
+        i64::try_from(query.offset()).unwrap_or(i64::MAX),
+    ));
+    let rows = select_employees(
+        connection,
+        &format!("{} {} LIMIT ? OFFSET ?", sql.where_clause, sql.order_by),
+        &page_params,
+    )?;
+
+    let totals = totals(connection, &sql, &aggregates(query))?;
+    Ok(Page::new(rows, usize::try_from(total).unwrap_or(0)).with_totals(totals))
 }
 
 /// Creates the table and fills it with `employees`.
@@ -457,7 +669,7 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
     use super::*;
-    use datagrid_core::{ColumnSpec, GridState, PageState, SortState, compute_view};
+    use datagrid_core::{Aggregate, ColumnSpec, GridState, PageState, SortState, compute_view};
 
     fn database() -> (Connection, Vec<Employee>) {
         let connection = Connection::open_in_memory().unwrap();
@@ -799,5 +1011,80 @@ mod tests {
                 .iter()
                 .any(|row| row.salary == 61_000)
         );
+    }
+
+    /// What the grid shows locally for a grouped query: the view of the
+    /// query's state, with the aggregates it asks for, as a page.
+    fn local_grouped(employees: &[Employee], query: &GridQuery) -> Page<Employee> {
+        let mut columns = local_columns();
+        Aggregate::apply_query(&mut columns, query);
+        Page::from_view(
+            &compute_view(employees, &columns, &query.state()),
+            employees,
+        )
+    }
+
+    #[test]
+    fn grouped_pages_match_the_grid_page_for_page() {
+        let (connection, employees) = database();
+        let aggregates: Vec<(ColumnId, AggregateKind)> = vec![
+            ("name".into(), AggregateKind::Count),
+            ("city".into(), AggregateKind::Min),
+            ("city".into(), AggregateKind::Max),
+            ("salary".into(), AggregateKind::Sum),
+            ("salary".into(), AggregateKind::Average),
+            ("salary".into(), AggregateKind::Min),
+            ("salary".into(), AggregateKind::Max),
+        ];
+
+        let mut by_department = query();
+        by_department.group_by = vec!["department".into()];
+        by_department.page_size = 7;
+
+        let mut two_levels = by_department.clone();
+        two_levels.group_by = vec!["department".into(), "city".into()];
+        two_levels.aggregates.clone_from(&aggregates);
+        two_levels.sort = vec![
+            SortState::new("department", SortDirection::Desc),
+            SortState::new("salary", SortDirection::Desc),
+        ];
+
+        let mut collapsed = two_levels.clone();
+        collapsed.groups_collapsed = true;
+        collapsed.toggled_groups = vec![GroupKey(vec![Some(Value::Text("sales".into()))])];
+
+        let mut filtered = by_department.clone();
+        filtered.aggregates = aggregates;
+        filtered.search = Some("berlin".into());
+        filtered.group_by = vec!["city".into(), "salary".into()];
+        filtered.column_filters = vec![("salary".into(), ">60000".into())];
+
+        for case in [by_department, two_levels, collapsed, filtered] {
+            let first = query_employees(&connection, &case).unwrap();
+            let pages = first.row_count.unwrap().div_ceil(case.page_size);
+            assert!(pages > 1, "{case:?} spans pages");
+            // The first pages, one in the middle, the last, and one past the
+            // end, which shows the last.
+            for page in [0, 1, 2, pages / 2, pages - 1, pages] {
+                let at = GridQuery {
+                    page,
+                    ..case.clone()
+                };
+                let remote = query_employees(&connection, &at).unwrap();
+                let expected = local_grouped(&employees, &at);
+                assert_eq!(remote, expected, "page {page} of {at:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn totals_come_with_an_ungrouped_page_too() {
+        let (connection, employees) = database();
+        let mut case = query();
+        case.aggregates = vec![("salary".into(), AggregateKind::Sum)];
+        let page = query_employees(&connection, &case).unwrap();
+        let sum: i64 = employees.iter().map(|row| i64::from(row.salary)).sum();
+        assert_eq!(page.totals[0].value, Some(Value::Int(sum)));
+        assert_eq!(page, local_grouped(&employees, &case));
     }
 }

@@ -145,3 +145,58 @@ h1 {
 .log [data-outcome="failed"] .meta {
   color: #c62828;
 }
+
+/* Grouping: the panel above the grid, group headers across the row, and the
+ * aggregates below each group and the whole grid. */
+.group-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-block-end: 0.75rem;
+  gap: 0.5rem;
+}
+
+.group-panel [data-group-chips] {
+  display: flex;
+  padding: 0;
+  margin: 0;
+  gap: 0.4rem;
+  list-style: none;
+}
+
+.foot {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+
+.grid [data-group-cell] {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 0.6rem;
+  padding-inline-start: calc(0.75rem + var(--dg-group-level, 0) * 1.25rem);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.grid [data-group-row][data-expanded="true"] [data-group-toggle]::before {
+  content: "▾";
+}
+
+.grid [data-group-row][data-expanded="false"] [data-group-toggle]::before {
+  content: "▸";
+}
+
+.grid [data-group-footer] [role="gridcell"],
+.foot [role="gridcell"] {
+  font-weight: 600;
+  white-space: normal;
+}
+
+.grid [data-aggregate] {
+  display: block;
+}
+
+.grid [data-aggregate-name]::after {
+  content: ":";
+}

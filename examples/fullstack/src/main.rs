@@ -1,6 +1,6 @@
 //! A grid backed by a real server: a Dioxus server function querying SQLite.
 //!
-//! The client sends every sort, filter, search and page change as a
+//! The client sends every sort, filter, search, grouping and page change as a
 //! `GridQuery` to the `load_employees` server function, which translates it
 //! into SQL (see `db.rs`) and answers with one `Page`.
 //!
@@ -14,11 +14,11 @@ mod db;
 use datagrid_core::{ColumnId, DataSource, DistinctValues, GridQuery, GridRow, Page};
 use dioxus::prelude::*;
 use dioxus_datagrid::primitives::{
-    GridBody, GridColumnFilter, GridEditStatus, GridFilterMenu, GridHeader, GridPagination,
-    GridRoot, GridSearch, GridStatus,
+    GridBody, GridColumnFilter, GridEditStatus, GridFilterMenu, GridGroupPanel, GridHeader,
+    GridPagination, GridRoot, GridSearch, GridStatus,
 };
 use dioxus_datagrid::{
-    CellFormat, Column, ColumnWidth, EditMode, Editing, GridOptions, Save, ValueKind,
+    Aggregate, CellFormat, Column, ColumnWidth, EditMode, Editing, GridOptions, Save, ValueKind,
     use_grid_remote,
 };
 use serde::{Deserialize, Serialize};
@@ -158,7 +158,10 @@ fn App() -> Element {
                 .width(ColumnWidth::Px(120.0))
                 // Any whole number the client can read; the salary band is the
                 // server's rule, checked in `save_employee`.
-                .editable(|row: &mut Employee, salary: u32| row.salary = salary),
+                .editable(|row: &mut Employee, salary: u32| row.salary = salary)
+                // Computed by the server, under every group.
+                .aggregate(Aggregate::Sum)
+                .aggregate(Aggregate::Average),
         ]
     });
 
@@ -203,6 +206,10 @@ fn App() -> Element {
                     }
                 }
             }
+
+            // Grouping runs on the server too: one GROUP BY per level, then
+            // only the rows the page shows.
+            GridGroupPanel { grid, class: "group-panel" }
 
             GridRoot { grid, class: "grid",
                 GridHeader { grid, resizable: true, class: "head" }
