@@ -506,7 +506,7 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
             focus: Some(focus),
             focus_nonce: 0,
         }));
-        self.set_focus(CellFocus::new(row_index + 1, column_index));
+        self.set_focus_quietly(CellFocus::new(row_index + 1, column_index));
         true
     }
 

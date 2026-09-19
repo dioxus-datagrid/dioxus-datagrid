@@ -596,6 +596,10 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
     let changed = grid.is_cell_changed(row_index, column_index);
 
     let onclick = move |_| {
+        // A click into the editor is for the editor, which has focus already.
+        if editing {
+            return;
+        }
         grid.set_focus(CellFocus::new(focus_row, column_index));
         if grid.selection_mode() != SelectionMode::None {
             if let Some(key) = grid.key_at(row_index) {

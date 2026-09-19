@@ -1135,6 +1135,15 @@ impl<T: GridRow> GridHandle<T> {
         self.request_focus_pull();
     }
 
+    /// Moves the focus without pulling DOM focus to the cell, for when
+    /// something inside it, such as an editor, takes DOM focus instead.
+    pub(crate) fn set_focus_quietly(&mut self, focus: CellFocus) {
+        if *self.focus.peek() != focus {
+            self.focus.set(focus);
+        }
+        self.complete_focus_pull();
+    }
+
     /// Asks the focused cell to take DOM focus, without moving the focus.
     pub fn request_focus_pull(&mut self) {
         self.focus_pending.set(true);
