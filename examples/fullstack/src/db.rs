@@ -5,10 +5,10 @@
 
 use crate::Employee;
 use datagrid_core::{
-    ColumnFilter, ColumnId, Condition, DistinctValues, FilterOp, FilterValue, GridQuery, Page,
-    SortDirection, ValueKind,
+    ColumnFilter, ColumnId, Condition, DistinctValues, FilterOp, GridQuery, Page, SortDirection,
+    Value, ValueKind,
 };
-use rusqlite::{Connection, params_from_iter, types::Value};
+use rusqlite::{Connection, params_from_iter, types::Value as SqlValue};
 use std::sync::{LazyLock, Mutex};
 
 /// A column the client may sort, filter or search by, and the SQL it maps to.
@@ -66,20 +66,20 @@ fn escape_like(text: &str) -> String {
 }
 
 /// A `LIKE` pattern matching `text` anywhere, with its wildcards taken literally.
-fn contains_pattern(text: &str) -> Value {
-    Value::Text(format!("%{}%", escape_like(text)))
+fn contains_pattern(text: &str) -> SqlValue {
+    SqlValue::Text(format!("%{}%", escape_like(text)))
 }
 
 /// A filter operand as a bound parameter.
-fn param(value: &FilterValue) -> Value {
+fn param(value: &Value) -> SqlValue {
     match value {
-        FilterValue::Text(text) => Value::Text(text.clone()),
-        FilterValue::Int(value) => Value::Integer(*value),
-        FilterValue::Float(value) => Value::Real(*value),
-        FilterValue::Bool(value) => Value::Integer(i64::from(*value)),
+        Value::Text(text) => SqlValue::Text(text.clone()),
+        Value::Int(value) => SqlValue::Integer(*value),
+        Value::Float(value) => SqlValue::Real(*value),
+        Value::Bool(value) => SqlValue::Integer(i64::from(*value)),
         // SQLite has no date type; ISO 8601 text sorts and compares correctly.
-        FilterValue::Date(value) => Value::Text(value.format("%Y-%m-%d").to_string()),
-        FilterValue::DateTime(value) => Value::Text(value.format("%Y-%m-%d %H:%M:%S").to_string()),
+        Value::Date(value) => SqlValue::Text(value.format("%Y-%m-%d").to_string()),
+        Value::DateTime(value) => SqlValue::Text(value.format("%Y-%m-%d %H:%M:%S").to_string()),
     }
 }
 
@@ -90,7 +90,7 @@ fn param(value: &FilterValue) -> Value {
 /// enough for this data), an empty cell passes "is empty" and nothing that
 /// compares, and an operand that does not read as the column's kind compares
 /// with nothing.
-fn condition_sql(column: &SqlColumn, condition: &Condition, params: &mut Vec<Value>) -> String {
+fn condition_sql(column: &SqlColumn, condition: &Condition, params: &mut Vec<SqlValue>) -> String {
     let expr = column.expr;
     let text = column.kind == ValueKind::Text;
     let collate = if text { " COLLATE NOCASE" } else { "" };
@@ -116,7 +116,7 @@ fn condition_sql(column: &SqlColumn, condition: &Condition, params: &mut Vec<Val
         FilterOp::IsNotEmpty => format!("{expr} IS NOT NULL"),
         FilterOp::Contains | FilterOp::StartsWith | FilterOp::EndsWith => {
             // No operand filters nothing; a number operand is searched as text.
-            let Some(needle) = prepared.values.first().map(FilterValue::edit_text) else {
+            let Some(needle) = prepared.values.first().map(Value::edit_text) else {
                 return "1".to_owned();
             };
             let needle = needle.as_str();
@@ -125,11 +125,11 @@ fn condition_sql(column: &SqlColumn, condition: &Condition, params: &mut Vec<Val
                 FilterOp::EndsWith => format!("%{}", escape_like(needle)),
                 _ => format!("%{}%", escape_like(needle)),
             };
-            params.push(Value::Text(pattern));
+            params.push(SqlValue::Text(pattern));
             format!("{as_text} LIKE ? ESCAPE '\\'")
         }
         FilterOp::OneOf => {
-            let values: Vec<Value> = prepared
+            let values: Vec<SqlValue> = prepared
                 .values
                 .iter()
                 .filter(|value| value.coerce(column.kind).is_some())
@@ -181,7 +181,7 @@ fn condition_sql(column: &SqlColumn, condition: &Condition, params: &mut Vec<Val
 }
 
 /// SQL for a column's filter: its conditions joined with `AND` or `OR`.
-fn filter_sql(column: &SqlColumn, filter: &ColumnFilter, params: &mut Vec<Value>) -> String {
+fn filter_sql(column: &SqlColumn, filter: &ColumnFilter, params: &mut Vec<SqlValue>) -> String {
     let parts: Vec<String> = filter
         .conditions
         .iter()
@@ -198,7 +198,7 @@ fn filter_sql(column: &SqlColumn, filter: &ColumnFilter, params: &mut Vec<Value>
 struct Sql {
     where_clause: String,
     order_by: String,
-    params: Vec<Value>,
+    params: Vec<SqlValue>,
 }
 
 /// Translates `query`, leaving out the filters on `except`: a value list shows
@@ -303,7 +303,7 @@ pub fn distinct_values(
 
     let mut params = sql.params.clone();
     // One more than wanted, to know whether there were more.
-    params.push(Value::Integer(
+    params.push(SqlValue::Integer(
         i64::try_from(limit.saturating_add(1)).unwrap_or(i64::MAX),
     ));
     let mut statement = connection.prepare(&format!(
@@ -312,11 +312,11 @@ pub fn distinct_values(
     ))?;
     let mut values = statement
         .query_map(params_from_iter(params.iter()), |row| {
-            let value = match row.get::<_, Value>(0)? {
-                Value::Integer(value) => FilterValue::Int(value),
-                Value::Real(value) => FilterValue::Float(value),
-                Value::Text(value) => FilterValue::Text(value),
-                other => FilterValue::Text(format!("{other:?}")),
+            let value = match row.get::<_, SqlValue>(0)? {
+                SqlValue::Integer(value) => Value::Int(value),
+                SqlValue::Real(value) => Value::Float(value),
+                SqlValue::Text(value) => Value::Text(value),
+                other => Value::Text(format!("{other:?}")),
             };
             let count: i64 = row.get(1)?;
             Ok((value, usize::try_from(count).unwrap_or(0)))
@@ -355,10 +355,10 @@ pub fn query_employees(
     )?;
 
     let mut page_params = sql.params;
-    page_params.push(Value::Integer(
+    page_params.push(SqlValue::Integer(
         i64::try_from(query.page_size).unwrap_or(i64::MAX),
     ));
-    page_params.push(Value::Integer(
+    page_params.push(SqlValue::Integer(
         i64::try_from(query.offset()).unwrap_or(i64::MAX),
     ));
 
@@ -553,7 +553,7 @@ mod tests {
 
     /// Operands for every operator: numbers as the menu or the bar send them
     /// (text), typed numbers, text of both cases, empties and nonsense.
-    fn operands() -> Vec<FilterValue> {
+    fn operands() -> Vec<Value> {
         [
             "50000",
             "71919",
@@ -573,11 +573,11 @@ mod tests {
             "5,5",
         ]
         .into_iter()
-        .map(FilterValue::from)
+        .map(Value::from)
         .chain([
-            FilterValue::Int(60_000),
-            FilterValue::Float(71_919.0),
-            FilterValue::Float(45_000.5),
+            Value::Int(60_000),
+            Value::Float(71_919.0),
+            Value::Float(45_000.5),
         ])
         .collect()
     }

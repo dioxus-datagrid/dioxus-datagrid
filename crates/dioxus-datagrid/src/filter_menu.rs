@@ -3,8 +3,8 @@
 
 use crate::GridHandle;
 use datagrid_core::{
-    ColumnFilter, ColumnId, Condition, DistinctValues, FilterOp, FilterValue,
-    GridRow as GridRowKey, ValueKind,
+    ColumnFilter, ColumnId, Condition, DistinctValues, FilterOp, GridRow as GridRowKey, Value,
+    ValueKind,
 };
 use dioxus::prelude::*;
 use std::cell::Cell;
@@ -62,15 +62,15 @@ impl DraftCondition {
                     return None;
                 }
                 vec![
-                    FilterValue::from(self.first.trim()),
-                    FilterValue::from(self.second.trim()),
+                    Value::from(self.first.trim()),
+                    Value::from(self.second.trim()),
                 ]
             }
             _ => {
                 if self.first.trim().is_empty() {
                     return None;
                 }
-                vec![FilterValue::from(self.first.trim())]
+                vec![Value::from(self.first.trim())]
             }
         };
         Some(Condition::new(op, values))
@@ -85,7 +85,7 @@ struct Draft {
     second: DraftCondition,
     any: bool,
     /// The ticked values, or `None` for "every value", which is no filter.
-    ticked: Option<HashSet<FilterValue>>,
+    ticked: Option<HashSet<Value>>,
     /// Whether rows without a value are ticked.
     empty: bool,
     search: String,
@@ -154,7 +154,7 @@ impl Draft {
                 // Every value, but not the empty rows.
                 None => ColumnFilter::new(Condition::is_not_empty()),
                 Some(ticked) => {
-                    let mut values: Vec<FilterValue> = ticked.iter().cloned().collect();
+                    let mut values: Vec<Value> = ticked.iter().cloned().collect();
                     values.sort_by(|a, b| a.as_cell().cmp(&b.as_cell()));
                     let one_of = Condition::one_of(values);
                     if self.empty {
@@ -201,7 +201,7 @@ fn fit_shift(left: f64, width: f64, viewport_left: f64, viewport_right: f64) -> 
 }
 
 /// How an operand reads in an input.
-fn edit_text(value: &FilterValue) -> String {
+fn edit_text(value: &Value) -> String {
     value.edit_text()
 }
 
@@ -599,7 +599,7 @@ fn ValueList(
         },
         Some(Ok(values)) => {
             let needle = current.search.trim().to_lowercase();
-            let entries: Vec<(FilterValue, String, usize)> = values
+            let entries: Vec<(Value, String, usize)> = values
                 .values
                 .iter()
                 .map(|(value, count)| {
@@ -611,7 +611,7 @@ fn ValueList(
                 })
                 .filter(|(_, text, _)| needle.is_empty() || text.to_lowercase().contains(&needle))
                 .collect();
-            let is_ticked = |value: &FilterValue| {
+            let is_ticked = |value: &Value| {
                 current
                     .ticked
                     .as_ref()
@@ -619,9 +619,8 @@ fn ValueList(
             };
             let all_ticked = entries.iter().all(|(value, ..)| is_ticked(value))
                 && (values.empty == 0 || current.empty || !needle.is_empty());
-            let visible: Vec<FilterValue> =
-                entries.iter().map(|(value, ..)| value.clone()).collect();
-            let all_values: Vec<FilterValue> = values
+            let visible: Vec<Value> = entries.iter().map(|(value, ..)| value.clone()).collect();
+            let all_values: Vec<Value> = values
                 .values
                 .iter()
                 .map(|(value, _)| value.clone())
@@ -804,17 +803,13 @@ mod tests {
     #[test]
     fn ticking_every_value_is_no_filter() {
         let known = DistinctValues {
-            values: vec![(FilterValue::Int(1), 3), (FilterValue::Int(2), 1)],
+            values: vec![(Value::Int(1), 3), (Value::Int(2), 1)],
             empty: 2,
             truncated: false,
         };
         let mut form = draft(ValueKind::Number);
         form.mode = Mode::Values;
-        form.ticked = Some(
-            [FilterValue::Int(1), FilterValue::Int(2)]
-                .into_iter()
-                .collect(),
-        );
+        form.ticked = Some([Value::Int(1), Value::Int(2)].into_iter().collect());
 
         assert!(form.build_against(Some(&known)).is_empty());
 

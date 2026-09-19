@@ -3,8 +3,8 @@
 use crate::column::{FilterTextFn, ValueFn};
 use crate::filter::contains_ignore_case;
 use crate::{
-    ColumnFilter, ColumnId, ColumnSpec, Condition, FilterValue, GridState, SortDirection,
-    SortValue, TextCollation,
+    ColumnFilter, ColumnId, ColumnSpec, Condition, GridState, SortDirection, SortValue,
+    TextCollation, Value,
 };
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -347,7 +347,7 @@ fn compare_keys(
 #[cfg_attr(feature = "serde", serde(default))]
 pub struct DistinctValues {
     /// Each value once, in sort order, with its row count.
-    pub values: Vec<(FilterValue, usize)>,
+    pub values: Vec<(Value, usize)>,
     /// How many rows have no value.
     pub empty: usize,
     /// Whether there were more distinct values than the limit allowed; the
@@ -376,19 +376,19 @@ pub fn distinct_values<T>(
     let spec = columns.iter().find(|spec| &spec.id == column)?;
     let value = spec.value.as_ref()?;
 
-    let mut counts: HashMap<FilterValue, usize> = HashMap::new();
+    let mut counts: HashMap<Value, usize> = HashMap::new();
     let mut empty = 0;
     for index in filter_indices_except(rows, columns, state, Some(column)) {
         let Some(row) = rows.get(index) else {
             continue;
         };
-        match FilterValue::from_cell(&value(row)) {
+        match Value::from_cell(&value(row)) {
             Some(value) => *counts.entry(value).or_insert(0) += 1,
             None => empty += 1,
         }
     }
 
-    let mut values: Vec<(FilterValue, usize)> = counts.into_iter().collect();
+    let mut values: Vec<(Value, usize)> = counts.into_iter().collect();
     values.sort_by(|(a, _), (b, _)| a.as_cell().cmp_with(&b.as_cell(), spec.collation));
     let truncated = values.len() > limit;
     values.truncate(limit);

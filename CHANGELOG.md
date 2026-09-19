@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- `FilterValue` is now `Value`, since edits write it too. `FilterValue` remains as a deprecated
+  alias.
+
 ### Fixed
 
 - The filter menu's panel no longer sticks out of the screen on phones: when it would, it is

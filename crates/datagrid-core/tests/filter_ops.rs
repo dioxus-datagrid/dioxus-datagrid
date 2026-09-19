@@ -4,7 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
 use datagrid_core::{
-    CellValue, ColumnFilter, ColumnId, ColumnSpec, Condition, FilterOp, FilterValue, GridState,
+    CellValue, ColumnFilter, ColumnId, ColumnSpec, Condition, FilterOp, GridState, Value,
     ValueKind, compute_view, distinct_values,
 };
 use proptest::prelude::*;
@@ -113,7 +113,7 @@ fn numeric_reference(op: FilterOp, cell: Option<f64>, a: f64, b: f64) -> bool {
     }
 }
 
-fn condition(op: FilterOp, a: FilterValue, b: FilterValue) -> Condition {
+fn condition(op: FilterOp, a: Value, b: Value) -> Condition {
     let values = match op.operands() {
         Some(0) => Vec::new(),
         Some(2) => vec![a, b],
@@ -148,7 +148,7 @@ proptest! {
         a in -2.0_f64..2.0,
         b in -2.0_f64..2.0,
     ) {
-        let text = |value: f64| FilterValue::from(value.to_string().replace('.', ","));
+        let text = |value: f64| Value::from(value.to_string().replace('.', ","));
         let got = filtered(&rows, "ratio", condition(op, text(a), text(b)).into());
         let expected = reference(&rows, |row| numeric_reference(op, row.ratio, a, b));
         prop_assert_eq!(got, expected);
@@ -161,7 +161,7 @@ proptest! {
         op in text_ops(),
         needle in "[aAbB]{0,2}",
     ) {
-        let got = filtered(&rows, "text", condition(op, needle.clone().into(), FilterValue::from("")).into());
+        let got = filtered(&rows, "text", condition(op, needle.clone().into(), Value::from("")).into());
         let needle_lower = needle.to_lowercase();
         let expected = reference(&rows, |row| {
             let cell = row.text.as_deref();
@@ -233,11 +233,11 @@ proptest! {
         let list = distinct_values(&rows, &columns(), &state, &ColumnId::from("number"), 100).unwrap();
 
         let passing: Vec<&Row> = rows.iter().filter(|row| row.flag == Some(flag)).collect();
-        let mut expected: Vec<(FilterValue, usize)> = Vec::new();
+        let mut expected: Vec<(Value, usize)> = Vec::new();
         for n in -5_i64..5 {
             let count = passing.iter().filter(|row| row.number == Some(n)).count();
             if count > 0 {
-                expected.push((FilterValue::Int(n), count));
+                expected.push((Value::Int(n), count));
             }
         }
         prop_assert_eq!(list.values, expected);
@@ -252,26 +252,26 @@ fn the_bar_reads_operators_ranges_and_plain_text() {
 
     assert_eq!(
         parse(">100"),
-        Some((FilterOp::Greater, vec![FilterValue::from("100")]))
+        Some((FilterOp::Greater, vec![Value::from("100")]))
     );
     assert_eq!(
         parse(" >= 5 "),
-        Some((FilterOp::GreaterOrEqual, vec![FilterValue::from("5")]))
+        Some((FilterOp::GreaterOrEqual, vec![Value::from("5")]))
     );
     assert_eq!(
         parse("!=Berlin"),
-        Some((FilterOp::NotEquals, vec![FilterValue::from("Berlin")]))
+        Some((FilterOp::NotEquals, vec![Value::from("Berlin")]))
     );
     assert_eq!(
         parse("10..20"),
         Some((
             FilterOp::Between,
-            vec![FilterValue::from("10"), FilterValue::from("20")]
+            vec![Value::from("10"), Value::from("20")]
         ))
     );
     assert_eq!(
         parse("ber"),
-        Some((FilterOp::Contains, vec![FilterValue::from("ber")]))
+        Some((FilterOp::Contains, vec![Value::from("ber")]))
     );
     // Half-typed input filters nothing rather than everything away.
     assert_eq!(parse(">"), None);
@@ -370,11 +370,7 @@ fn a_long_value_list_is_truncated_in_sort_order() {
 
     assert_eq!(
         list.values,
-        vec![
-            (FilterValue::Int(0), 1),
-            (FilterValue::Int(1), 1),
-            (FilterValue::Int(2), 1)
-        ]
+        vec![(Value::Int(0), 1), (Value::Int(1), 1), (Value::Int(2), 1)]
     );
     assert!(list.truncated);
 }

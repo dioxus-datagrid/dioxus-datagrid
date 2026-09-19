@@ -89,6 +89,6 @@ pub use remote::use_grid_remote;
 pub use datagrid_core::{
     CellAlign, CellFocus, CellFormat, CellOverflow, CellValue, ColumnFilter, ColumnId, ColumnWidth,
     Condition, DEFAULT_MIN_COLUMN_WIDTH, DEFAULT_REMOTE_PAGE_SIZE, DataSource, DistinctValues,
-    FilterOp, FilterValue, GridLocale, GridQuery, GridRow, GridState, NavKey, Page, SelectionMode,
-    SortDirection, SortValue, TextCollation, ValueKind, View,
+    FilterOp, GridLocale, GridQuery, GridRow, GridState, NavKey, Page, SelectionMode,
+    SortDirection, SortValue, TextCollation, Value, ValueKind, View,
 };

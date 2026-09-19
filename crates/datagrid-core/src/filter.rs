@@ -67,12 +67,12 @@ impl ValueKind {
     }
 }
 
-/// A value a filter compares against. The owned counterpart of
-/// [`CellValue`], so that it can live in [`GridState`](crate::GridState) and
-/// travel to a server.
+/// An owned value: what a filter compares against and what an edit writes.
+/// The owned counterpart of [`CellValue`], so that it can live in
+/// [`GridState`](crate::GridState) and travel to a server.
 ///
-/// [`Text`](FilterValue::Text) is also what a user types: compared with a
-/// number or a date, it is read as one ([`FilterValue::coerce`]), so `">100"`
+/// [`Text`](Value::Text) is also what a user types: compared with a
+/// number or a date, it is read as one ([`Value::coerce`]), so `">100"`
 /// in the filter bar works on a number column without the bar knowing the
 /// column's kind.
 ///
@@ -80,7 +80,7 @@ impl ValueKind {
 /// key and `NaN` equals itself.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum FilterValue {
+pub enum Value {
     /// Text, or a number or date not yet read as one.
     Text(String),
     /// An integer.
@@ -97,7 +97,7 @@ pub enum FilterValue {
     DateTime(chrono::NaiveDateTime),
 }
 
-impl PartialEq for FilterValue {
+impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Text(a), Self::Text(b)) => a == b,
@@ -113,9 +113,9 @@ impl PartialEq for FilterValue {
     }
 }
 
-impl Eq for FilterValue {}
+impl Eq for Value {}
 
-impl Hash for FilterValue {
+impl Hash for Value {
     fn hash<H: Hasher>(&self, state: &mut H) {
         core::mem::discriminant(self).hash(state);
         match self {
@@ -131,7 +131,7 @@ impl Hash for FilterValue {
     }
 }
 
-impl FilterValue {
+impl Value {
     /// Takes an owned copy of a cell value. `None` for [`CellValue::None`],
     /// which a filter expresses with [`FilterOp::IsEmpty`] instead.
     #[must_use]
@@ -192,7 +192,7 @@ impl FilterValue {
     }
 
     /// How this value reads in a form input, and back through
-    /// [`FilterValue::parse`]: dates in the ISO forms that `type="date"` and
+    /// [`Value::parse`]: dates in the ISO forms that `type="date"` and
     /// `type="datetime-local"` inputs use.
     #[must_use]
     pub fn edit_text(&self) -> String {
@@ -208,7 +208,7 @@ impl FilterValue {
         }
     }
 
-    /// Reads `text` as a value of `kind`. See [`FilterValue::coerce`].
+    /// Reads `text` as a value of `kind`. See [`Value::coerce`].
     #[must_use]
     pub fn parse(kind: ValueKind, text: &str) -> Option<Self> {
         let text = text.trim();
@@ -230,65 +230,65 @@ impl FilterValue {
     }
 }
 
-impl From<&str> for FilterValue {
+impl From<&str> for Value {
     fn from(value: &str) -> Self {
         Self::Text(value.to_owned())
     }
 }
 
-impl From<String> for FilterValue {
+impl From<String> for Value {
     fn from(value: String) -> Self {
         Self::Text(value)
     }
 }
 
-impl From<i64> for FilterValue {
+impl From<i64> for Value {
     fn from(value: i64) -> Self {
         Self::Int(value)
     }
 }
 
-impl From<i32> for FilterValue {
+impl From<i32> for Value {
     fn from(value: i32) -> Self {
         Self::Int(i64::from(value))
     }
 }
 
-impl From<u32> for FilterValue {
+impl From<u32> for Value {
     fn from(value: u32) -> Self {
         Self::Int(i64::from(value))
     }
 }
 
-impl From<f64> for FilterValue {
+impl From<f64> for Value {
     fn from(value: f64) -> Self {
         Self::Float(value)
     }
 }
 
-impl From<bool> for FilterValue {
+impl From<bool> for Value {
     fn from(value: bool) -> Self {
         Self::Bool(value)
     }
 }
 
 #[cfg(feature = "chrono")]
-impl From<chrono::NaiveDate> for FilterValue {
+impl From<chrono::NaiveDate> for Value {
     fn from(value: chrono::NaiveDate) -> Self {
         Self::Date(value)
     }
 }
 
 #[cfg(feature = "chrono")]
-impl From<chrono::NaiveDateTime> for FilterValue {
+impl From<chrono::NaiveDateTime> for Value {
     fn from(value: chrono::NaiveDateTime) -> Self {
         Self::DateTime(value)
     }
 }
 
-fn parse_number(text: &str) -> Option<FilterValue> {
+fn parse_number(text: &str) -> Option<Value> {
     if let Ok(value) = text.parse::<i64>() {
-        return Some(FilterValue::Int(value));
+        return Some(Value::Int(value));
     }
     // One comma and no dot is a German decimal comma.
     let normalized = if text.contains(',') && !text.contains('.') {
@@ -300,7 +300,7 @@ fn parse_number(text: &str) -> Option<FilterValue> {
         .parse::<f64>()
         .ok()
         .filter(|value| value.is_finite())
-        .map(FilterValue::Float)
+        .map(Value::Float)
 }
 
 #[cfg(feature = "chrono")]
@@ -415,7 +415,7 @@ impl FilterOp {
 /// One condition: an operator and its operands.
 ///
 /// Built with the constructors, such as [`Condition::greater`] or
-/// [`Condition::one_of`]. The operands are [`FilterValue`]s; text operands are
+/// [`Condition::one_of`]. The operands are [`Value`]s; text operands are
 /// read as numbers or dates when the cell is one.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -424,73 +424,73 @@ pub struct Condition {
     pub op: FilterOp,
     /// The operands: none, one, two for [`FilterOp::Between`], or the list for
     /// [`FilterOp::OneOf`].
-    pub values: Vec<FilterValue>,
+    pub values: Vec<Value>,
 }
 
 impl Condition {
     /// A condition from an operator and its operands.
     #[must_use]
-    pub const fn new(op: FilterOp, values: Vec<FilterValue>) -> Self {
+    pub const fn new(op: FilterOp, values: Vec<Value>) -> Self {
         Self { op, values }
     }
 
     /// Text contains `value`.
     #[must_use]
-    pub fn contains(value: impl Into<FilterValue>) -> Self {
+    pub fn contains(value: impl Into<Value>) -> Self {
         Self::new(FilterOp::Contains, vec![value.into()])
     }
 
     /// Text starts with `value`.
     #[must_use]
-    pub fn starts_with(value: impl Into<FilterValue>) -> Self {
+    pub fn starts_with(value: impl Into<Value>) -> Self {
         Self::new(FilterOp::StartsWith, vec![value.into()])
     }
 
     /// Text ends with `value`.
     #[must_use]
-    pub fn ends_with(value: impl Into<FilterValue>) -> Self {
+    pub fn ends_with(value: impl Into<Value>) -> Self {
         Self::new(FilterOp::EndsWith, vec![value.into()])
     }
 
     /// Equal to `value`.
     #[must_use]
-    pub fn equals(value: impl Into<FilterValue>) -> Self {
+    pub fn equals(value: impl Into<Value>) -> Self {
         Self::new(FilterOp::Equals, vec![value.into()])
     }
 
     /// Not equal to `value`.
     #[must_use]
-    pub fn not_equals(value: impl Into<FilterValue>) -> Self {
+    pub fn not_equals(value: impl Into<Value>) -> Self {
         Self::new(FilterOp::NotEquals, vec![value.into()])
     }
 
     /// Less than `value`.
     #[must_use]
-    pub fn less(value: impl Into<FilterValue>) -> Self {
+    pub fn less(value: impl Into<Value>) -> Self {
         Self::new(FilterOp::Less, vec![value.into()])
     }
 
     /// Less than or equal to `value`.
     #[must_use]
-    pub fn less_or_equal(value: impl Into<FilterValue>) -> Self {
+    pub fn less_or_equal(value: impl Into<Value>) -> Self {
         Self::new(FilterOp::LessOrEqual, vec![value.into()])
     }
 
     /// Greater than `value`.
     #[must_use]
-    pub fn greater(value: impl Into<FilterValue>) -> Self {
+    pub fn greater(value: impl Into<Value>) -> Self {
         Self::new(FilterOp::Greater, vec![value.into()])
     }
 
     /// Greater than or equal to `value`.
     #[must_use]
-    pub fn greater_or_equal(value: impl Into<FilterValue>) -> Self {
+    pub fn greater_or_equal(value: impl Into<Value>) -> Self {
         Self::new(FilterOp::GreaterOrEqual, vec![value.into()])
     }
 
     /// Between `low` and `high`, both included.
     #[must_use]
-    pub fn between(low: impl Into<FilterValue>, high: impl Into<FilterValue>) -> Self {
+    pub fn between(low: impl Into<Value>, high: impl Into<Value>) -> Self {
         Self::new(FilterOp::Between, vec![low.into(), high.into()])
     }
 
@@ -508,7 +508,7 @@ impl Condition {
 
     /// Equal to one of `values`.
     #[must_use]
-    pub fn one_of(values: impl IntoIterator<Item = impl Into<FilterValue>>) -> Self {
+    pub fn one_of(values: impl IntoIterator<Item = impl Into<Value>>) -> Self {
         Self::new(
             FilterOp::OneOf,
             values.into_iter().map(Into::into).collect(),
@@ -550,7 +550,7 @@ impl Condition {
                 if rest.is_empty() {
                     return None;
                 }
-                return Some(Self::new(op, vec![FilterValue::from(rest)]));
+                return Some(Self::new(op, vec![Value::from(rest)]));
             }
         }
 
@@ -711,7 +711,7 @@ impl ColumnFilter {
                 .values
                 .into_iter()
                 .map(|value| match value {
-                    FilterValue::Text(text) => FilterValue::Text(text.trim().to_owned()),
+                    Value::Text(text) => Value::Text(text.trim().to_owned()),
                     other => other,
                 })
                 .collect();
@@ -779,9 +779,9 @@ fn plain_text(value: &CellValue<'_>) -> String {
     }
 }
 
-fn text_of_operand(operand: &FilterValue) -> String {
+fn text_of_operand(operand: &Value) -> String {
     match operand {
-        FilterValue::Text(text) => text.clone(),
+        Value::Text(text) => text.clone(),
         other => plain_text(&other.as_cell()),
     }
 }
@@ -821,14 +821,14 @@ pub(crate) fn contains_ignore_case(haystack: &str, needle: &str) -> bool {
 /// Compares a cell with an operand of the same kind, reading a text operand
 /// as the cell's kind. `None` when they cannot be compared: an empty cell, or
 /// an operand that does not read as the cell's kind.
-fn compare(value: &CellValue<'_>, operand: &FilterValue) -> Option<Ordering> {
+fn compare(value: &CellValue<'_>, operand: &Value) -> Option<Ordering> {
     let kind = ValueKind::of(value)?;
     let operand = operand.coerce(kind)?;
     let ordering = value.cmp_with(&operand.as_cell(), TextCollation::CaseInsensitive);
     // Text compares ignoring case, but `cmp_with` breaks ties by case to stay
     // a total order; for a filter, `Berlin` equals `berlin`.
     if kind == ValueKind::Text {
-        if let (CellValue::Text(a), FilterValue::Text(b)) = (value, &operand) {
+        if let (CellValue::Text(a), Value::Text(b)) = (value, &operand) {
             if a.to_lowercase() == b.to_lowercase() {
                 return Some(Ordering::Equal);
             }
@@ -837,14 +837,14 @@ fn compare(value: &CellValue<'_>, operand: &FilterValue) -> Option<Ordering> {
     Some(ordering)
 }
 
-fn equals(value: &CellValue<'_>, text: Option<&str>, operand: &FilterValue) -> bool {
+fn equals(value: &CellValue<'_>, text: Option<&str>, operand: &Value) -> bool {
     match compare(value, operand) {
         Some(ordering) => ordering.is_eq(),
         // A text operand against a value that is not text: fall back to the
         // column's filter text, so `=Berlin` works on any column with one.
         None => match (value, operand, text) {
             (CellValue::None, ..) => false,
-            (_, FilterValue::Text(operand), Some(text)) => {
+            (_, Value::Text(operand), Some(text)) => {
                 text.trim().to_lowercase() == operand.trim().to_lowercase()
             }
             _ => false,

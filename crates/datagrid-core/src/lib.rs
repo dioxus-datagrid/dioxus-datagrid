@@ -77,7 +77,11 @@ mod virtualize;
 pub use column::{
     ColumnId, ColumnSpec, ColumnWidth, DEFAULT_MIN_COLUMN_WIDTH, FilterTextFn, SortKeyFn, ValueFn,
 };
-pub use filter::{ColumnFilter, Condition, FilterOp, FilterValue, ValueKind};
+pub use filter::{ColumnFilter, Condition, FilterOp, Value, ValueKind};
+
+/// The name [`Value`] had while only filters used it.
+#[deprecated(since = "0.7.0", note = "renamed to `Value`")]
+pub type FilterValue = Value;
 pub use format::{CellAlign, CellFormat, CellOverflow};
 pub use locale::GridLocale;
 pub use navigate::{CellFocus, NavKey, navigate};

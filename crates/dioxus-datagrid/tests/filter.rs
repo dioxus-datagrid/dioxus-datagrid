@@ -8,8 +8,8 @@ use dioxus::core::NoOpMutations;
 use dioxus::prelude::*;
 use dioxus_datagrid::primitives::{GridBody, GridFilterMenu, GridHeader, GridRoot};
 use dioxus_datagrid::{
-    Column, ColumnFilter, ColumnId, Condition, DistinctValues, FilterValue, GridLocale,
-    GridOptions, use_grid, use_grid_remote,
+    Column, ColumnFilter, ColumnId, Condition, DistinctValues, GridLocale, GridOptions, Value,
+    use_grid, use_grid_remote,
 };
 use std::time::Duration;
 use tokio::time::{Instant, sleep_until};
@@ -130,7 +130,7 @@ fn LocalList() -> Element {
         .iter()
         .flat_map(|list| list.values.iter())
         .map(|(value, count)| match value {
-            FilterValue::Text(name) => format!("{name}={count}"),
+            Value::Text(name) => format!("{name}={count}"),
             other => format!("{other:?}"),
         })
         .collect();
@@ -158,7 +158,7 @@ impl DataSource<City> for Server {
         // Echo what arrived, so the test can see it.
         let text = format!("{column}|{}|{limit}", query.column_filters.len());
         Ok(DistinctValues {
-            values: vec![(FilterValue::Text(text), 1)],
+            values: vec![(Value::Text(text), 1)],
             ..DistinctValues::default()
         })
     }
