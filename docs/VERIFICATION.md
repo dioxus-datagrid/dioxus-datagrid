@@ -312,3 +312,19 @@ Cargo-Register), dann per SSR-Test (`crates/dioxus-datagrid/tests/editing.rs`) u
   ist. Ein Speichervorgang, der erst endet, nachdem die Seite verlassen wurde, schreibt so nichts.
 - **`VirtualDom::in_scope(ScopeId::ROOT, …)`** führt Code im Runtime aus; so treiben die Tests das
   Handle Schritt für Schritt, ohne Browser-Events.
+
+## 11. Nach Phase 9: Stand von Dioxus 0.8
+
+Geprüft am 2026-09-19 (ROADMAP §7: „nach Phase 9 prüfen, ob 0.8 stabil ist").
+
+- **Nicht stabil.** Neuestes Release ist `0.8.0-alpha.1` (31.07.2026), zeitgleich mit `0.7.10`; davor
+  `0.8.0-alpha.0` (19.05.2026). Der Meilenstein „0.8.0" auf GitHub hat 41 offene und 13
+  geschlossene Issues, sein Termin (30.06.2025) ist verstrichen. Die Release Notes der Alpha
+  nennen neue Events (Auswahl, `beforeinput`, Zwischenablage-Daten) und Fehlerbehebungen, keine
+  Brüche in Signals, Props, Callbacks oder den Events, die wir nutzen.
+- **Spike:** Workspace in einem Worktree auf `dioxus = "=0.8.0-alpha.1"` gestellt.
+  `dioxus-datagrid` und der Playground kompilieren ohne Änderung und ohne Clippy-Befund, alle
+  Tests von Core und Crate bestehen (SSR-Tests, Remote, Bearbeiten), `web-sys` bleibt draußen.
+- **Folge:** Wir bleiben auf 0.7. Ein Umstieg sieht nach heutigem Stand billig aus; er wird fällig,
+  wenn 0.8 stabil erscheint. Die Zwischenablage-Events der Alpha sind für Phase 12 interessant:
+  Sie könnten das `document::eval` aus Entscheidung 4 (ROADMAP §8) für das Einfügen ersparen.
