@@ -33,8 +33,11 @@ echo "==> Listing components in $registry"
 cd "$fixture"
 dx components list --path "$registry"
 
-echo "==> Adding data_grid"
+echo "==> Adding data_grid and data_grid_editor"
 dx components add data_grid --path "$registry"
+# Installed separately, as the docs say: it names no componentDependencies
+# (ADR-0025), so it relies on data_grid being there.
+dx components add data_grid_editor --path "$registry"
 
 echo "==> Verifying the expected files were produced"
 expected=(
@@ -42,6 +45,9 @@ expected=(
   "src/components/data_grid/mod.rs"
   "src/components/data_grid/component.rs"
   "src/components/data_grid/style.css"
+  "src/components/data_grid_editor/mod.rs"
+  "src/components/data_grid_editor/component.rs"
+  "src/components/data_grid_editor/style.css"
   "assets/dx-components-theme.css"
 )
 for file in "${expected[@]}"; do
@@ -52,17 +58,19 @@ for file in "${expected[@]}"; do
 done
 
 # Files listed under "exclude" in the manifest must not leak into user projects.
-for file in "src/components/data_grid/component.json" "src/components/data_grid/docs.md"; do
+for file in src/components/data_grid{,_editor}/{component.json,docs.md}; do
   if [[ -f "$fixture/$file" ]]; then
     echo "FAIL: $file is excluded in the manifest but was copied anyway" >&2
     exit 1
   fi
 done
 
-if ! grep -q "pub mod data_grid;" "$fixture/src/components/mod.rs"; then
-  echo "FAIL: data_grid was not registered in src/components/mod.rs" >&2
-  exit 1
-fi
+for module in data_grid data_grid_editor; do
+  if ! grep -q "pub mod $module;" "$fixture/src/components/mod.rs"; then
+    echo "FAIL: $module was not registered in src/components/mod.rs" >&2
+    exit 1
+  fi
+done
 
 # The manifest's cargoDependencies must have landed, or the copied component
 # would not compile in a real project.

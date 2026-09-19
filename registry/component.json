@@ -2,6 +2,7 @@
   "name": "dioxus-datagrid",
   "description": "A typed, accessible data grid for Dioxus.",
   "members": [
-    "data_grid"
+    "data_grid",
+    "data_grid_editor"
   ]
 }

@@ -1,0 +1,17 @@
+{
+  "name": "data_grid_editor",
+  "description": "Editing for data_grid: cells, rows, a form dialog or batches, with adding and deleting.",
+  "authors": [
+    "Marius Linnartz"
+  ],
+  "exclude": [
+    "docs.md",
+    "component.json"
+  ],
+  "cargoDependencies": [
+    {
+      "name": "dioxus-datagrid",
+      "version": "0.6"
+    }
+  ]
+}

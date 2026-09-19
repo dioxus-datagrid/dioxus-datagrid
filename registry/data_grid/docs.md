@@ -92,6 +92,12 @@ fn Users() -> Element {
 | `column_picker_label` | from `locale` | Label of that menu. |
 | `initial_state` | `None` | A `GridState` to start from, read on the first render. |
 | `on_state_change` | — | Fires with the whole `GridState` whenever it changes. |
+| children | — | Add-ons such as `DataGridEditor`, placed above the grid. |
+
+## Editing
+
+Install [`data_grid_editor`](../data_grid_editor/docs.md) and put a `DataGridEditor` inside the
+`DataGrid`: cells, rows, a form dialog or batches, with adding, deleting and validation.
 
 ## Filtering
 

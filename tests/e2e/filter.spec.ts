@@ -150,7 +150,9 @@ test("every menu stays inside a phone's screen", async ({ page }) => {
         return box !== null && box.x >= 0 && box.x + box.width <= 360;
       })
       .toBe(true);
-    await page.keyboard.press("Escape");
+    // A click outside closes it. Not Escape: WebKit leaves focus on the page
+    // after a button click, so the key would not reach the panel.
+    await page.mouse.click(2, 2);
     await expect(panel).toHaveCount(0);
   }
 });

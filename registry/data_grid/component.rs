@@ -87,6 +87,9 @@ pub struct DataGridProps<T: GridRow + PartialEq + 'static> {
     /// widths or hidden columns change. Serialize it to persist the grid.
     #[props(default)]
     pub on_state_change: Option<EventHandler<GridState>>,
+    /// Add-ons such as `DataGridEditor`, which find the grid through the context.
+    #[props(default)]
+    pub children: Element,
     #[props(extends = GlobalAttributes)]
     pub attributes: Vec<Attribute>,
 }
@@ -110,6 +113,7 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
     options.locale = props.locale.clone();
 
     let mut grid = use_grid(props.data, props.columns, options);
+    use_context_provider(|| grid);
 
     let on_state_change = props.on_state_change;
     use_effect(move || {
@@ -183,6 +187,8 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
                     }
                 }
             }
+
+            {props.children}
 
             // Outside role="grid" on purpose: a filter row inside it would count
             // towards aria-rowcount and shift every aria-rowindex by one.

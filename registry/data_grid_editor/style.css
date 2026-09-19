@@ -1,0 +1,217 @@
+/* Styling for the data_grid_editor component, on top of data_grid's.
+ *
+ * Every colour comes from the dx-components theme variables, as in data_grid.
+ */
+
+.dg-edit-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.dg-edit-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.dg-edit-toolbar button,
+.dg-edit-dialog button {
+  min-height: 2.25rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--primary-color-6);
+  border-radius: 0.5rem;
+  background: var(--primary-color-2);
+  color: var(--secondary-color-4);
+  cursor: pointer;
+  font: inherit;
+}
+
+.dg-edit-toolbar button:hover:not(:disabled),
+.dg-edit-dialog button:hover {
+  background: var(--primary-color-4);
+}
+
+.dg-edit-toolbar button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.dg-edit-toolbar button:focus-visible,
+.dg-edit-dialog button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--focused-border-color);
+}
+
+.dg-edit-toolbar [data-edit-save],
+.dg-edit-toolbar [data-batch-save],
+.dg-edit-dialog [data-edit-save],
+.dg-edit-dialog [data-delete] {
+  border-color: var(--focused-border-color);
+  font-weight: 600;
+}
+
+.dg-edit-status {
+  color: var(--secondary-color-3);
+}
+
+.dg-edit-status [data-edit-pending] {
+  margin-inline-start: 0.75rem;
+}
+
+.dg-edit-status[data-state="failed"],
+.dg-edit-status[data-state="invalid"] {
+  color: var(--primary-error-color);
+}
+
+/* Editors in cells fill their cell. The cell keeps its padding smaller while
+ * editing, so the row does not grow. */
+.dg [role="gridcell"][data-editing="true"] {
+  position: relative;
+  overflow: visible;
+  padding: 0.3rem 0.4rem;
+}
+
+.dg [data-editor] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.25rem 0.35rem;
+  border: 1px solid var(--focused-border-color);
+  border-radius: 0.35rem;
+  background: var(--primary-color-1);
+  color: var(--secondary-color-4);
+  font: inherit;
+  text-align: inherit;
+}
+
+.dg [data-editor][type="checkbox"] {
+  width: auto;
+}
+
+.dg [data-editor]:focus-visible,
+.dg-edit-dialog [data-editor]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--focused-border-color);
+}
+
+.dg [data-editor][aria-invalid="true"],
+.dg-edit-dialog [data-editor][aria-invalid="true"] {
+  border-color: var(--primary-error-color);
+}
+
+/* A refused value's message hangs below its cell. */
+.dg [data-edit-error] {
+  position: absolute;
+  z-index: 2;
+  top: 100%;
+  inset-inline-start: 0.4rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.35rem;
+  background: var(--primary-error-color);
+  color: var(--contrast-error-color);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.dg-body [role="row"][data-editing="true"] [role="gridcell"] {
+  background: var(--primary-color-3);
+}
+
+/* Unsaved batch changes: a marker in the cell's corner. */
+.dg [role="gridcell"][data-changed="true"] {
+  box-shadow: inset 3px 0 0 var(--primary-warning-color);
+}
+
+.dg-body [role="row"][data-deleted="true"] [role="gridcell"] {
+  color: var(--secondary-color-3);
+  text-decoration: line-through;
+}
+
+/* Shown as edited while the save is under way. */
+.dg-body [role="row"][data-saving="true"] [role="gridcell"] {
+  font-style: italic;
+}
+
+/* The form dialog and the delete confirmation. */
+[data-edit-backdrop] {
+  z-index: 10;
+  background: var(--primary-color-1);
+  opacity: 0.7;
+}
+
+.dg-edit-dialog {
+  position: fixed;
+  z-index: 11;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  width: min(28rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  box-sizing: border-box;
+  flex-direction: column;
+  padding: 1.25rem;
+  border: 1px solid var(--primary-color-6);
+  border-radius: 0.75rem;
+  background: var(--primary-color-2);
+  box-shadow: 0 8px 24px var(--primary-color-7);
+  color: var(--secondary-color-4);
+  font-size: 0.875rem;
+  gap: 0.75rem;
+  overflow-y: auto;
+  transform: translate(-50%, -50%);
+}
+
+.dg-edit-dialog h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.dg-edit-dialog p {
+  margin: 0;
+}
+
+.dg-edit-dialog [data-edit-field] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.dg-edit-dialog [data-edit-field] label {
+  color: var(--secondary-color-3);
+  font-size: 0.8125rem;
+}
+
+.dg-edit-dialog [data-editor] {
+  box-sizing: border-box;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--primary-color-6);
+  border-radius: 0.4rem;
+  background: var(--primary-color-1);
+  color: var(--secondary-color-4);
+  font: inherit;
+}
+
+.dg-edit-dialog [data-editor][type="checkbox"] {
+  align-self: flex-start;
+}
+
+.dg-edit-dialog [data-edit-error],
+.dg-edit-dialog [data-edit-row-error] {
+  color: var(--primary-error-color);
+  font-size: 0.8125rem;
+}
+
+.dg-edit-dialog [data-edit-actions] {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+@media (pointer: coarse) {
+  .dg-edit-toolbar button,
+  .dg-edit-dialog button {
+    min-height: 44px;
+  }
+}

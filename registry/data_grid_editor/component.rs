@@ -1,0 +1,100 @@
+//! Editing for `data_grid`, composed from the unstyled primitives in
+//! `dioxus-datagrid`.
+//!
+//! This file is yours once `dx components add` copies it in. Editing itself —
+//! reading and checking values, keys, focus, saving and taking a failed save
+//! back — lives in the `dioxus-datagrid` crate.
+
+use dioxus::prelude::*;
+use dioxus_datagrid::primitives::{
+    GridDeleteConfirm, GridEditDialog, GridEditStatus, GridEditToolbar,
+};
+use dioxus_datagrid::{Create, Delete, EditMode, Editing, GridHandle, GridRow, Save, SaveBatch};
+
+const STYLE: Asset = asset!("/src/components/data_grid_editor/style.css");
+
+/// Props for [`DataGridEditor`].
+#[derive(Props, Clone, PartialEq)]
+pub struct DataGridEditorProps<T: GridRow + PartialEq + 'static> {
+    /// How rows are edited: one cell at a time, a whole row inline, a row in a
+    /// form dialog, or cells collected into a batch.
+    #[props(default)]
+    pub mode: EditMode,
+    /// Saves an edited row. Call `fail` on the token to report an error; the
+    /// grid then shows the row as it was.
+    #[props(default)]
+    pub on_save: Option<EventHandler<Save<T>>>,
+    /// Saves a new row.
+    #[props(default)]
+    pub on_create: Option<EventHandler<Create<T>>>,
+    /// Deletes rows. Without it there is no delete button.
+    #[props(default)]
+    pub on_delete: Option<EventHandler<Delete<T>>>,
+    /// Saves a batch of changes, with `mode: EditMode::Batch`.
+    #[props(default)]
+    pub on_batch_save: Option<EventHandler<SaveBatch<T>>>,
+    /// The row a new-row form starts from. Without it there is no add button.
+    #[props(default)]
+    pub new_row: Option<Callback<(), T>>,
+    /// Checks a whole row before it is saved.
+    #[props(default)]
+    pub validate_row: Option<Callback<T, Result<(), String>>>,
+    /// Whether deleting asks first.
+    #[props(default = true)]
+    pub confirm_delete: bool,
+    /// Whether to show the buttons to add, edit, delete and save. Without them
+    /// editing starts with `Enter`, `F2` or a double click, and `Delete`
+    /// deletes.
+    #[props(default = true)]
+    pub toolbar: bool,
+    #[props(extends = GlobalAttributes)]
+    pub attributes: Vec<Attribute>,
+}
+
+/// Makes the `DataGrid` around it editable.
+///
+/// ```rust,ignore
+/// DataGrid { data: users, columns,
+///     DataGridEditor {
+///         mode: EditMode::Row,
+///         on_save: move |save: Save<User>| {
+///             let row = save.row().clone();
+///             users.with_mut(|users| {
+///                 if let Some(user) = users.iter_mut().find(|user| user.id == row.id) {
+///                     *user = row;
+///                 }
+///             });
+///         },
+///     }
+/// }
+/// ```
+#[component]
+pub fn DataGridEditor<T: GridRow + PartialEq + 'static>(props: DataGridEditorProps<T>) -> Element {
+    // Put there by `DataGrid`; outside one there is nothing to edit.
+    let Some(mut grid) = try_use_context::<GridHandle<T>>() else {
+        return rsx! {};
+    };
+    grid.set_editing(Editing {
+        mode: props.mode,
+        on_save: props.on_save,
+        on_create: props.on_create,
+        on_delete: props.on_delete,
+        on_batch_save: props.on_batch_save,
+        new_row: props.new_row,
+        validate_row: props.validate_row,
+        confirm_delete: props.confirm_delete,
+    });
+
+    rsx! {
+        document::Link { rel: "stylesheet", href: STYLE }
+
+        div { class: "dg-edit-bar", ..props.attributes,
+            if props.toolbar {
+                GridEditToolbar { grid, class: "dg-edit-toolbar" }
+            }
+            GridEditStatus { grid, class: "dg-edit-status" }
+        }
+        GridEditDialog { grid, class: "dg-edit-dialog" }
+        GridDeleteConfirm { grid, class: "dg-edit-dialog" }
+    }
+}

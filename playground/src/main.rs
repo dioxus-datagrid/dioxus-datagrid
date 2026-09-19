@@ -3,15 +3,18 @@
 //!
 //! `playground/src/components/data_grid` is copied from `registry/data_grid` by
 //! `scripts/sync-playground-component.sh`, so what runs here is exactly what
-//! `dx components add data_grid` hands a user.
+//! `dx components add data_grid` hands a user. The same goes for
+//! `data_grid_editor`.
 
 mod components;
 
 use chrono::NaiveDate;
 use components::data_grid::DataGrid;
+use components::data_grid_editor::DataGridEditor;
 use dioxus::prelude::*;
 use dioxus_datagrid::{
-    CellFormat, Column, ColumnId, ColumnWidth, GridLocale, GridRow, GridState, SelectionMode,
+    CellFormat, Column, ColumnId, ColumnWidth, Create, Delete, EditMode, GridLocale, GridRow,
+    GridState, Save, SaveBatch, SelectionMode,
 };
 
 const STYLE: Asset = asset!("/assets/playground.css");
@@ -76,19 +79,21 @@ fn employees() -> Vec<Employee> {
         .collect()
 }
 
+/// The departments an employee can be in.
+const DEPARTMENTS: [&str; 6] = [
+    "engineering",
+    "sales",
+    "support",
+    "finance",
+    "legal",
+    "research",
+];
+
 /// Rows for the virtualized mode: deterministic, so a test can predict what row
 /// n contains, and varied enough that sorting and searching do real work.
 fn many_employees(count: u32) -> Vec<Employee> {
     const FIRST: [&str; 8] = ["Ada", "Ben", "Cleo", "Dan", "Eva", "Finn", "Greta", "Hans"];
     const LAST: [&str; 6] = ["Bauer", "Fischer", "Kaufmann", "Weber", "Vogel", "Lang"];
-    const DEPARTMENTS: [&str; 6] = [
-        "engineering",
-        "sales",
-        "support",
-        "finance",
-        "legal",
-        "research",
-    ];
 
     (1..=count)
         .map(|id| {
@@ -149,30 +154,75 @@ fn label(id: &str, german: bool) -> &'static str {
 
 fn columns(german: bool) -> Vec<Column<Employee>> {
     let label = |id| label(id, german);
+    // Every column can be edited, once a `DataGridEditor` says how; without
+    // one the setters are never called.
     vec![
         Column::new("name", label("name"))
             .cell(|row: &Employee| rsx! { "{row.name}" })
             .sort_by_text(|row: &Employee| row.name.as_str())
-            .filter_by(|row: &Employee| row.name.clone()),
+            .filter_by(|row: &Employee| row.name.clone())
+            .editable(|row: &mut Employee, name: String| row.name = name)
+            .validate(move |row: &Employee| {
+                if row.name.trim().is_empty() {
+                    Err(if german {
+                        "Bitte einen Namen eingeben"
+                    } else {
+                        "Enter a name"
+                    }
+                    .to_owned())
+                } else {
+                    Ok(())
+                }
+            }),
         Column::new("email", label("email"))
             .cell(|row: &Employee| rsx! { "{row.email}" })
             .sort_by_text(|row: &Employee| row.email.as_str())
-            .filter_by(|row: &Employee| row.email.clone()),
+            .filter_by(|row: &Employee| row.email.clone())
+            .editable(|row: &mut Employee, email: String| row.email = email)
+            .validate(move |row: &Employee| {
+                if row.email.contains('@') {
+                    Ok(())
+                } else {
+                    Err(if german {
+                        "Keine E-Mail-Adresse"
+                    } else {
+                        "Not an email address"
+                    }
+                    .to_owned())
+                }
+            }),
         Column::new("department", label("department"))
             .cell(|row: &Employee| rsx! { "{row.department}" })
             .sort_by_text(|row: &Employee| row.department.as_str())
-            .filter_by(|row: &Employee| row.department.clone()),
+            .filter_by(|row: &Employee| row.department.clone())
+            .editable(|row: &mut Employee, department: String| row.department = department)
+            .choices(DEPARTMENTS),
         Column::new("age", label("age"))
             .value_of(|row: &Employee| row.age)
-            .width(ColumnWidth::Px(88.0)),
+            .width(ColumnWidth::Px(88.0))
+            .editable(|row: &mut Employee, age: u32| row.age = age)
+            .validate(move |row: &Employee| {
+                if (16..=99).contains(&row.age) {
+                    Ok(())
+                } else {
+                    Err(if german {
+                        "Zwischen 16 und 99"
+                    } else {
+                        "Between 16 and 99"
+                    }
+                    .to_owned())
+                }
+            }),
         // No `.cell()` from here on: the grid shows the value in its format,
         // with separators and date order from the locale.
         Column::new("salary", label("salary"))
             .value_of(|row: &Employee| row.salary)
-            .format(CellFormat::currency("€", 2)),
+            .format(CellFormat::currency("€", 2))
+            .editable(|row: &mut Employee, salary: f64| row.salary = salary),
         Column::new("since", label("since"))
             .value_of(|row: &Employee| row.since)
-            .format(CellFormat::Date),
+            .format(CellFormat::Date)
+            .editable(|row: &mut Employee, since: NaiveDate| row.since = since),
     ]
 }
 
@@ -229,9 +279,62 @@ fn App() -> Element {
     let mut virtualized = use_signal(|| false);
     let mut overscan = use_signal(|| 20_usize);
     let mut selected = use_signal(Vec::<u32>::new);
+    let mut edit_mode = use_signal(|| None::<EditMode>);
+    let mut fail_saves = use_signal(|| false);
     // Loaded before the grid renders: `initial_state` is read on the first
     // render only.
     let saved = use_resource(load_state);
+
+    // Saving writes the rows the grid shows. The playground keeps them in
+    // memory; an app would call its backend here.
+    let save = move |save: Save<Employee>| {
+        if fail_saves() {
+            save.fail("saving is switched off");
+            return;
+        }
+        let row = save.row().clone();
+        rows.with_mut(|rows| {
+            if let Some(slot) = rows.iter_mut().find(|slot| slot.id == row.id) {
+                *slot = row;
+            }
+        });
+    };
+    let create = move |create: Create<Employee>| {
+        if fail_saves() {
+            create.fail("saving is switched off");
+            return;
+        }
+        rows.push(create.row().clone());
+    };
+    let delete = move |delete: Delete<Employee>| {
+        let keys: Vec<u32> = delete.rows().iter().map(|row| row.id).collect();
+        rows.retain(|row| !keys.contains(&row.id));
+    };
+    let save_batch = move |batch: SaveBatch<Employee>| {
+        if fail_saves() {
+            batch.fail("saving is switched off");
+            return;
+        }
+        let changes = batch.changes();
+        rows.with_mut(|rows| {
+            for (_, current) in &changes.updated {
+                if let Some(slot) = rows.iter_mut().find(|slot| slot.id == current.id) {
+                    *slot = current.clone();
+                }
+            }
+            rows.retain(|row| !changes.deleted.iter().any(|gone| gone.id == row.id));
+            rows.extend(changes.added.iter().cloned());
+        });
+    };
+    let new_row = move |()| Employee {
+        id: rows.peek().iter().map(|row| row.id).max().unwrap_or(0) + 1,
+        name: String::new(),
+        email: String::new(),
+        department: DEPARTMENTS[0].to_owned(),
+        age: 30,
+        salary: 3_000.0,
+        since: NaiveDate::from_ymd_opt(2026, 1, 1).unwrap_or_default(),
+    };
 
     rsx! {
         document::Link { rel: "stylesheet", href: STYLE }
@@ -285,6 +388,39 @@ fn App() -> Element {
                             "{text}"
                         }
                     }
+                }
+
+                fieldset {
+                    legend { "Editing" }
+                    for (text , mode) in [
+                        ("Off", None),
+                        ("Cell", Some(EditMode::Cell)),
+                        ("Row", Some(EditMode::Row)),
+                        ("Dialog", Some(EditMode::Dialog)),
+                        ("Batch", Some(EditMode::Batch)),
+                    ]
+                    {
+                        label { key: "{text}",
+                            input {
+                                r#type: "radio",
+                                name: "editing",
+                                "data-testid": "edit-{text.to_lowercase()}",
+                                checked: edit_mode() == mode,
+                                onchange: move |_| edit_mode.set(mode),
+                            }
+                            "{text}"
+                        }
+                    }
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
+                        "data-testid": "toggle-fail-saves",
+                        checked: fail_saves(),
+                        onchange: move |event| fail_saves.set(event.checked()),
+                    }
+                    "Saving fails"
                 }
 
                 label { class: "toggle",
@@ -370,6 +506,16 @@ fn App() -> Element {
                     locale: if german() { GridLocale::german() } else { GridLocale::english() },
                     // Tells screen readers which language the grid speaks.
                     lang: if german() { "de" } else { "en" },
+                    if let Some(mode) = edit_mode() {
+                        DataGridEditor {
+                            mode,
+                            on_save: save,
+                            on_create: create,
+                            on_delete: delete,
+                            on_batch_save: save_batch,
+                            new_row,
+                        }
+                    }
                 }
             }
         }
