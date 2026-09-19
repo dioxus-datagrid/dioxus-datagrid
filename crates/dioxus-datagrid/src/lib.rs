@@ -75,6 +75,8 @@ mod edit;
 mod edit_ui;
 mod filter_menu;
 mod grid;
+mod group;
+mod group_ui;
 pub mod primitives;
 mod remote;
 mod timer;
@@ -87,14 +89,16 @@ pub use edit_ui::CellEditor;
 pub use grid::{
     COLUMN_RESIZE_STEP, DEFAULT_DEBOUNCE, GridHandle, GridOptions, IntoReadSignal, Layout, use_grid,
 };
+pub use group::GroupKeyPress;
 pub use remote::use_grid_remote;
 
 // Re-exported so callers need only one dependency for the common path. The
 // `GridRow` trait deliberately keeps its name here; the row *component* lives in
 // [`primitives`] to avoid the collision.
 pub use datagrid_core::{
-    CellAlign, CellFocus, CellFormat, CellOverflow, CellValue, Changes, ColumnFilter, ColumnId,
-    ColumnWidth, Condition, DEFAULT_MIN_COLUMN_WIDTH, DEFAULT_REMOTE_PAGE_SIZE, DataSource,
-    DistinctValues, EditError, FilterOp, FromValue, GridLocale, GridQuery, GridRow, GridState,
-    NavKey, Page, SelectionMode, SortDirection, SortValue, TextCollation, Value, ValueKind, View,
+    Aggregate, AggregateKind, AggregateValue, CellAlign, CellFocus, CellFormat, CellOverflow,
+    CellValue, Changes, ColumnFilter, ColumnId, ColumnWidth, Condition, DEFAULT_MIN_COLUMN_WIDTH,
+    DEFAULT_REMOTE_PAGE_SIZE, DataSource, DistinctValues, EditError, FilterOp, FromValue,
+    GridLocale, GridQuery, GridRow, GridState, Group, GroupKey, NavKey, Page, SelectionMode,
+    SortDirection, SortValue, TextCollation, Value, ValueKind, View, ViewRow,
 };

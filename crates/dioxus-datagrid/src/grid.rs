@@ -182,7 +182,7 @@ struct ColumnResize {
 pub struct GridHandle<T: GridRow + 'static> {
     pub(crate) data: ReadSignal<Vec<T>>,
     pub(crate) columns: ReadSignal<Vec<Column<T>>>,
-    state: Signal<GridState>,
+    pub(crate) state: Signal<GridState>,
     pub(crate) selection: Signal<Selection<T::Key>>,
     focus: Signal<CellFocus>,
     /// Bumped whenever the focus is moved deliberately, so the newly focused
@@ -250,6 +250,13 @@ pub struct GridHandle<T: GridRow + 'static> {
     pub(crate) edit_status: Signal<EditStatus>,
     /// Rows waiting for the user to confirm deleting them.
     pub(crate) edit_confirm: Signal<Option<Vec<T>>>,
+    /// The column header being dragged, for a group panel to drop.
+    pub(crate) dragged_column: Signal<Option<ColumnId>>,
+    /// Whether a footer row with the totals is mounted, which the keyboard
+    /// reaches after the last body row.
+    pub(crate) footer: Signal<bool>,
+    /// Whether a group panel is mounted, which makes column headers draggable.
+    pub(crate) group_panel: Signal<bool>,
 }
 
 impl<T: GridRow> Clone for GridHandle<T> {
@@ -379,6 +386,9 @@ pub(crate) struct GridBase<T: GridRow + 'static> {
     pub(crate) edit_rows: Signal<EditRows<T>>,
     edit_status: Signal<EditStatus>,
     edit_confirm: Signal<Option<Vec<T>>>,
+    dragged_column: Signal<Option<ColumnId>>,
+    footer: Signal<bool>,
+    group_panel: Signal<bool>,
 }
 
 /// Creates the signals shared by local and remote grids, in a fixed hook order.
@@ -451,6 +461,9 @@ where
         edit_rows: use_signal(EditRows::default),
         edit_status: use_signal(EditStatus::default),
         edit_confirm: use_signal(|| None::<Vec<T>>),
+        dragged_column: use_signal(|| None::<ColumnId>),
+        footer: use_signal(|| false),
+        group_panel: use_signal(|| false),
     }
 }
 
@@ -472,9 +485,9 @@ impl<T: GridRow + PartialEq> GridBase<T> {
             } else {
                 let rows = data.read();
                 view.read()
-                    .indices
-                    .iter()
-                    .position(|&index| rows.get(index).is_some_and(|row| row.key() == session.key))
+                    .data_rows()
+                    .find(|&(_, index)| rows.get(index).is_some_and(|row| row.key() == session.key))
+                    .map(|(position, _)| position)
             };
             Some(session.target(row_index))
         });
@@ -522,6 +535,9 @@ impl<T: GridRow + PartialEq> GridBase<T> {
             edit_rows: self.edit_rows,
             edit_status: self.edit_status,
             edit_confirm: self.edit_confirm,
+            dragged_column: self.dragged_column,
+            footer: self.footer,
+            group_panel: self.group_panel,
         }
     }
 }
@@ -1109,7 +1125,7 @@ impl<T: GridRow> GridHandle<T> {
     #[must_use]
     pub fn key_at(&self, row: usize) -> Option<T::Key> {
         let rows = self.data.read();
-        let index = *self.view.read().indices.get(row)?;
+        let index = self.view.read().data_index(row)?;
         rows.get(index).map(GridRow::key)
     }
 
@@ -1187,6 +1203,8 @@ impl<T: GridRow> GridHandle<T> {
         match (row.checked_sub(1), self.rendered_range()) {
             // The header is never virtualized away.
             (None, _) | (_, None) => true,
+            // Nor is the footer.
+            (Some(body_row), _) if body_row >= self.view.read().len() => true,
             (Some(body_row), Some(range)) => range.contains(&body_row),
         }
     }
@@ -1268,7 +1286,7 @@ impl<T: GridRow> GridHandle<T> {
     /// should render right now.
     #[must_use]
     pub fn virtual_range(&self, row_height: f64, overscan: usize) -> Range<usize> {
-        let total = self.view.read().indices.len();
+        let total = self.view.read().len();
         let scroll_top = self.layout().scroll_top;
         visible_range(
             scroll_top,
@@ -1289,7 +1307,13 @@ impl<T: GridRow> GridHandle<T> {
         let Some((row_height, _)) = *self.virtual_body.peek() else {
             return;
         };
-        let Some(body_row) = self.focus().row.checked_sub(1) else {
+        // The header and the footer stay in place; only body rows scroll.
+        let Some(body_row) = self
+            .focus()
+            .row
+            .checked_sub(1)
+            .filter(|row| *row < self.view.peek().len())
+        else {
             return;
         };
         let layout = *self.layout.peek();
@@ -1335,8 +1359,8 @@ impl<T: GridRow> GridHandle<T> {
         internal
     }
 
-    /// How many rows the keyboard can reach: the header row, plus the rows on
-    /// the current page.
+    /// How many rows the keyboard can reach: the header row, the rows on the
+    /// current page, of every kind, and the footer if one is mounted.
     ///
     /// The ARIA grid pattern treats the header as part of the grid, so
     /// [`CellFocus::row`] counts it: row `0` is the header and row `n` is the
@@ -1344,7 +1368,7 @@ impl<T: GridRow> GridHandle<T> {
     /// which is 1-based and includes header rows.
     #[must_use]
     pub fn focusable_row_count(&self) -> usize {
-        self.view.read().indices.len() + 1
+        self.view.read().len() + 1 + usize::from(*self.footer.read())
     }
 
     /// Whether the focus currently sits on the header row.

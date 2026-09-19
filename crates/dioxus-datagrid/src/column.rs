@@ -2,8 +2,8 @@
 
 use crate::CellEditor;
 use datagrid_core::{
-    CellAlign, CellFormat, CellOverflow, CellValue, ColumnId, ColumnSpec, ColumnWidth, EditError,
-    FromValue, GridLocale, SortValue, TextCollation, Value, ValueKind,
+    Aggregate, CellAlign, CellFormat, CellOverflow, CellValue, ColumnId, ColumnSpec, ColumnWidth,
+    EditError, FromValue, GridLocale, SortValue, TextCollation, Value, ValueKind,
 };
 use dioxus::prelude::*;
 use std::fmt;
@@ -300,6 +300,22 @@ impl<T> Column<T> {
     #[must_use]
     pub fn choices(mut self, choices: impl IntoIterator<Item = impl Into<Value>>) -> Self {
         self.spec = self.spec.choices(choices);
+        self
+    }
+
+    /// Adds an aggregate for footers to show below this column: under every
+    /// group and under the whole grid. See [`ColumnSpec::aggregate`].
+    #[must_use]
+    pub fn aggregate(mut self, aggregate: Aggregate<T>) -> Self {
+        self.spec = self.spec.aggregate(aggregate);
+        self
+    }
+
+    /// Sets whether rows can be grouped by this column; they can by default,
+    /// if it has a value.
+    #[must_use]
+    pub fn groupable(mut self, groupable: bool) -> Self {
+        self.spec = self.spec.groupable(groupable);
         self
     }
 

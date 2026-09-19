@@ -141,12 +141,12 @@ where
     let view = use_memo(move || {
         let received = rows.read().len();
         let total = total();
-        let size = state.read().page.map_or(page_size, |page| page.size).max(1);
-        View {
-            indices: (0..received).collect(),
-            filtered_len: total,
-            page_count: total.div_ceil(size),
-        }
+        let page = state.read().page;
+        let size = page.map_or(page_size, |page| page.size).max(1);
+        let offset = page
+            .map_or(0, |page| page.index.saturating_mul(size))
+            .min(total);
+        View::of_data((0..received).collect(), total, total.div_ceil(size), offset)
     });
 
     let query = use_memo(move || GridQuery::from_state(&state.read(), page_size));

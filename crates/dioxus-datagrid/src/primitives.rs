@@ -12,9 +12,15 @@ pub use crate::edit_ui::{
     GridCellEditor, GridDeleteConfirm, GridEditDialog, GridEditStatus, GridEditToolbar,
 };
 pub use crate::filter_menu::{DEFAULT_VALUE_LIMIT, GridFilterMenu};
+use crate::group::GroupKeyPress;
+pub use crate::group_ui::{
+    AggregateSource, GridAggregateCell, GridFooter, GridGroupFooterRow, GridGroupPanel,
+    GridGroupRow,
+};
 use crate::{COLUMN_RESIZE_STEP, GridHandle};
 use datagrid_core::{
-    CellFocus, GridRow as GridRowKey, NavKey, SelectionMode, SortDirection, offset_of, total_height,
+    CellFocus, GridRow as GridRowKey, NavKey, SelectionMode, SortDirection, ViewRow, offset_of,
+    total_height,
 };
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -51,8 +57,14 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
     // `aria-rowcount` spans every page, not just the rendered one, and counts
     // the header row — that is the whole point of the attribute when the grid
     // is paged.
-    let row_count = grid.filtered_len() + 1;
+    let row_count = grid.view().read().row_count + 1 + usize::from(grid.has_footer());
     let column_count = grid.visible_column_count();
+    // Groups make rows nest, which is what a treegrid is for.
+    let role = if grid.is_grouped() {
+        "treegrid"
+    } else {
+        "grid"
+    };
 
     let onkeydown = move |event: Event<KeyboardData>| {
         // An editor handles its own keys; the grid's would fight them.
@@ -61,6 +73,22 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
         }
         let data = event.data();
         let shift = data.modifiers().shift();
+
+        // On a group's header, the arrows across expand and collapse it.
+        let plain = !shift && !data.modifiers().ctrl() && !data.modifiers().alt();
+        let group_press = match data.key() {
+            Key::ArrowRight if plain => Some(GroupKeyPress::Expand),
+            Key::ArrowLeft if plain => Some(GroupKeyPress::Collapse),
+            Key::Enter if plain => Some(GroupKeyPress::Toggle),
+            Key::Character(ref character) if plain && character == " " => {
+                Some(GroupKeyPress::Toggle)
+            }
+            _ => None,
+        };
+        if group_press.is_some_and(|press| grid.group_key(press)) {
+            event.prevent_default();
+            return;
+        }
 
         if let Some(key) = nav_key(&data) {
             if shift && grid.selection_mode() == SelectionMode::Multi && !grid.focus_is_header() {
@@ -102,7 +130,13 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
             }
             // Delete asks to delete the focused row, or the selection it is
             // part of.
-            Key::Delete if focus.row > 0 && grid.can_delete() => {
+            Key::Delete
+                if grid.can_delete()
+                    && focus
+                        .row
+                        .checked_sub(1)
+                        .is_some_and(|row| grid.key_at(row).is_some()) =>
+            {
                 let keys = grid.delete_candidates();
                 grid.request_delete(&keys);
                 event.prevent_default();
@@ -147,7 +181,7 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
 
     rsx! {
         div {
-            role: "grid",
+            role,
             aria_rowcount: "{row_count}",
             aria_colcount: "{column_count}",
             aria_multiselectable: matches!(grid.selection_mode(), SelectionMode::Multi).then_some("true"),
@@ -289,6 +323,10 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
     let show_handle = resizable && column.spec().resizable;
     let measured_id = id.clone();
     let resize_id = id.clone();
+    let drag_id = id.clone();
+    // Dragged onto a group panel, a header groups by its column.
+    let draggable =
+        grid.has_group_panel() && column.spec().is_groupable() && !grid.group_by().contains(&id);
 
     // The keyboard alternative to dragging. Handled here rather than on the root
     // so it only exists where a handle does, and stopped from bubbling so the
@@ -337,6 +375,16 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
             "data-align": column.spec().effective_align().as_str(),
             "data-filtered": grid.is_filtered(column.id()).then_some("true"),
             "aria-keyshortcuts": show_handle.then_some("Alt+ArrowLeft Alt+ArrowRight"),
+            draggable: draggable.then_some("true"),
+            ondragstart: move |event: DragEvent| {
+                if !draggable {
+                    return;
+                }
+                // Firefox starts no drag without data.
+                let _ = event.data_transfer().set_data("text/plain", drag_id.as_str());
+                grid.start_column_drag(drag_id.clone());
+            },
+            ondragend: move |_| grid.end_column_drag(),
             onmounted,
             onclick,
             onkeydown,
@@ -404,6 +452,11 @@ pub fn ColumnResizeHandle<T: GridRowKey + PartialEq + 'static>(
                 grid.start_column_resize(&id, event.client_coordinates().x);
             },
             onclick: move |event: MouseEvent| event.stop_propagation(),
+            // Resizing a header that can be dragged to group must not drag it.
+            ondragstart: move |event: DragEvent| {
+                event.prevent_default();
+                event.stop_propagation();
+            },
             ..attributes,
         }
     }
@@ -415,7 +468,7 @@ pub fn GridBody<T: GridRowKey + PartialEq + 'static>(
     grid: GridHandle<T>,
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
 ) -> Element {
-    let row_count = grid.view().read().indices.len();
+    let row_count = grid.view().read().len();
 
     rsx! {
         div { role: "rowgroup", ..attributes,
@@ -471,7 +524,7 @@ pub fn VirtualGridBody<T: GridRowKey + PartialEq + 'static>(
         |row_height, overscan| grid.virtual_range(row_height, overscan)
     ));
 
-    let total = grid.view().read().indices.len();
+    let total = grid.view().read().len();
     let window = range();
     let (start, end) = (window.start, window.end);
     let padding_top = offset_of(start, row_height);
@@ -504,16 +557,34 @@ pub fn GridRow<T: GridRowKey + PartialEq + 'static>(
     row_index: usize,
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
 ) -> Element {
+    // A grouped view has rows of its own among the data rows; whatever walks
+    // the rows by position gets the right one for each.
+    match grid.row_kind(row_index) {
+        Some(ViewRow::GroupHeader(_)) => {
+            return rsx! {
+                GridGroupRow { grid, row_index, attributes }
+            };
+        }
+        Some(ViewRow::GroupFooter(_)) => {
+            return rsx! {
+                GridGroupFooterRow { grid, row_index, attributes }
+            };
+        }
+        _ => {}
+    }
+
     let columns = grid.visible_columns();
     let key = grid.key_at(row_index);
 
-    // aria-rowindex is 1-based over the whole filtered set and counts the header
-    // row, so page 2 of a 25-row page starts at 27.
-    let page_offset = grid
-        .state()
-        .page
-        .map_or(0, |page| page.index.saturating_mul(page.size));
-    let aria_row_index = page_offset + row_index + 2;
+    // aria-rowindex is 1-based over every row of the view and counts the
+    // header row, so page 2 of a 25-row page starts at 27.
+    let (aria_row_index, group_levels) = {
+        let view = grid.view();
+        let view = view.read();
+        (view.row_offset + row_index + 2, view.group_levels)
+    };
+    // In a treegrid, data rows sit one level below the innermost groups.
+    let aria_level = (group_levels > 0).then(|| (group_levels + 1).to_string());
 
     let selectable = grid.selection_mode() != SelectionMode::None;
     let selected = key.as_ref().is_some_and(|key| grid.is_selected(key));
@@ -525,6 +596,7 @@ pub fn GridRow<T: GridRowKey + PartialEq + 'static>(
         div {
             role: "row",
             aria_rowindex: "{aria_row_index}",
+            aria_level,
             aria_selected: selectable.then_some(if selected { "true" } else { "false" }),
             "data-selected": "{selected}",
             "data-editing": editing.then_some("true"),
@@ -643,9 +715,19 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
 /// Returns the `onmounted` handler for the cell. A cell that a focus move
 /// scrolled into the rendered window mounts after the move, so it has to claim
 /// focus on mount as well as from the effect.
-fn use_focus_pull<T: GridRowKey + 'static>(
+pub(crate) fn use_focus_pull<T: GridRowKey + 'static>(
     grid: GridHandle<T>,
     at: CellFocus,
+) -> impl FnMut(MountedEvent) + 'static {
+    use_focus_pull_where(grid, move |focus| focus == at)
+}
+
+/// [`use_focus_pull`] for an element that stands for every cell `holds`
+/// accepts, such as the one cell of a group's header, which holds the focus
+/// whatever its column.
+pub(crate) fn use_focus_pull_where<T: GridRowKey + 'static>(
+    grid: GridHandle<T>,
+    holds: impl Fn(CellFocus) -> bool + Copy + 'static,
 ) -> impl FnMut(MountedEvent) + 'static {
     let mut element = use_signal(|| None::<Rc<MountedData>>);
 
@@ -653,7 +735,7 @@ fn use_focus_pull<T: GridRowKey + 'static>(
         // Read, so the effect re-runs whenever the focus or the pending flag
         // changes. The coordinate comes from the signal rather than a value
         // captured at first render.
-        let should_take = grid.focus() == at && grid.focus_pending();
+        let should_take = holds(grid.focus()) && grid.focus_pending();
         let _ = grid.focus_nonce();
         if !should_take {
             return;
@@ -673,7 +755,7 @@ fn use_focus_pull<T: GridRowKey + 'static>(
         let target = event.data();
         element.set(Some(target.clone()));
         let mut grid = grid;
-        if grid.focus() == at && grid.focus_pending() {
+        if holds(grid.focus()) && grid.focus_pending() {
             grid.complete_focus_pull();
             spawn(async move {
                 let _ = target.set_focus(true).await;

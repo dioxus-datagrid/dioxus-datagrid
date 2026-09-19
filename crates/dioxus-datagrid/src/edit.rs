@@ -463,7 +463,7 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
     /// The row at `row_index` on the current page as the grid shows it: with
     /// unsaved batch changes and edits being saved applied.
     pub fn with_row<R>(&self, row_index: usize, read: impl FnOnce(&T) -> R) -> Option<R> {
-        let index = *self.view().read().indices.get(row_index)?;
+        let index = self.view().read().data_index(row_index)?;
         let data = self.data.read();
         let row = data.get(index)?;
         let edits = self.edit_rows.read();
@@ -851,7 +851,7 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
             .or(session.focus.as_ref())
             .and_then(|id| columns.iter().position(|column| column.id() == id))
             .unwrap_or(0);
-        let rows = self.view().read().indices.len();
+        let rows = self.view().read().len();
 
         match then {
             EditMove::Stay => {}
@@ -891,10 +891,18 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
             .filter(|(_, column)| column.spec().is_editable())
             .map(|(index, _)| index)
             .collect();
-        let rows = self.view().read().indices.len();
+        // Only data rows have cells to edit.
+        let rows: Vec<usize> = self
+            .view()
+            .read()
+            .data_rows()
+            .map(|(position, _)| position)
+            .collect();
         let width = columns.len();
         let here = row_index * width + column_index;
-        let cells = (0..rows).flat_map(|row| editable.iter().map(move |&column| (row, column)));
+        let cells = rows
+            .into_iter()
+            .flat_map(|row| editable.iter().map(move |&column| (row, column)));
         if forward {
             cells
                 .into_iter()
@@ -935,8 +943,15 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
         if !self.can_delete() || keys.is_empty() {
             return;
         }
-        let rows: Vec<T> = (0..self.view().read().indices.len())
-            .filter_map(|index| self.row_at(index))
+        let positions: Vec<usize> = self
+            .view()
+            .read()
+            .data_rows()
+            .map(|(position, _)| position)
+            .collect();
+        let rows: Vec<T> = positions
+            .into_iter()
+            .filter_map(|position| self.row_at(position))
             .filter(|row| keys.contains(&row.key()))
             .collect();
         if rows.is_empty() {
