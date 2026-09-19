@@ -19,7 +19,7 @@ thread_local! {
 }
 
 /// A page-unique id for a panel, for `aria-controls`.
-fn next_id() -> u64 {
+pub(crate) fn next_id() -> u64 {
     NEXT_ID.with(|next| {
         let id = next.get();
         next.set(id.wrapping_add(1));

@@ -134,6 +134,7 @@ where
     let mut loading = base.loading;
     let mut load_error = base.load_error;
     let reload_nonce = base.reload_nonce;
+    let mut edit_rows = base.edit_rows;
 
     // The server already filtered, sorted and paged: the view is the page as
     // received, with the server's total standing in for the filtered length.
@@ -191,6 +192,8 @@ where
                     let last_page = page.page_count(query.page_size).saturating_sub(1);
                     let past_the_end = page.rows.is_empty() && query.page > last_page;
                     rows.set(page.rows);
+                    // Rows saved before this request now come from the server.
+                    edit_rows.write().drop_confirmed();
                     total.set(page.total);
                     load_error.set(None);
                     // The data shrank, and the requested page no longer exists.

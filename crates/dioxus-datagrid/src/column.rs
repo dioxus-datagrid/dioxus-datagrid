@@ -1,8 +1,9 @@
 //! Column definitions that pair core sorting and filtering with rendering.
 
+use crate::CellEditor;
 use datagrid_core::{
-    CellAlign, CellFormat, CellOverflow, CellValue, ColumnId, ColumnSpec, ColumnWidth, GridLocale,
-    SortValue, TextCollation, ValueKind,
+    CellAlign, CellFormat, CellOverflow, CellValue, ColumnId, ColumnSpec, ColumnWidth, EditError,
+    FromValue, GridLocale, SortValue, TextCollation, Value, ValueKind,
 };
 use dioxus::prelude::*;
 use std::fmt;
@@ -13,6 +14,9 @@ pub type CellRenderer<T> = Rc<dyn Fn(&T) -> Element>;
 
 /// Renders a column's header content.
 pub type HeaderRenderer = Rc<dyn Fn() -> Element>;
+
+/// Renders a column's own editor; see [`Column::editor`].
+pub type EditorRenderer = Rc<dyn Fn(CellEditor) -> Element>;
 
 /// A column: what the core needs to sort and filter it, plus how to draw it.
 ///
@@ -48,6 +52,7 @@ pub struct Column<T> {
     label: String,
     cell: Option<CellRenderer<T>>,
     header: Option<HeaderRenderer>,
+    editor: Option<EditorRenderer>,
 }
 
 impl<T> Column<T> {
@@ -62,6 +67,7 @@ impl<T> Column<T> {
             label: label.into(),
             cell: None,
             header: None,
+            editor: None,
         }
     }
 
@@ -233,6 +239,114 @@ impl<T> Column<T> {
         self
     }
 
+    /// Makes the column editable through a setter that takes the field's own
+    /// type. Text a user types is read as the column's kind of value and
+    /// converted with [`FromValue`]; what cannot be converted is refused with
+    /// a message before the setter runs.
+    ///
+    /// ```
+    /// use dioxus_datagrid::Column;
+    ///
+    /// #[derive(Clone, PartialEq)]
+    /// struct User { name: String, age: u32, email: Option<String> }
+    ///
+    /// let columns = vec![
+    ///     Column::new("name", "Name")
+    ///         .value_text(|user: &User| user.name.as_str())
+    ///         .editable(|user: &mut User, name: String| user.name = name),
+    ///     Column::new("age", "Age")
+    ///         .value_of(|user: &User| user.age)
+    ///         .editable(|user: &mut User, age: u32| user.age = age),
+    ///     // Only an `Option` accepts an empty cell.
+    ///     Column::new("email", "Email")
+    ///         .value(|user: &User| user.email.as_deref().into())
+    ///         .editable(|user: &mut User, email: Option<String>| user.email = email),
+    /// ];
+    /// # let _ = columns;
+    /// ```
+    #[must_use]
+    pub fn editable<V, F>(mut self, set: F) -> Self
+    where
+        V: FromValue,
+        F: Fn(&mut T, V) + 'static,
+    {
+        self.spec = self.spec.editable(set);
+        self
+    }
+
+    /// Makes the column editable through a setter that takes the edited
+    /// [`Value`] as it is, or `None` for an empty cell, and may refuse it.
+    #[must_use]
+    pub fn edit<F>(mut self, set: F) -> Self
+    where
+        F: Fn(&mut T, Option<Value>) -> Result<(), EditError> + 'static,
+    {
+        self.spec = self.spec.edit(set);
+        self
+    }
+
+    /// Checks the row after this column was edited; the message shows at the
+    /// cell's editor.
+    #[must_use]
+    pub fn validate<F>(mut self, validate: F) -> Self
+    where
+        F: Fn(&T) -> Result<(), String> + 'static,
+    {
+        self.spec = self.spec.validate(validate);
+        self
+    }
+
+    /// Limits the column to these values, which its editor offers as a list.
+    #[must_use]
+    pub fn choices(mut self, choices: impl IntoIterator<Item = impl Into<Value>>) -> Self {
+        self.spec = self.spec.choices(choices);
+        self
+    }
+
+    /// Replaces the column's editor with one of your own. It gets a
+    /// [`CellEditor`] with the text and the handlers to wire up; the grid
+    /// still reads, validates and saves the text.
+    ///
+    /// ```
+    /// use dioxus::prelude::*;
+    /// use dioxus_datagrid::{CellEditor, Column};
+    ///
+    /// #[derive(Clone, PartialEq)]
+    /// struct Task { notes: String }
+    ///
+    /// let notes = Column::new("notes", "Notes")
+    ///     .value_text(|task: &Task| task.notes.as_str())
+    ///     .editable(|task: &mut Task, notes: String| task.notes = notes)
+    ///     .editor(|editor: CellEditor| rsx! {
+    ///         textarea {
+    ///             id: "{editor.id}",
+    ///             aria_label: (!editor.in_form).then(|| editor.label.clone()),
+    ///             value: "{editor.text}",
+    ///             oninput: move |event| editor.set_text.call(event.value()),
+    ///             onkeydown: editor.onkeydown,
+    ///             onmounted: editor.onmounted,
+    ///         }
+    ///     });
+    /// # let _ = notes;
+    /// ```
+    #[must_use]
+    pub fn editor(mut self, render: impl Fn(CellEditor) -> Element + 'static) -> Self {
+        self.editor = Some(Rc::new(render));
+        self
+    }
+
+    /// The column's own editor, if it has one.
+    #[must_use]
+    pub fn custom_editor(&self) -> Option<&EditorRenderer> {
+        self.editor.as_ref()
+    }
+
+    /// Whether the column can be edited.
+    #[must_use]
+    pub fn is_editable(&self) -> bool {
+        self.spec.is_editable()
+    }
+
     /// This column's id.
     #[must_use]
     pub fn id(&self) -> &ColumnId {
@@ -296,6 +410,7 @@ impl<T> Clone for Column<T> {
             label: self.label.clone(),
             cell: self.cell.clone(),
             header: self.header.clone(),
+            editor: self.editor.clone(),
         }
     }
 }
@@ -329,5 +444,6 @@ impl<T> PartialEq for Column<T> {
             && self.label == other.label
             && same(self.cell.as_ref(), other.cell.as_ref())
             && same(self.header.as_ref(), other.header.as_ref())
+            && same(self.editor.as_ref(), other.editor.as_ref())
     }
 }

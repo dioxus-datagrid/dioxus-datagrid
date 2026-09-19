@@ -8,6 +8,9 @@
 //! is called `GridRow`, which would collide with the
 //! [`GridRow`](datagrid_core::GridRow) trait you implement on your row type.
 
+pub use crate::edit_ui::{
+    GridCellEditor, GridDeleteConfirm, GridEditDialog, GridEditStatus, GridEditToolbar,
+};
 pub use crate::filter_menu::{DEFAULT_VALUE_LIMIT, GridFilterMenu};
 use crate::{COLUMN_RESIZE_STEP, GridHandle};
 use datagrid_core::{
@@ -52,6 +55,10 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
     let column_count = grid.visible_column_count();
 
     let onkeydown = move |event: Event<KeyboardData>| {
+        // An editor handles its own keys; the grid's would fight them.
+        if grid.is_editing() {
+            return;
+        }
         let data = event.data();
         let shift = data.modifiers().shift();
 
@@ -86,6 +93,19 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
                         event.prevent_default();
                     }
                 }
+            }
+            // On a body cell, Enter or F2 starts editing it, if it can be.
+            Key::Enter | Key::F2 if focus.row > 0 => {
+                if grid.start_edit(focus.row - 1, focus.col) {
+                    event.prevent_default();
+                }
+            }
+            // Delete asks to delete the focused row, or the selection it is
+            // part of.
+            Key::Delete if focus.row > 0 && grid.can_delete() => {
+                let keys = grid.delete_candidates();
+                grid.request_delete(&keys);
+                event.prevent_default();
             }
             // On a body row, Space selects and Shift+Space extends.
             Key::Character(ref character) if character == " " => {
@@ -497,6 +517,9 @@ pub fn GridRow<T: GridRowKey + PartialEq + 'static>(
 
     let selectable = grid.selection_mode() != SelectionMode::None;
     let selected = key.as_ref().is_some_and(|key| grid.is_selected(key));
+    let editing = grid
+        .edit_target()
+        .is_some_and(|target| !target.form && target.row_index == Some(row_index));
 
     rsx! {
         div {
@@ -504,6 +527,9 @@ pub fn GridRow<T: GridRowKey + PartialEq + 'static>(
             aria_rowindex: "{aria_row_index}",
             aria_selected: selectable.then_some(if selected { "true" } else { "false" }),
             "data-selected": "{selected}",
+            "data-editing": editing.then_some("true"),
+            "data-deleted": grid.is_row_deleted(row_index).then_some("true"),
+            "data-saving": grid.is_row_saving(row_index).then_some("true"),
             ..attributes,
             for column_index in 0..columns.len() {
                 GridCell {
@@ -538,22 +564,36 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
     let focused = grid.focus() == CellFocus::new(focus_row, column_index);
     let onmounted = use_focus_pull(grid, CellFocus::new(focus_row, column_index));
 
-    let (content, tooltip) = {
-        let data = grid.data();
-        let rows = data.read();
+    let editable = column.is_editable();
+    let editing = editable
+        && grid
+            .edit_target()
+            .is_some_and(|target| target.edits_cell(row_index, column.id()));
+
+    // The row as the grid shows it: with unsaved and in-flight edits.
+    let (content, tooltip) = if editing {
+        (
+            rsx! {
+                GridCellEditor { grid, column_index }
+            },
+            None,
+        )
+    } else {
         let locale = grid.locale();
         let locale = locale.read();
-        let index = grid.view().read().indices.get(row_index).copied();
-        match index.and_then(|index| rows.get(index)) {
-            Some(row) => (
+        grid.with_row(row_index, |row| {
+            (
                 column.render_cell(row, &locale),
                 column.tooltip(row, &locale),
-            ),
-            None => (rsx! {}, None),
-        }
+            )
+        })
+        .unwrap_or_else(|| (rsx! {}, None))
     };
     let align = column.spec().effective_align().as_str();
     let overflow = column.spec().overflow.as_str();
+    // Only worth saying in a grid that edits at all.
+    let read_only = !editable && grid.edit_mode().is_some();
+    let changed = grid.is_cell_changed(row_index, column_index);
 
     let onclick = move |_| {
         grid.set_focus(CellFocus::new(focus_row, column_index));
@@ -568,12 +608,20 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
         div {
             role: "gridcell",
             aria_colindex: "{column_index + 1}",
+            aria_readonly: read_only.then_some("true"),
             tabindex: if focused { "0" } else { "-1" },
             "data-align": align,
             "data-overflow": overflow,
+            "data-editing": editing.then_some("true"),
+            "data-changed": changed.then_some("true"),
             title: tooltip,
             onmounted,
             onclick,
+            ondoubleclick: move |_| {
+                if !grid.is_editing() {
+                    grid.start_edit(row_index, column_index);
+                }
+            },
             ..attributes,
             {content}
         }

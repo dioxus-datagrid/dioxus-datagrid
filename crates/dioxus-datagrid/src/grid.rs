@@ -1,6 +1,7 @@
 //! The `use_grid` hook and the handle it returns.
 
 use crate::Column;
+use crate::edit::{EditRows, EditStatus, EditTarget, Editing, Session};
 use datagrid_core::{
     CellFocus, ColumnFilter, ColumnId, ColumnSpec, ColumnWidth, DEFAULT_REMOTE_PAGE_SIZE,
     DistinctValues, GridLocale, GridQuery, GridRow, GridState, NavKey, Selection, SelectionMode,
@@ -179,10 +180,10 @@ struct ColumnResize {
 /// `Copy`, because everything it holds is a signal. Pass it around freely; it is
 /// the single thing the primitives need in order to render and to react.
 pub struct GridHandle<T: GridRow + 'static> {
-    data: ReadSignal<Vec<T>>,
-    columns: ReadSignal<Vec<Column<T>>>,
+    pub(crate) data: ReadSignal<Vec<T>>,
+    pub(crate) columns: ReadSignal<Vec<Column<T>>>,
     state: Signal<GridState>,
-    selection: Signal<Selection<T::Key>>,
+    pub(crate) selection: Signal<Selection<T::Key>>,
     focus: Signal<CellFocus>,
     /// Bumped whenever the focus is moved deliberately, so the newly focused
     /// cell knows to pull DOM focus to itself. Without it every re-render would
@@ -230,12 +231,25 @@ pub struct GridHandle<T: GridRow + 'static> {
     load_error: Signal<Option<String>>,
     /// Bumped by [`GridHandle::reload`] to repeat the current request.
     /// Texts and formats; see [`GridOptions::locale`].
-    locale: Signal<GridLocale>,
+    pub(crate) locale: Signal<GridLocale>,
     /// Where a remote grid gets value lists from; `None` for a local grid,
     /// which computes them from its rows.
     distinct: CopyValue<Option<DistinctSource>>,
     reload_nonce: Signal<u64>,
     view: Memo<View>,
+    /// Whether rows come from a server, which decides how saved edits show.
+    pub(crate) remote: bool,
+    /// How the grid edits; see [`GridHandle::set_editing`]. Not reactive: it
+    /// is set on every render and only read when an edit starts or ends.
+    pub(crate) edit_config: Signal<Option<Editing<T>>>,
+    /// The edit in progress. Changes with every keystroke, so only editors
+    /// read it; cells read [`edit_target`](Self::edit_target).
+    pub(crate) edit_session: Signal<Option<Session<T>>>,
+    pub(crate) edit_target: Memo<Option<EditTarget>>,
+    pub(crate) edit_rows: Signal<EditRows<T>>,
+    pub(crate) edit_status: Signal<EditStatus>,
+    /// Rows waiting for the user to confirm deleting them.
+    pub(crate) edit_confirm: Signal<Option<Vec<T>>>,
 }
 
 impl<T: GridRow> Clone for GridHandle<T> {
@@ -359,6 +373,12 @@ pub(crate) struct GridBase<T: GridRow + 'static> {
     pub(crate) reload_nonce: Signal<u64>,
     locale: Signal<GridLocale>,
     distinct: CopyValue<Option<DistinctSource>>,
+    remote: bool,
+    edit_config: Signal<Option<Editing<T>>>,
+    edit_session: Signal<Option<Session<T>>>,
+    pub(crate) edit_rows: Signal<EditRows<T>>,
+    edit_status: Signal<EditStatus>,
+    edit_confirm: Signal<Option<Vec<T>>>,
 }
 
 /// Creates the signals shared by local and remote grids, in a fixed hook order.
@@ -399,6 +419,9 @@ where
         locale.set(requested_locale);
     }
 
+    let remote = distinct.is_some();
+    let edit_session = use_signal(|| None::<Session<T>>);
+
     GridBase {
         data,
         columns,
@@ -422,12 +445,52 @@ where
         reload_nonce: use_signal(|| 0_u64),
         locale,
         distinct: use_hook(move || CopyValue::new(distinct)),
+        remote,
+        edit_config: use_signal(|| None::<Editing<T>>),
+        edit_session,
+        edit_rows: use_signal(EditRows::default),
+        edit_status: use_signal(EditStatus::default),
+        edit_confirm: use_signal(|| None::<Vec<T>>),
     }
 }
 
-impl<T: GridRow> GridBase<T> {
+impl<T: GridRow + PartialEq> GridBase<T> {
     /// Completes the handle with the view it should render.
+    ///
+    /// A hook: call it once per render, in the same place.
     pub(crate) fn with_view(self, view: Memo<View>) -> GridHandle<T> {
+        let data = self.data;
+        let mut edit_session = self.edit_session;
+
+        // Where the edited row is now. By key, so that sorting or a reload
+        // while editing moves the editor with its row.
+        let edit_target = use_memo(move || {
+            let session = edit_session.read();
+            let session = session.as_ref()?;
+            let row_index = if session.creating {
+                None
+            } else {
+                let rows = data.read();
+                view.read()
+                    .indices
+                    .iter()
+                    .position(|&index| rows.get(index).is_some_and(|row| row.key() == session.key))
+            };
+            Some(session.target(row_index))
+        });
+
+        // An edit in the cells whose row left the page cannot be finished
+        // there. Dropping it gives the grid its keys back.
+        use_effect(move || {
+            let lost = edit_target
+                .read()
+                .as_ref()
+                .is_some_and(|target| !target.form && target.row_index.is_none());
+            if lost {
+                edit_session.set(None);
+            }
+        });
+
         GridHandle {
             data: self.data,
             columns: self.columns,
@@ -452,6 +515,13 @@ impl<T: GridRow> GridBase<T> {
             locale: self.locale,
             distinct: self.distinct,
             view,
+            remote: self.remote,
+            edit_config: self.edit_config,
+            edit_session: self.edit_session,
+            edit_target,
+            edit_rows: self.edit_rows,
+            edit_status: self.edit_status,
+            edit_confirm: self.edit_confirm,
         }
     }
 }

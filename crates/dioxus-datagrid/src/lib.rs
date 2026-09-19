@@ -71,13 +71,19 @@
 #![forbid(unsafe_code)]
 
 mod column;
+mod edit;
+mod edit_ui;
 mod filter_menu;
 mod grid;
 pub mod primitives;
 mod remote;
 mod timer;
 
-pub use column::{CellRenderer, Column, HeaderRenderer};
+pub use column::{CellRenderer, Column, EditorRenderer, HeaderRenderer};
+pub use edit::{
+    Create, Delete, EditMode, EditMove, EditStatus, EditTarget, Editing, Save, SaveBatch,
+};
+pub use edit_ui::CellEditor;
 pub use grid::{
     COLUMN_RESIZE_STEP, DEFAULT_DEBOUNCE, GridHandle, GridOptions, IntoReadSignal, Layout, use_grid,
 };
@@ -87,8 +93,8 @@ pub use remote::use_grid_remote;
 // `GridRow` trait deliberately keeps its name here; the row *component* lives in
 // [`primitives`] to avoid the collision.
 pub use datagrid_core::{
-    CellAlign, CellFocus, CellFormat, CellOverflow, CellValue, ColumnFilter, ColumnId, ColumnWidth,
-    Condition, DEFAULT_MIN_COLUMN_WIDTH, DEFAULT_REMOTE_PAGE_SIZE, DataSource, DistinctValues,
-    FilterOp, GridLocale, GridQuery, GridRow, GridState, NavKey, Page, SelectionMode,
-    SortDirection, SortValue, TextCollation, Value, ValueKind, View,
+    CellAlign, CellFocus, CellFormat, CellOverflow, CellValue, Changes, ColumnFilter, ColumnId,
+    ColumnWidth, Condition, DEFAULT_MIN_COLUMN_WIDTH, DEFAULT_REMOTE_PAGE_SIZE, DataSource,
+    DistinctValues, EditError, FilterOp, FromValue, GridLocale, GridQuery, GridRow, GridState,
+    NavKey, Page, SelectionMode, SortDirection, SortValue, TextCollation, Value, ValueKind, View,
 };
