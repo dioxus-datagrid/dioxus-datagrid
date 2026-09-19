@@ -1,6 +1,6 @@
 //! The state a grid derives its view from.
 
-use crate::{ColumnFilter, ColumnId, SortDirection, SortState};
+use crate::{ColumnFilter, ColumnId, GroupKey, SortDirection, SortState};
 
 /// Which page of the filtered rows is shown.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -49,6 +49,13 @@ pub struct GridState {
     /// Columns hidden at runtime, on top of
     /// [`ColumnSpec::visible`](crate::ColumnSpec::visible).
     pub hidden_columns: Vec<ColumnId>,
+    /// The columns rows are grouped by, outermost first.
+    pub group_by: Vec<ColumnId>,
+    /// Whether groups start collapsed.
+    pub groups_collapsed: bool,
+    /// The groups the user expanded or collapsed against
+    /// [`groups_collapsed`](GridState::groups_collapsed).
+    pub toggled_groups: Vec<GroupKey>,
 }
 
 impl GridState {
@@ -258,6 +265,82 @@ impl GridState {
             .iter()
             .find(|(id, _)| id == column)
             .map(|(_, width)| *width)
+    }
+
+    /// Groups the rows by these columns, outermost first; none turns grouping
+    /// off. Unknown columns and columns without a value are ignored when the
+    /// view is computed.
+    ///
+    /// Expands every group again and returns to the first page.
+    pub fn set_group_by(&mut self, columns: Vec<ColumnId>) {
+        if self.group_by == columns {
+            return;
+        }
+        self.group_by = columns;
+        self.groups_collapsed = false;
+        self.toggled_groups.clear();
+        self.reset_page();
+    }
+
+    /// Adds a column to the grouping, innermost, or moves it to `position`
+    /// among the grouped columns if given. See
+    /// [`set_group_by`](GridState::set_group_by).
+    pub fn group_by_column(&mut self, column: impl Into<ColumnId>, position: Option<usize>) {
+        let column = column.into();
+        let mut columns: Vec<ColumnId> = self
+            .group_by
+            .iter()
+            .filter(|id| **id != column)
+            .cloned()
+            .collect();
+        let position = position.unwrap_or(columns.len()).min(columns.len());
+        columns.insert(position, column);
+        self.set_group_by(columns);
+    }
+
+    /// Stops grouping by a column. See [`set_group_by`](GridState::set_group_by).
+    pub fn ungroup_column(&mut self, column: &ColumnId) {
+        let columns = self
+            .group_by
+            .iter()
+            .filter(|id| *id != column)
+            .cloned()
+            .collect();
+        self.set_group_by(columns);
+    }
+
+    /// Whether the group with `key` shows its rows.
+    #[must_use]
+    pub fn is_group_expanded(&self, key: &GroupKey) -> bool {
+        self.groups_collapsed == self.toggled_groups.contains(key)
+    }
+
+    /// Expands or collapses one group.
+    pub fn set_group_expanded(&mut self, key: &GroupKey, expanded: bool) {
+        if self.is_group_expanded(key) == expanded {
+            return;
+        }
+        if let Some(position) = self
+            .toggled_groups
+            .iter()
+            .position(|toggled| toggled == key)
+        {
+            self.toggled_groups.remove(position);
+        } else {
+            self.toggled_groups.push(key.clone());
+        }
+    }
+
+    /// Expands a collapsed group, or collapses an expanded one.
+    pub fn toggle_group(&mut self, key: &GroupKey) {
+        let expanded = self.is_group_expanded(key);
+        self.set_group_expanded(key, !expanded);
+    }
+
+    /// Expands or collapses every group.
+    pub fn set_all_groups_expanded(&mut self, expanded: bool) {
+        self.groups_collapsed = !expanded;
+        self.toggled_groups.clear();
     }
 
     /// Returns to the first page, if paging is enabled.

@@ -170,6 +170,13 @@ proptest! {
             if page + 1 < first.page_count {
                 prop_assert_eq!(view.len(), page_size);
             }
+            // Without grouping every row is a data row, and the page starts
+            // where the previous ones left off.
+            prop_assert_eq!(view.row_count, filtered_len);
+            prop_assert_eq!(view.row_offset, walked.len());
+            let data: Vec<usize> = view.data_rows().map(|(_, index)| index).collect();
+            prop_assert_eq!(&data, &view.indices);
+            prop_assert_eq!(view.rows.len(), view.indices.len());
             walked.extend(view.indices);
         }
 

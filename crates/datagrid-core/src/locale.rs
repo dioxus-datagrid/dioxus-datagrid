@@ -1,7 +1,7 @@
 //! Every text the grid shows and every number and date format it uses, in one
 //! place.
 
-use crate::{CellFormat, CellValue, FilterOp};
+use crate::{AggregateKind, AggregateValue, CellFormat, CellValue, FilterOp};
 use std::borrow::Cow;
 #[cfg(feature = "chrono")]
 use std::fmt::Write as _;
@@ -183,6 +183,37 @@ pub struct GridLocale {
     pub edit_saved: Cow<'static, str>,
     /// After a save failed, with `{error}`.
     pub edit_save_failed: Cow<'static, str>,
+    /// Accessible name of the panel that groups rows.
+    pub group_panel: Cow<'static, str>,
+    /// What the group panel says while nothing is grouped.
+    pub group_drop_hint: Cow<'static, str>,
+    /// Label of the list to pick a column to group by.
+    pub group_by: Cow<'static, str>,
+    /// Stops grouping by `{column}`.
+    pub group_remove: Cow<'static, str>,
+    /// Moves `{column}` one level out among the grouped columns.
+    pub group_move_out: Cow<'static, str>,
+    /// Expands every group.
+    pub group_expand_all: Cow<'static, str>,
+    /// Collapses every group.
+    pub group_collapse_all: Cow<'static, str>,
+    /// A group's heading: `{column}` and its `{value}`.
+    pub group_caption: Cow<'static, str>,
+    /// Accessible name of the footer with the aggregates of every row.
+    pub totals: Cow<'static, str>,
+    /// Labels a sum.
+    pub aggregate_sum: Cow<'static, str>,
+    /// Labels a mean.
+    pub aggregate_average: Cow<'static, str>,
+    /// Labels a minimum.
+    pub aggregate_min: Cow<'static, str>,
+    /// Labels a maximum.
+    pub aggregate_max: Cow<'static, str>,
+    /// Labels a count.
+    pub aggregate_count: Cow<'static, str>,
+    /// An aggregate named with its column, where the column is not obvious:
+    /// `{aggregate}`, `{column}` and `{value}`.
+    pub aggregate_of: Cow<'static, str>,
 }
 
 impl Default for GridLocale {
@@ -270,6 +301,21 @@ impl GridLocale {
             edit_saving: Cow::Borrowed("Saving…"),
             edit_saved: Cow::Borrowed("Saved"),
             edit_save_failed: Cow::Borrowed("Could not save: {error}"),
+            group_panel: Cow::Borrowed("Grouping"),
+            group_drop_hint: Cow::Borrowed("Drag a column header here to group by it"),
+            group_by: Cow::Borrowed("Group by"),
+            group_remove: Cow::Borrowed("Stop grouping by {column}"),
+            group_move_out: Cow::Borrowed("Group by {column} first"),
+            group_expand_all: Cow::Borrowed("Expand all"),
+            group_collapse_all: Cow::Borrowed("Collapse all"),
+            group_caption: Cow::Borrowed("{column}: {value}"),
+            totals: Cow::Borrowed("Totals"),
+            aggregate_sum: Cow::Borrowed("Sum"),
+            aggregate_average: Cow::Borrowed("Average"),
+            aggregate_min: Cow::Borrowed("Min"),
+            aggregate_max: Cow::Borrowed("Max"),
+            aggregate_count: Cow::Borrowed("Count"),
+            aggregate_of: Cow::Borrowed("{aggregate} of {column}: {value}"),
         }
     }
 
@@ -351,6 +397,21 @@ impl GridLocale {
             edit_saving: Cow::Borrowed("Wird gespeichert …"),
             edit_saved: Cow::Borrowed("Gespeichert"),
             edit_save_failed: Cow::Borrowed("Speichern fehlgeschlagen: {error}"),
+            group_panel: Cow::Borrowed("Gruppierung"),
+            group_drop_hint: Cow::Borrowed("Spaltenkopf hierher ziehen, um danach zu gruppieren"),
+            group_by: Cow::Borrowed("Gruppieren nach"),
+            group_remove: Cow::Borrowed("Nicht mehr nach {column} gruppieren"),
+            group_move_out: Cow::Borrowed("Zuerst nach {column} gruppieren"),
+            group_expand_all: Cow::Borrowed("Alle aufklappen"),
+            group_collapse_all: Cow::Borrowed("Alle zuklappen"),
+            group_caption: Cow::Borrowed("{column}: {value}"),
+            totals: Cow::Borrowed("Gesamt"),
+            aggregate_sum: Cow::Borrowed("Summe"),
+            aggregate_average: Cow::Borrowed("Mittelwert"),
+            aggregate_min: Cow::Borrowed("Min."),
+            aggregate_max: Cow::Borrowed("Max."),
+            aggregate_count: Cow::Borrowed("Anzahl"),
+            aggregate_of: Cow::Borrowed("{aggregate} {column}: {value}"),
         }
     }
 
@@ -419,6 +480,69 @@ impl GridLocale {
     #[must_use]
     pub fn edit_save_failed(&self, error: &str) -> String {
         fill(&self.edit_save_failed, &[("error", error)])
+    }
+
+    /// "Stop grouping by City".
+    #[must_use]
+    pub fn group_remove(&self, column: &str) -> String {
+        fill(&self.group_remove, &[("column", column)])
+    }
+
+    /// "Group by City first".
+    #[must_use]
+    pub fn group_move_out(&self, column: &str) -> String {
+        fill(&self.group_move_out, &[("column", column)])
+    }
+
+    /// "City: Berlin", a group's heading; `value` already formatted.
+    #[must_use]
+    pub fn group_caption(&self, column: &str, value: &str) -> String {
+        fill(&self.group_caption, &[("column", column), ("value", value)])
+    }
+
+    /// What an aggregate is called: "Sum", or a custom aggregate's label.
+    #[must_use]
+    pub fn aggregate_name<'a>(&'a self, kind: &'a AggregateKind) -> &'a str {
+        match kind {
+            AggregateKind::Sum => &self.aggregate_sum,
+            AggregateKind::Average => &self.aggregate_average,
+            AggregateKind::Min => &self.aggregate_min,
+            AggregateKind::Max => &self.aggregate_max,
+            AggregateKind::Count => &self.aggregate_count,
+            AggregateKind::Custom(label) => label,
+        }
+    }
+
+    /// "Sum of Salary: 1,234", for an aggregate away from its column;
+    /// `value` already formatted.
+    #[must_use]
+    pub fn aggregate_of(&self, kind: &AggregateKind, column: &str, value: &str) -> String {
+        fill(
+            &self.aggregate_of,
+            &[
+                ("aggregate", self.aggregate_name(kind)),
+                ("column", column),
+                ("value", value),
+            ],
+        )
+    }
+
+    /// An aggregate's result as text, in the column's `format`.
+    ///
+    /// A count is a plain integer whatever the column's format. A mean of a
+    /// column without a number format gets two decimals, rather than every
+    /// digit a float has.
+    #[must_use]
+    pub fn format_aggregate(&self, aggregate: &AggregateValue, format: &CellFormat) -> String {
+        let Some(value) = &aggregate.value else {
+            return String::new();
+        };
+        let format = match (&aggregate.kind, format) {
+            (AggregateKind::Count, _) => &CellFormat::Plain,
+            (AggregateKind::Average, CellFormat::Plain) => &CellFormat::Number { decimals: 2 },
+            _ => format,
+        };
+        self.format(&value.as_cell(), format)
     }
 
     /// The name of a filter operator, as a menu lists it.

@@ -1,6 +1,7 @@
 //! Column identity and column specifications.
 
 use crate::edit::{SetFn, ValidateFn};
+use crate::group::Aggregate;
 use crate::{
     CellAlign, CellFormat, CellOverflow, CellValue, GridLocale, GridState, TextCollation, Value,
     ValueKind,
@@ -154,6 +155,11 @@ pub struct ColumnSpec<T> {
     pub validate: Option<ValidateFn<T>>,
     /// The only values an edit may choose. Empty for any value.
     pub choices: Vec<Value>,
+    /// What footers show below this column; see [`ColumnSpec::aggregate`].
+    pub aggregates: Vec<Aggregate<T>>,
+    /// Whether rows can be grouped by this column. `true` by default; it has
+    /// no effect without a value.
+    pub groupable: bool,
 }
 
 impl<T> ColumnSpec<T> {
@@ -177,6 +183,8 @@ impl<T> ColumnSpec<T> {
             set: None,
             validate: None,
             choices: Vec::new(),
+            aggregates: Vec::new(),
+            groupable: true,
         }
     }
 
@@ -305,6 +313,38 @@ impl<T> ColumnSpec<T> {
     pub const fn overflow(mut self, overflow: CellOverflow) -> Self {
         self.overflow = overflow;
         self
+    }
+
+    /// Adds an aggregate for footers to show below this column: under every
+    /// group and under the whole grid. Call it again for more than one.
+    ///
+    /// ```
+    /// # use datagrid_core::{Aggregate, ColumnSpec};
+    /// struct Order { total: f64 }
+    ///
+    /// let total = ColumnSpec::new("total")
+    ///     .value_of(|order: &Order| order.total)
+    ///     .aggregate(Aggregate::Sum)
+    ///     .aggregate(Aggregate::Average);
+    /// ```
+    #[must_use]
+    pub fn aggregate(mut self, aggregate: Aggregate<T>) -> Self {
+        self.aggregates.push(aggregate);
+        self
+    }
+
+    /// Sets whether rows can be grouped by this column.
+    #[must_use]
+    pub const fn groupable(mut self, groupable: bool) -> Self {
+        self.groupable = groupable;
+        self
+    }
+
+    /// Whether rows can be grouped by this column: it has a value and is not
+    /// [`groupable(false)`](ColumnSpec::groupable).
+    #[must_use]
+    pub const fn is_groupable(&self) -> bool {
+        self.groupable && self.value.is_some()
     }
 
     /// Reads this column's value from a row, or [`CellValue::None`] if the
@@ -489,6 +529,8 @@ impl<T> Clone for ColumnSpec<T> {
             set: self.set.clone(),
             validate: self.validate.clone(),
             choices: self.choices.clone(),
+            aggregates: self.aggregates.clone(),
+            groupable: self.groupable,
         }
     }
 }
@@ -510,6 +552,8 @@ impl<T> fmt::Debug for ColumnSpec<T> {
             .field("kind", &self.kind)
             .field("editable", &self.is_editable())
             .field("choices", &self.choices)
+            .field("aggregates", &self.aggregates)
+            .field("groupable", &self.is_groupable())
             .finish()
     }
 }
@@ -545,5 +589,7 @@ impl<T> PartialEq for ColumnSpec<T> {
             && same_closure(self.set.as_ref(), other.set.as_ref())
             && same_closure(self.validate.as_ref(), other.validate.as_ref())
             && self.choices == other.choices
+            && self.aggregates == other.aggregates
+            && self.groupable == other.groupable
     }
 }

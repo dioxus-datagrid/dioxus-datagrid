@@ -2,12 +2,52 @@
 
 use crate::column::{FilterTextFn, ValueFn};
 use crate::filter::contains_ignore_case;
+use crate::group::aggregate_all;
 use crate::{
-    ColumnFilter, ColumnId, ColumnSpec, Condition, GridState, SortDirection, SortValue,
-    TextCollation, Value,
+    AggregateValue, CellValue, ColumnFilter, ColumnId, ColumnSpec, Condition, GridState, Group,
+    GroupKey, SortDirection, SortValue, TextCollation, Value,
 };
 use std::cmp::Ordering;
 use std::collections::HashMap;
+
+/// One row of a [`View`], in display order.
+///
+/// A view is more than its data rows: grouping adds rows of its own. Anything
+/// that walks the rows on screen — rendering, keyboard navigation,
+/// virtualization, `aria-rowindex` — walks [`View::rows`] and asks each row
+/// what it is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ViewRow {
+    /// A data row: the index into the original rows.
+    Data(usize),
+    /// The row that heads a group and expands or collapses it: the index into
+    /// [`View::groups`].
+    GroupHeader(usize),
+    /// The row below an expanded group's rows that shows its aggregates: the
+    /// index into [`View::groups`]. Only there when a column has an aggregate.
+    GroupFooter(usize),
+}
+
+impl ViewRow {
+    /// The index into the original rows, for a data row.
+    #[must_use]
+    pub fn data_index(self) -> Option<usize> {
+        match self {
+            Self::Data(index) => Some(index),
+            Self::GroupHeader(_) | Self::GroupFooter(_) => None,
+        }
+    }
+
+    /// The index into [`View::groups`], for a group's header or footer.
+    #[must_use]
+    pub fn group_index(self) -> Option<usize> {
+        match self {
+            Self::GroupHeader(group) | Self::GroupFooter(group) => Some(group),
+            Self::Data(_) => None,
+        }
+    }
+}
 
 /// The result of [`compute_view`].
 ///
@@ -15,7 +55,10 @@ use std::collections::HashMap;
 /// computing a view stays cheap no matter how large or expensive `T` is.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct View {
-    /// Indices into the original rows, in display order, for the current page.
+    /// The rows on the current page, in display order.
+    pub rows: Vec<ViewRow>,
+    /// Indices into the original rows, in display order, for the current page:
+    /// the [`Data`](ViewRow::Data) rows of [`rows`](View::rows).
     pub indices: Vec<usize>,
     /// How many rows survived filtering, across every page.
     pub filtered_len: usize,
@@ -23,19 +66,98 @@ pub struct View {
     ///
     /// `0` when paging is disabled or nothing matched.
     pub page_count: usize,
+    /// How many rows the view has across every page, of every kind: what
+    /// `aria-rowcount` counts, less the header.
+    pub row_count: usize,
+    /// Where the current page starts among those rows, zero-based: what
+    /// `aria-rowindex` counts from.
+    pub row_offset: usize,
+    /// Every group, across every page, in display order; empty without
+    /// grouping. [`ViewRow::GroupHeader`] and [`ViewRow::GroupFooter`] point
+    /// in here.
+    pub groups: Vec<Group>,
+    /// How many columns the rows are grouped by: the depth of the data rows.
+    pub group_levels: usize,
+    /// The columns' aggregates over every filtered row, for the grid's footer.
+    /// Empty when no column has one.
+    pub totals: Vec<AggregateValue>,
 }
 
 impl View {
+    /// A view of data rows only: `indices` is the page, starting `row_offset`
+    /// rows into `filtered_len` filtered rows.
+    ///
+    /// This is what a view without grouping is, and what a remote grid builds
+    /// from a page the server sent.
+    #[must_use]
+    pub fn of_data(
+        indices: Vec<usize>,
+        filtered_len: usize,
+        page_count: usize,
+        row_offset: usize,
+    ) -> Self {
+        Self {
+            rows: indices.iter().copied().map(ViewRow::Data).collect(),
+            indices,
+            filtered_len,
+            page_count,
+            row_count: filtered_len,
+            row_offset,
+            groups: Vec::new(),
+            group_levels: 0,
+            totals: Vec::new(),
+        }
+    }
+
+    /// The group a header or footer row at `position` on the current page
+    /// belongs to.
+    #[must_use]
+    pub fn group_at(&self, position: usize) -> Option<&Group> {
+        self.groups.get(self.row(position)?.group_index()?)
+    }
+
+    /// The position on the current page of the header of the group with
+    /// `key`, if it is on this page.
+    #[must_use]
+    pub fn group_header_position(&self, key: &GroupKey) -> Option<usize> {
+        self.rows.iter().position(|row| match row {
+            ViewRow::GroupHeader(group) => self.groups.get(*group).is_some_and(|g| &g.key == key),
+            _ => false,
+        })
+    }
+
     /// Whether the current page has no rows.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.indices.is_empty()
+        self.rows.is_empty()
     }
 
-    /// How many rows the current page holds.
+    /// How many rows the current page holds, of every kind.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.indices.len()
+        self.rows.len()
+    }
+
+    /// The row at `position` on the current page.
+    #[must_use]
+    pub fn row(&self, position: usize) -> Option<ViewRow> {
+        self.rows.get(position).copied()
+    }
+
+    /// The index into the original rows of the data row at `position` on the
+    /// current page; `None` for a row of another kind.
+    #[must_use]
+    pub fn data_index(&self, position: usize) -> Option<usize> {
+        self.row(position)?.data_index()
+    }
+
+    /// The data rows on the current page, in display order, each as its
+    /// position on the page and its index into the original rows.
+    pub fn data_rows(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
+        self.rows
+            .iter()
+            .enumerate()
+            .filter_map(|(position, row)| Some((position, row.data_index()?)))
     }
 }
 
@@ -69,38 +191,194 @@ impl View {
 /// Entries naming an unknown or unsortable column are skipped. Rows that
 /// compare equal keep their original relative order.
 ///
+/// # Grouping
+///
+/// With [`GridState::group_by`] set, rows are grouped by those columns,
+/// outermost first; columns that do not exist or are not
+/// [groupable](ColumnSpec::is_groupable) are skipped.
+/// Groups follow their column's sort direction, ascending if it is not
+/// sorted, and rows within a group follow the rest of the sort. Each group
+/// adds a [`GroupHeader`](ViewRow::GroupHeader) row, and, if any column has
+/// an [aggregate](ColumnSpec::aggregate), a [`GroupFooter`](ViewRow::GroupFooter)
+/// after its rows. A collapsed group is its header alone.
+///
 /// # Paging
 ///
-/// A page index past the last page is clamped, so a stale index yields the last
-/// page instead of nothing. A page size of `0` disables paging.
+/// Pages count every row: headers and footers take a place on the page, and
+/// a collapsed group takes one. A group can start on one page and end on the
+/// next. A page index past the last page is clamped, so a stale index yields
+/// the last page instead of nothing. A page size of `0` disables paging.
 pub fn compute_view<T>(rows: &[T], columns: &[ColumnSpec<T>], state: &GridState) -> View {
     let mut indices = filter_indices(rows, columns, state);
     let filtered_len = indices.len();
 
-    sort_indices(&mut indices, rows, columns, state);
+    let grouped: Vec<&ColumnSpec<T>> = state
+        .group_by
+        .iter()
+        .filter_map(|id| columns.iter().find(|column| &column.id == id))
+        .filter(|column| column.is_groupable())
+        .collect();
 
+    sort_indices(&mut indices, rows, columns, state, &grouped);
+
+    let aggregating = columns.iter().any(|column| !column.aggregates.is_empty());
+    let totals = if aggregating {
+        let all: Vec<&T> = indices
+            .iter()
+            .filter_map(|&index| rows.get(index))
+            .collect();
+        aggregate_all(columns, &all)
+    } else {
+        Vec::new()
+    };
+
+    let (all_rows, groups) = if grouped.is_empty() {
+        (
+            indices.iter().copied().map(ViewRow::Data).collect(),
+            Vec::new(),
+        )
+    } else {
+        let mut builder = GroupBuilder {
+            rows,
+            columns,
+            state,
+            grouped: &grouped,
+            footers: aggregating,
+            out: Vec::with_capacity(indices.len()),
+            groups: Vec::new(),
+        };
+        builder.build(&indices, 0, &GroupKey::default());
+        (builder.out, builder.groups)
+    };
+
+    let row_count = all_rows.len();
     let page_count = match state.page {
-        Some(page) if page.size > 0 => filtered_len.div_ceil(page.size),
+        Some(page) if page.size > 0 => row_count.div_ceil(page.size),
         _ => 0,
     };
 
+    let mut page_rows = all_rows;
+    let mut row_offset = 0;
     if let Some(page) = state.page {
         if page.size > 0 {
             // Clamp rather than fail: the index may be left over from a wider
             // result set that a filter has since narrowed.
             let index = page.index.min(page_count.saturating_sub(1));
-            let start = index.saturating_mul(page.size).min(indices.len());
-            let end = start.saturating_add(page.size).min(indices.len());
-            indices.truncate(end);
-            indices.drain(..start);
+            let start = index.saturating_mul(page.size).min(page_rows.len());
+            let end = start.saturating_add(page.size).min(page_rows.len());
+            page_rows.truncate(end);
+            page_rows.drain(..start);
+            row_offset = start;
         }
     }
 
     View {
-        indices,
+        indices: page_rows
+            .iter()
+            .filter_map(|row| row.data_index())
+            .collect(),
+        rows: page_rows,
         filtered_len,
         page_count,
+        row_count,
+        row_offset,
+        groups,
+        group_levels: grouped.len(),
+        totals,
     }
+}
+
+/// Turns sorted rows into group headers, data rows and group footers.
+struct GroupBuilder<'a, T> {
+    rows: &'a [T],
+    columns: &'a [ColumnSpec<T>],
+    state: &'a GridState,
+    grouped: &'a [&'a ColumnSpec<T>],
+    footers: bool,
+    out: Vec<ViewRow>,
+    groups: Vec<Group>,
+}
+
+impl<T> GroupBuilder<'_, T> {
+    /// Groups `indices`, sorted so that equal values of the grouped column at
+    /// `level` sit together, inside the group `parent`.
+    fn build(&mut self, indices: &[usize], level: usize, parent: &GroupKey) {
+        let Some(column) = self.grouped.get(level).copied() else {
+            self.out.extend(indices.iter().copied().map(ViewRow::Data));
+            return;
+        };
+
+        let runs = runs_of_equal(
+            indices,
+            |index| {
+                self.rows
+                    .get(index)
+                    .map_or(CellValue::None, |row| column.read(row))
+            },
+            column.collation,
+        );
+        let siblings = runs.len();
+
+        for (position, run) in runs.into_iter().enumerate() {
+            let value = run
+                .first()
+                .and_then(|&index| self.rows.get(index))
+                .and_then(|row| Value::from_cell(&column.read(row)));
+            let key = parent.child(value.clone());
+            let expanded = self.state.is_group_expanded(&key);
+            let members: Vec<&T> = run
+                .iter()
+                .filter_map(|&index| self.rows.get(index))
+                .collect();
+            let group = self.groups.len();
+            self.groups.push(Group {
+                key: key.clone(),
+                column: column.id.clone(),
+                value,
+                level,
+                count: run.len(),
+                expanded,
+                position: position + 1,
+                siblings,
+                aggregates: aggregate_all(self.columns, &members),
+            });
+
+            self.out.push(ViewRow::GroupHeader(group));
+            if expanded {
+                self.build(run, level + 1, &key);
+                if self.footers {
+                    self.out.push(ViewRow::GroupFooter(group));
+                }
+            }
+        }
+    }
+}
+
+/// Splits `indices` into the runs whose values compare equal.
+fn runs_of_equal<'r, 'v>(
+    indices: &'r [usize],
+    value: impl Fn(usize) -> CellValue<'v>,
+    collation: TextCollation,
+) -> Vec<&'r [usize]> {
+    let mut runs = Vec::new();
+    let mut start = 0;
+    let mut current: Option<CellValue<'v>> = None;
+    for (position, &index) in indices.iter().enumerate() {
+        let next = value(index);
+        if let Some(previous) = current {
+            if previous.cmp_with(&next, collation) != Ordering::Equal {
+                if let Some(run) = indices.get(start..position) {
+                    runs.push(run);
+                }
+                start = position;
+            }
+        }
+        current = Some(next);
+    }
+    if let Some(run) = indices.get(start..).filter(|run| !run.is_empty()) {
+        runs.push(run);
+    }
+    runs
 }
 
 /// Collects the indices of every row that passes the active filters.
@@ -208,21 +486,31 @@ pub(crate) fn passes<T>(row: &T, column: &ColumnSpec<T>, filter: &ColumnFilter) 
 ///
 /// Sort keys are extracted once per row up front rather than on every
 /// comparison, which turns `O(n log n)` closure calls into `O(n)`.
+///
+/// Grouped columns come first, so that each group's rows end up together: in
+/// the direction the column is sorted in, ascending if it is not. They sort
+/// whether or not the column is sortable, since grouping needs the order.
 fn sort_indices<T>(
     indices: &mut [usize],
     rows: &[T],
     columns: &[ColumnSpec<T>],
     state: &GridState,
+    grouped: &[&ColumnSpec<T>],
 ) {
-    let plan: Vec<(&ValueFn<T>, SortDirection, TextCollation)> = state
+    let groups = grouped.iter().filter_map(|column| {
+        let direction = state.sort_direction(&column.id).unwrap_or_default();
+        Some((column.value.as_ref()?, direction, column.collation))
+    });
+    let sorts = state
         .sort
         .iter()
+        .filter(|entry| !grouped.iter().any(|column| column.id == entry.column))
         .filter_map(|entry| {
             let column = columns.iter().find(|column| column.id == entry.column)?;
             let key = column.value.as_ref().filter(|_| column.sortable)?;
             Some((key, entry.direction, column.collation))
-        })
-        .collect();
+        });
+    let plan: Vec<(&ValueFn<T>, SortDirection, TextCollation)> = groups.chain(sorts).collect();
 
     if plan.is_empty() || indices.len() < 2 {
         return;

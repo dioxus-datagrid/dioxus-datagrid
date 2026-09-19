@@ -65,6 +65,7 @@ mod column;
 mod edit;
 mod filter;
 mod format;
+mod group;
 mod locale;
 mod navigate;
 mod remote;
@@ -85,6 +86,9 @@ pub use filter::{ColumnFilter, Condition, FilterOp, Value, ValueKind};
 #[deprecated(since = "0.7.0", note = "renamed to `Value`")]
 pub type FilterValue = Value;
 pub use format::{CellAlign, CellFormat, CellOverflow};
+pub use group::{
+    Aggregate, AggregateFn, AggregateKind, AggregateValue, Group, GroupKey, find_aggregate,
+};
 pub use locale::GridLocale;
 pub use navigate::{CellFocus, NavKey, navigate};
 pub use remote::{
@@ -94,7 +98,7 @@ pub use selection::{Selection, SelectionMode};
 pub use sort::{SortDirection, SortState, SortValue, TextCollation};
 pub use state::{GridState, PageState};
 pub use value::CellValue;
-pub use view::{DistinctValues, View, compute_view, distinct_values};
+pub use view::{DistinctValues, View, ViewRow, compute_view, distinct_values};
 pub use virtualize::{
     offset_of, reveal_scroll_top, rows_per_viewport, total_height, visible_range,
 };
