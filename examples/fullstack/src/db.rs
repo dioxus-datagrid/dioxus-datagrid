@@ -407,6 +407,41 @@ pub fn seed(connection: &Connection, employees: &[Employee]) -> rusqlite::Result
     Ok(())
 }
 
+/// The highest salary the server accepts. The client does not know it, so an
+/// edit above it fails on the server, where business rules belong.
+pub const SALARY_BAND: u32 = 250_000;
+
+/// Writes an edited employee back, after the server's own checks.
+///
+/// # Errors
+///
+/// A message for the user if a check fails or no such employee exists; the
+/// database's error otherwise.
+pub fn update_employee(connection: &Connection, employee: &Employee) -> Result<(), String> {
+    if employee.name.trim().is_empty() {
+        return Err("a name is required".into());
+    }
+    if employee.salary > SALARY_BAND {
+        return Err(format!("{} is above the salary band", employee.salary));
+    }
+    let changed = connection
+        .execute(
+            "UPDATE employees SET name = ?1, department = ?2, city = ?3, salary = ?4 WHERE id = ?5",
+            (
+                &employee.name,
+                &employee.department,
+                &employee.city,
+                employee.salary,
+                employee.id,
+            ),
+        )
+        .map_err(|error| error.to_string())?;
+    if changed == 0 {
+        return Err(format!("no employee {}", employee.id));
+    }
+    Ok(())
+}
+
 /// The server's database: in memory, seeded on first use.
 ///
 /// A `Mutex` around one connection is plenty for an example. A real server
@@ -723,6 +758,46 @@ mod tests {
         assert_eq!(
             query_employees(&connection, &hostile).unwrap().total,
             employees.len()
+        );
+    }
+
+    #[test]
+    fn an_edit_is_written_unless_the_server_refuses_it() {
+        let (connection, employees) = database();
+        let mut edited = employees[0].clone();
+        edited.salary = 61_000;
+        edited.city = "Munich".into();
+        update_employee(&connection, &edited).unwrap();
+
+        let mut case = query();
+        case.filters = vec![(
+            "name".into(),
+            Condition::equals(edited.name.as_str()).into(),
+        )];
+        case.page_size = 10_000;
+        let rows = query_employees(&connection, &case).unwrap().rows;
+        assert!(rows.contains(&edited));
+
+        let mut greedy = edited.clone();
+        greedy.salary = SALARY_BAND + 1;
+        assert!(
+            update_employee(&connection, &greedy)
+                .unwrap_err()
+                .contains("salary band")
+        );
+        let mut nameless = edited.clone();
+        nameless.name = " ".into();
+        assert!(update_employee(&connection, &nameless).is_err());
+        let mut unknown = edited;
+        unknown.id = 999_999;
+        assert!(update_employee(&connection, &unknown).is_err());
+        // Nothing refused was written.
+        assert!(
+            query_employees(&connection, &case)
+                .unwrap()
+                .rows
+                .iter()
+                .any(|row| row.salary == 61_000)
         );
     }
 }

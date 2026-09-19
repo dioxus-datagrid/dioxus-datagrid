@@ -95,3 +95,45 @@ test("the value list comes from the server and filters there", async ({ page }) 
   await settled(page);
   for (const city of await cells(page, 3).allTextContents()) expect(city).toBe("Hamburg");
 });
+
+/** Moves grid focus to the salary cell of the first row, by keyboard. */
+async function toFirstSalary(page: Page) {
+  await grid(page).locator("[tabindex='0']").focus();
+  await page.keyboard.press("ControlOrMeta+Home");
+  await page.keyboard.press("ArrowDown");
+  for (let step = 0; step < 3; step++) await page.keyboard.press("ArrowRight");
+  await expect(cells(page, 4).first()).toBeFocused();
+}
+
+test("a salary the server refuses is taken back, with its reason", async ({ page }) => {
+  const before = await cells(page, 4).first().textContent();
+  await toFirstSalary(page);
+  await page.keyboard.press("Enter");
+  const editor = grid(page).getByRole("textbox", { name: "Salary" });
+  await expect(editor).toBeFocused();
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.type("900000");
+  await page.keyboard.press("Enter");
+
+  await expect(page.locator(".edit-status")).toHaveText(/900000 is above the salary band/);
+  await expect(cells(page, 4).first()).toHaveText(before ?? "");
+});
+
+test("a saved salary is in the database", async ({ page }, testInfo) => {
+  // One value per browser: the database outlives a test, and saving the value
+  // it already holds would save nothing.
+  const salary = 55_500 + ["chromium", "firefox", "webkit"].indexOf(testInfo.project.name);
+  const shown = `€${salary.toLocaleString("en-US")}`;
+  await toFirstSalary(page);
+  await page.keyboard.press("F2");
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.type(String(salary));
+  await page.keyboard.press("Enter");
+  await expect(cells(page, 4).first()).toHaveText(shown);
+  await expect(page.locator(".body [role='row']").first()).not.toHaveAttribute("data-saving", "true");
+
+  await page.reload();
+  await expect(grid(page)).toHaveAttribute("aria-rowcount", "5001", { timeout: 30_000 });
+  await settled(page);
+  await expect(cells(page, 4).first()).toHaveText(shown);
+});

@@ -178,3 +178,36 @@ h1 {
   list-style: none;
   overflow-y: auto;
 }
+
+/* Editing: an input fills the cell, a refused value's message hangs below it,
+ * and a row shows in italics while its save is under way. */
+.grid [role="gridcell"][data-editing="true"] {
+  position: relative;
+  overflow: visible;
+  padding: 0.2rem 0.3rem;
+}
+
+.grid [data-editor] {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+}
+
+.grid [data-edit-error] {
+  position: absolute;
+  z-index: 2;
+  top: 100%;
+  left: 0.3rem;
+  padding: 0.2rem 0.4rem;
+  background: #b00020;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.grid [role="row"][data-saving="true"] {
+  font-style: italic;
+}
+
+.edit-status[data-state="failed"] {
+  color: #b00020;
+}
