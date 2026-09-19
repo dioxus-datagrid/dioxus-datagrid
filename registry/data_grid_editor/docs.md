@@ -129,6 +129,9 @@ A column without `.editable` stays read-only and carries `aria-readonly`.
 In every mode `Delete` deletes the focused row, or the selection if the focused row is part of it,
 and *Add* opens the form for a new row. New rows appear in the grid once they are saved.
 
+Changing `mode` drops an edit in progress and an unsaved batch; removing the `DataGridEditor`
+makes the grid read-only again.
+
 ## Styling
 
 The editor shares `data_grid`'s theme variables. Cells being edited carry `data-editing`, changed

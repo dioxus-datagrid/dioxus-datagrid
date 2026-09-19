@@ -17,6 +17,8 @@ All notable changes to this project are documented here. The format follows
   (`EditMode::Cell`), a whole row inline (`Row`), a row in a form dialog (`Dialog`), and cells
   collected into a batch (`Batch`). `Enter` or `F2` starts, `Enter` and `Tab` commit and move on,
   `Escape` cancels, `Delete` deletes.
+  `GridHandle::clear_editing` makes the grid read-only again; changing the mode drops an unsaved
+  batch.
 - The grid never writes the data. `on_save`, `on_create`, `on_delete` and `on_batch_save` receive a
   token with the rows (`Save`, `Create`, `Delete`, `SaveBatch`); dropping it means success, `fail`
   reports an error. The callbacks may be `async`. While a save runs the grid shows the edited row,
