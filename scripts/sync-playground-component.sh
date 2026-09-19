@@ -13,7 +13,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-for component in data_grid data_grid_editor; do
+for component in data_grid data_grid_editor data_grid_group_panel; do
   source_dir="$repo_root/registry/$component"
   target_dir="$repo_root/playground/src/components/$component"
   mkdir -p "$target_dir"

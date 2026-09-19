@@ -10,8 +10,8 @@
 
 use dioxus::prelude::*;
 use dioxus_datagrid::primitives::{
-    GridBody, GridColumnFilter, GridFilterMenu, GridHeader, GridPagination, GridRoot, GridSearch,
-    VirtualGridBody,
+    GridBody, GridColumnFilter, GridFilterMenu, GridFooter, GridHeader, GridPagination, GridRoot,
+    GridSearch, VirtualGridBody,
 };
 use dioxus_datagrid::{
     Column, GridLocale, GridOptions, GridRow, GridState, SelectionMode, use_grid,
@@ -232,6 +232,8 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
                     } else {
                         GridBody { grid, class: "dg-body" }
                     }
+                    // Totals, when a column has an aggregate; nothing otherwise.
+                    GridFooter { grid, class: "dg-foot" }
                 }
             }
 

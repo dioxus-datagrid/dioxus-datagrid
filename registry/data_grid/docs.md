@@ -92,12 +92,23 @@ fn Users() -> Element {
 | `column_picker_label` | from `locale` | Label of that menu. |
 | `initial_state` | `None` | A `GridState` to start from, read on the first render. |
 | `on_state_change` | — | Fires with the whole `GridState` whenever it changes. |
-| children | — | Add-ons such as `DataGridEditor`, placed above the grid. |
+| children | — | Add-ons such as `DataGridEditor` or `DataGridGroupPanel`, placed above the grid. |
 
 ## Editing
 
 Install [`data_grid_editor`](../data_grid_editor/docs.md) and put a `DataGridEditor` inside the
 `DataGrid`: cells, rows, a form dialog or batches, with adding, deleting and validation.
+
+## Totals and grouping
+
+A column with `.aggregate(Aggregate::Sum)` — or `Average`, `Min`, `Max`, `Count`, or
+`Aggregate::custom(...)` — gets its result in a footer row under the grid, which stays in view
+while the rows scroll. The keyboard reaches it after the last row.
+
+To group rows, install [`data_grid_group_panel`](../data_grid_group_panel/docs.md) and put a
+`DataGridGroupPanel::<Row>` inside the `DataGrid`, or start grouped with `initial_state`. Group
+headers expand and collapse; a column that should not be offered for grouping takes
+`.groupable(false)`.
 
 ## Filtering
 
@@ -223,6 +234,8 @@ A column only does what you give it a closure for:
 - `.min_width(80.0)` — the narrowest the user can resize it to.
 - `.resizable(false)` — no resize handle for this column.
 - `.hidden()` — not shown, and not offered in the column menu.
+- `.aggregate(...)` — a total for the footer and every group footer.
+- `.groupable(false)` — rows cannot be grouped by it.
 
 Sorting text is case-insensitive by default; `.collation(TextCollation::CaseSensitive)`
 changes that per column.
@@ -233,6 +246,8 @@ The grid is one tab stop. Inside it, arrow keys move between cells, `Home`/`End`
 jump within a row and `Ctrl+Home`/`Ctrl+End` to the corners. On a header,
 `Enter` sorts and `Shift+Enter` adds that column to a multi-column sort. On a
 row, `Space` selects and `Shift+Space` or `Shift+Arrow` extends the selection.
+On a group header, `ArrowRight` expands, `ArrowLeft` collapses, and `Enter` or
+`Space` toggle.
 
 ## Styling
 
@@ -244,6 +259,9 @@ Class names are prefixed `dg-`. State is exposed as data attributes you can
 style against: `data-sortable`, `data-sorted`, `data-sort-priority` on headers,
 `data-selected` on rows, `data-resize-handle` on resize handles, and
 `data-resizing` on the grid and the handle while a column is being resized.
+Group headers carry `data-group-row` and `data-expanded`, group footers
+`data-group-footer`, the totals `data-footer`, and each aggregate
+`data-aggregate`.
 
 > This file assumes the default `components_dir` of `src/components`, because it
 > loads its stylesheet from `/src/components/data_grid/style.css`. If you

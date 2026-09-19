@@ -1,0 +1,43 @@
+//! Grouping for `data_grid`, composed from the unstyled primitives in
+//! `dioxus-datagrid`.
+//!
+//! This file is yours once `dx components add` copies it in. Grouping itself —
+//! the groups, their aggregates, expanding and collapsing, the keys — lives in
+//! the `dioxus-datagrid` crate.
+
+use dioxus::prelude::*;
+use dioxus_datagrid::primitives::GridGroupPanel;
+use dioxus_datagrid::{GridHandle, GridRow};
+
+const STYLE: Asset = asset!("/src/components/data_grid_group_panel/style.css");
+
+/// Props for [`DataGridGroupPanel`].
+#[derive(Props, Clone, PartialEq)]
+pub struct DataGridGroupPanelProps {
+    #[props(extends = GlobalAttributes)]
+    pub attributes: Vec<Attribute>,
+}
+
+/// A panel above the `DataGrid` around it that groups its rows: drag a column
+/// header onto it, or pick a column from its list. Name the row type, since
+/// nothing else tells the panel which grid it belongs to.
+///
+/// ```rust,ignore
+/// DataGrid { data: users, columns,
+///     DataGridGroupPanel::<User> {}
+/// }
+/// ```
+#[component]
+pub fn DataGridGroupPanel<T: GridRow + PartialEq + 'static>(
+    props: DataGridGroupPanelProps,
+) -> Element {
+    // Put there by `DataGrid`; outside one there is nothing to group.
+    let Some(grid) = try_use_context::<GridHandle<T>>() else {
+        return rsx! {};
+    };
+
+    rsx! {
+        document::Link { rel: "stylesheet", href: STYLE }
+        GridGroupPanel { grid, class: "dg-group-panel", attributes: props.attributes }
+    }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "data_grid_group_panel",
+  "description": "Grouping for data_grid: drag a column header onto the panel, or pick a column, to group its rows.",
+  "authors": [
+    "Marius Linnartz"
+  ],
+  "exclude": [
+    "docs.md",
+    "component.json"
+  ],
+  "cargoDependencies": [
+    {
+      "name": "dioxus-datagrid",
+      "version": "0.7"
+    }
+  ]
+}

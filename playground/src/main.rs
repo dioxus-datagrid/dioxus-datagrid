@@ -4,17 +4,18 @@
 //! `playground/src/components/data_grid` is copied from `registry/data_grid` by
 //! `scripts/sync-playground-component.sh`, so what runs here is exactly what
 //! `dx components add data_grid` hands a user. The same goes for
-//! `data_grid_editor`.
+//! `data_grid_editor` and `data_grid_group_panel`.
 
 mod components;
 
 use chrono::NaiveDate;
 use components::data_grid::DataGrid;
 use components::data_grid_editor::DataGridEditor;
+use components::data_grid_group_panel::DataGridGroupPanel;
 use dioxus::prelude::*;
 use dioxus_datagrid::{
-    CellFormat, Column, ColumnId, ColumnWidth, Create, Delete, EditMode, GridLocale, GridRow,
-    GridState, Save, SaveBatch, SelectionMode,
+    Aggregate, CellFormat, Column, ColumnId, ColumnWidth, Create, Delete, EditMode, GridLocale,
+    GridRow, GridState, Save, SaveBatch, SelectionMode,
 };
 
 const STYLE: Asset = asset!("/assets/playground.css");
@@ -152,11 +153,13 @@ fn label(id: &str, german: bool) -> &'static str {
     }
 }
 
-fn columns(german: bool) -> Vec<Column<Employee>> {
+/// The columns, in English or German, with totals under age and salary if
+/// `totals` is set.
+fn columns(german: bool, totals: bool) -> Vec<Column<Employee>> {
     let label = |id| label(id, german);
     // Every column can be edited, once a `DataGridEditor` says how; without
     // one the setters are never called.
-    vec![
+    let columns = vec![
         Column::new("name", label("name"))
             .cell(|row: &Employee| rsx! { "{row.name}" })
             .sort_by_text(|row: &Employee| row.name.as_str())
@@ -223,7 +226,24 @@ fn columns(german: bool) -> Vec<Column<Employee>> {
             .value_of(|row: &Employee| row.since)
             .format(CellFormat::Date)
             .editable(|row: &mut Employee, since: NaiveDate| row.since = since),
-    ]
+    ];
+    if !totals {
+        return columns;
+    }
+    columns
+        .into_iter()
+        .map(|column| match column.id().as_str() {
+            "name" => column.aggregate(Aggregate::Count),
+            "age" => column
+                .aggregate(Aggregate::Min)
+                .aggregate(Aggregate::Average)
+                .aggregate(Aggregate::Max),
+            "salary" => column
+                .aggregate(Aggregate::Sum)
+                .aggregate(Aggregate::Average),
+            _ => column,
+        })
+        .collect()
 }
 
 /// The state when nothing is saved. The formatted columns start hidden, so the
@@ -272,7 +292,9 @@ fn reset_state() {
 fn App() -> Element {
     let mut rows = use_signal(employees);
     let mut german = use_signal(|| false);
-    let cols = use_memo(move || columns(german()));
+    let mut totals = use_signal(|| false);
+    let mut grouping = use_signal(|| false);
+    let cols = use_memo(move || columns(german(), totals()));
 
     let mut selection = use_signal(|| SelectionMode::Multi);
     let mut paged = use_signal(|| true);
@@ -426,6 +448,26 @@ fn App() -> Element {
                 label { class: "toggle",
                     input {
                         r#type: "checkbox",
+                        "data-testid": "toggle-grouping",
+                        checked: grouping(),
+                        onchange: move |event| grouping.set(event.checked()),
+                    }
+                    "Grouping"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
+                        "data-testid": "toggle-totals",
+                        checked: totals(),
+                        onchange: move |event| totals.set(event.checked()),
+                    }
+                    "Totals"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
                         "data-testid": "toggle-paging",
                         checked: paged() && !virtualized(),
                         disabled: virtualized(),
@@ -506,6 +548,9 @@ fn App() -> Element {
                     locale: if german() { GridLocale::german() } else { GridLocale::english() },
                     // Tells screen readers which language the grid speaks.
                     lang: if german() { "de" } else { "en" },
+                    if grouping() {
+                        DataGridGroupPanel::<Employee> {}
+                    }
                     if let Some(mode) = edit_mode() {
                         DataGridEditor {
                             mode,

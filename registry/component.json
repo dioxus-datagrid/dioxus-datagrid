@@ -3,6 +3,7 @@
   "description": "A typed, accessible data grid for Dioxus.",
   "members": [
     "data_grid",
-    "data_grid_editor"
+    "data_grid_editor",
+    "data_grid_group_panel"
   ]
 }

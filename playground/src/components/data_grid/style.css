@@ -491,3 +491,78 @@
 .dg-columns-menu label:hover {
   background: var(--primary-color-4);
 }
+
+/* Grouped rows. A group's header is one cell across every column, indented by
+ * how deep the group sits. */
+.dg [data-group-cell] {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  align-items: baseline;
+  gap: 0.15rem 0.6rem;
+  white-space: normal;
+  padding-inline-start: calc(0.75rem + var(--dg-group-level, 0) * 1.25rem);
+  background: var(--primary-color-3);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.dg [data-group-toggle]::before {
+  display: inline-block;
+  content: "▾";
+  transition: transform 0.15s;
+}
+
+.dg [data-group-row][data-expanded="false"] [data-group-toggle]::before {
+  transform: rotate(-90deg);
+}
+
+.dg[dir="rtl"] [data-group-row][data-expanded="false"] [data-group-toggle]::before,
+[dir="rtl"] .dg [data-group-row][data-expanded="false"] [data-group-toggle]::before {
+  transform: rotate(90deg);
+}
+
+.dg [data-group-count],
+.dg [data-group-aggregate] {
+  color: var(--secondary-color-3);
+  font-weight: 400;
+}
+
+/* Aggregates: under each group and under the whole grid. */
+/* Wrapped rather than cut off: a narrow column holds several aggregates. */
+.dg [data-group-footer] [role="gridcell"],
+.dg-foot [role="gridcell"] {
+  background: var(--primary-color-2);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.dg [data-aggregate] {
+  display: block;
+}
+
+.dg [data-aggregate-name],
+.dg [data-aggregate-label] {
+  color: var(--secondary-color-3);
+  font-weight: 400;
+}
+
+.dg [data-aggregate-name]::after {
+  content: ":";
+}
+
+/* The totals stay in view at the bottom of a grid that scrolls. */
+.dg-foot {
+  display: grid;
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+
+.dg-foot [role="gridcell"] {
+  border-top: 1px solid var(--primary-color-6);
+  border-bottom: none;
+}
