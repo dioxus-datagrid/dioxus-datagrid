@@ -87,7 +87,8 @@ pub use filter::{ColumnFilter, Condition, FilterOp, Value, ValueKind};
 pub type FilterValue = Value;
 pub use format::{CellAlign, CellFormat, CellOverflow};
 pub use group::{
-    Aggregate, AggregateFn, AggregateKind, AggregateValue, Group, GroupKey, find_aggregate,
+    Aggregate, AggregateFn, AggregateKind, AggregateValue, Group, GroupKey, GroupSummary,
+    GroupedPage, PagePart, find_aggregate,
 };
 pub use locale::GridLocale;
 pub use navigate::{CellFocus, NavKey, navigate};

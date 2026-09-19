@@ -6,7 +6,11 @@
 //! into [`GridQuery`] values, asks a [`DataSource`] for a [`Page`], and uses
 //! [`RequestTracker`] to decide whether an arriving response still matters.
 
-use crate::{ColumnFilter, ColumnId, DistinctValues, GridState, SortState};
+use crate::{
+    AggregateKind, AggregateValue, ColumnFilter, ColumnId, ColumnSpec, DistinctValues, GridState,
+    Group, GroupKey, PageState, SortState, View, ViewRow,
+};
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::future::Future;
 
@@ -37,8 +41,25 @@ pub struct GridQuery {
     pub search: Option<String>,
     /// Zero-based page index.
     pub page: usize,
-    /// Rows per page. Never zero.
+    /// Rows per page. Never zero. With grouping, group headers and footers
+    /// count as rows, as they do locally.
     pub page_size: usize,
+    /// The columns to group by, outermost first. Empty for no grouping, and
+    /// absent from queries of grids before 0.8.0.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub group_by: Vec<ColumnId>,
+    /// Whether groups start collapsed.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub groups_collapsed: bool,
+    /// The groups expanded or collapsed against
+    /// [`groups_collapsed`](GridQuery::groups_collapsed).
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub toggled_groups: Vec<GroupKey>,
+    /// The aggregates the grid shows, per column: for group footers and the
+    /// totals. Custom aggregates are named by their label; a server that does
+    /// not know one leaves it out.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub aggregates: Vec<(ColumnId, AggregateKind)>,
 }
 
 impl GridQuery {
@@ -76,7 +97,54 @@ impl GridQuery {
             search: state.search.clone().filter(|text| !text.is_empty()),
             page,
             page_size,
+            group_by: state.group_by.clone(),
+            groups_collapsed: state.groups_collapsed,
+            toggled_groups: state.toggled_groups.clone(),
+            aggregates: Vec::new(),
         }
+    }
+
+    /// Asks for the aggregates `columns` define. The grid does this itself;
+    /// [`from_state`](GridQuery::from_state) cannot, since state holds no
+    /// columns.
+    #[must_use]
+    pub fn with_aggregates<T>(mut self, columns: &[ColumnSpec<T>]) -> Self {
+        self.aggregates = columns
+            .iter()
+            .flat_map(|column| {
+                column
+                    .aggregates
+                    .iter()
+                    .map(|aggregate| (column.id.clone(), aggregate.kind()))
+            })
+            .collect();
+        self
+    }
+
+    /// The grid state this query shows, for a server that answers with
+    /// [`compute_view`](crate::compute_view) over rows it holds in memory.
+    #[must_use]
+    pub fn state(&self) -> GridState {
+        GridState {
+            sort: self.sort.clone(),
+            column_filters: self.column_filters.clone(),
+            filters: self.filters.clone(),
+            search: self.search.clone(),
+            page: Some(PageState {
+                index: self.page,
+                size: self.page_size,
+            }),
+            group_by: self.group_by.clone(),
+            groups_collapsed: self.groups_collapsed,
+            toggled_groups: self.toggled_groups.clone(),
+            ..GridState::default()
+        }
+    }
+
+    /// Whether the group with `key` shows its rows.
+    #[must_use]
+    pub fn is_group_expanded(&self, key: &GroupKey) -> bool {
+        self.groups_collapsed == self.toggled_groups.contains(key)
     }
 
     /// Whether moving from `previous` to `self` changed only what the user
@@ -93,6 +161,9 @@ impl GridQuery {
             && self.sort == previous.sort
             && self.page == previous.page
             && self.page_size == previous.page_size
+            && self.group_by == previous.group_by
+            && self.groups_collapsed == previous.groups_collapsed
+            && self.toggled_groups == previous.toggled_groups
     }
 
     /// Index of the first row on the requested page, across all pages.
@@ -103,6 +174,10 @@ impl GridQuery {
 }
 
 /// One page of rows from a server, and how many rows match in total.
+///
+/// Without grouping, `rows` and `total` are all there is. A grouped page also
+/// says where the group headers and footers go, in `layout`; build it with
+/// [`Page::from_view`] or [`GroupedPage::into_page`](crate::GroupedPage::into_page).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Page<T> {
@@ -110,13 +185,89 @@ pub struct Page<T> {
     pub rows: Vec<T>,
     /// How many rows match the query across every page.
     pub total: usize,
+    /// The page in display order, when grouped: [`ViewRow::Data`] indexes
+    /// `rows`, and the group rows index `groups`. Empty when every row of
+    /// the page is a data row, which is also what servers before 0.8.0 send.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub layout: Vec<ViewRow>,
+    /// The groups whose header or footer is on this page.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub groups: Vec<Group>,
+    /// How many rows of every kind the query spans across every page, when
+    /// that differs from `total` because of grouping.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub row_count: Option<usize>,
+    /// The aggregates over every matching row that the query asked for.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub totals: Vec<AggregateValue>,
 }
 
 impl<T> Page<T> {
     /// A page holding `rows` out of `total` matching rows.
     #[must_use]
     pub const fn new(rows: Vec<T>, total: usize) -> Self {
-        Self { rows, total }
+        Self {
+            rows,
+            total,
+            layout: Vec::new(),
+            groups: Vec::new(),
+            row_count: None,
+            totals: Vec::new(),
+        }
+    }
+
+    /// Adds the aggregates over every matching row.
+    #[must_use]
+    pub fn with_totals(mut self, totals: Vec<AggregateValue>) -> Self {
+        self.totals = totals;
+        self
+    }
+
+    /// The page a [`View`] shows, for a server that computes views over rows
+    /// it holds in memory: the view's rows cloned, with its groups, row count
+    /// and totals.
+    #[must_use]
+    pub fn from_view(view: &View, rows: &[T]) -> Self
+    where
+        T: Clone,
+    {
+        let mut page_rows = Vec::with_capacity(view.indices.len());
+        let mut groups: Vec<Group> = Vec::new();
+        let mut renumbered: HashMap<usize, usize> = HashMap::new();
+        let mut layout = Vec::with_capacity(view.rows.len());
+        for row in &view.rows {
+            match *row {
+                ViewRow::Data(index) => {
+                    if let Some(row) = rows.get(index) {
+                        layout.push(ViewRow::Data(page_rows.len()));
+                        page_rows.push(row.clone());
+                    }
+                }
+                ViewRow::GroupHeader(group) | ViewRow::GroupFooter(group) => {
+                    let Some(spec) = view.groups.get(group) else {
+                        continue;
+                    };
+                    let index = *renumbered.entry(group).or_insert_with(|| {
+                        groups.push(spec.clone());
+                        groups.len() - 1
+                    });
+                    layout.push(if matches!(row, ViewRow::GroupHeader(_)) {
+                        ViewRow::GroupHeader(index)
+                    } else {
+                        ViewRow::GroupFooter(index)
+                    });
+                }
+            }
+        }
+        let grouped = view.group_levels > 0;
+        Self {
+            rows: page_rows,
+            total: view.filtered_len,
+            layout: if grouped { layout } else { Vec::new() },
+            groups,
+            row_count: grouped.then_some(view.row_count),
+            totals: view.totals.clone(),
+        }
     }
 
     /// How many pages `total` rows span at `page_size`; `0` when nothing

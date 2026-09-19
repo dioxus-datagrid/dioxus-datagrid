@@ -17,6 +17,7 @@ use std::collections::HashMap;
 /// virtualization, `aria-rowindex` — walks [`View::rows`] and asks each row
 /// what it is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[non_exhaustive]
 pub enum ViewRow {
     /// A data row: the index into the original rows.

@@ -1,6 +1,7 @@
 //! Grouping rows by column values, and aggregating a column over rows.
 
-use crate::{CellValue, ColumnId, ColumnSpec, TextCollation, Value};
+use crate::{CellValue, ColumnId, ColumnSpec, GridQuery, Page, TextCollation, Value, ViewRow};
+use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
 
@@ -24,6 +25,22 @@ pub enum AggregateKind {
     Count,
     /// A function of the application's, under this label.
     Custom(String),
+}
+
+impl AggregateKind {
+    /// A short name for styling and tests: `sum`, `average`, `min`, `max`,
+    /// `count`, or `custom` for every custom aggregate.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Sum => "sum",
+            Self::Average => "average",
+            Self::Min => "min",
+            Self::Max => "max",
+            Self::Count => "count",
+            Self::Custom(_) => "custom",
+        }
+    }
 }
 
 /// An aggregate of one column: what a footer shows below it.
@@ -73,6 +90,34 @@ impl<T> Aggregate<T> {
         Self::Custom {
             label: label.into(),
             compute: Rc::new(compute),
+        }
+    }
+
+    /// The built-in aggregate of `kind`; `None` for a custom one, whose
+    /// function only the application knows.
+    #[must_use]
+    pub const fn from_kind(kind: &AggregateKind) -> Option<Self> {
+        Some(match kind {
+            AggregateKind::Sum => Self::Sum,
+            AggregateKind::Average => Self::Average,
+            AggregateKind::Min => Self::Min,
+            AggregateKind::Max => Self::Max,
+            AggregateKind::Count => Self::Count,
+            AggregateKind::Custom(_) => return None,
+        })
+    }
+
+    /// Gives `columns` the aggregates `query` asks for instead of their own,
+    /// for a server that answers with [`compute_view`](crate::compute_view).
+    /// Custom aggregates are left out.
+    pub fn apply_query(columns: &mut [ColumnSpec<T>], query: &GridQuery) {
+        for column in columns {
+            column.aggregates = query
+                .aggregates
+                .iter()
+                .filter(|(id, _)| *id == column.id)
+                .filter_map(|(_, kind)| Self::from_kind(kind))
+                .collect();
         }
     }
 
@@ -306,4 +351,237 @@ pub fn find_aggregate<'a>(
     aggregates
         .iter()
         .find(|aggregate| &aggregate.column == column && &aggregate.kind == kind)
+}
+
+/// One group as a server counts it: its key, how many rows it holds, and its
+/// aggregates. A server gets these from one `GROUP BY` per grouped column; see
+/// [`GroupedPage::plan`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct GroupSummary {
+    /// The group's values, outermost first.
+    pub key: GroupKey,
+    /// How many rows match the query in this group.
+    pub count: usize,
+    /// The aggregates the query asked for, over this group's rows.
+    pub aggregates: Vec<AggregateValue>,
+}
+
+/// One part of a grouped page, in display order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PagePart {
+    /// A group's header: the index into [`GroupedPage::groups`].
+    Header(usize),
+    /// A group's footer: the index into [`GroupedPage::groups`].
+    Footer(usize),
+    /// Rows of one innermost group, which the server has to fetch: `limit`
+    /// rows starting `offset` rows into the group, in the query's sort.
+    Rows {
+        /// The group the rows belong to.
+        key: GroupKey,
+        /// How many of its rows come before these.
+        offset: usize,
+        /// How many rows to fetch.
+        limit: usize,
+    },
+}
+
+/// Which group rows fall on a page of a grouped query, and which data rows a
+/// server still has to fetch for it.
+///
+/// A server that cannot hold every row in memory groups in two steps. First it
+/// counts: one [`GroupSummary`] per group, from a `GROUP BY` per level. Then
+/// [`plan`](GroupedPage::plan) walks those groups as the grid would, headers,
+/// rows and footers, and cuts out the requested page. For each
+/// [`PagePart::Rows`] the server fetches rows of that group with `LIMIT` and
+/// `OFFSET`, and [`into_page`](GroupedPage::into_page) puts it all together.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct GroupedPage {
+    /// The page, in display order.
+    pub parts: Vec<PagePart>,
+    /// The groups with a header or footer on the page.
+    pub groups: Vec<Group>,
+    /// How many rows of every kind the query spans across every page.
+    pub row_count: usize,
+    /// How many data rows match, across every group.
+    pub total: usize,
+}
+
+impl GroupedPage {
+    /// Lays out the requested page of a grouped query.
+    ///
+    /// `levels` holds the groups of each grouped column in turn, each level in
+    /// display order — the order of the group values in the query's sort,
+    /// which an `ORDER BY` over the grouped columns gives. Groups whose parent
+    /// is missing are ignored. Group footers are laid out when the query asks
+    /// for aggregates, as they are locally. A page past the last one yields
+    /// the last one.
+    #[must_use]
+    pub fn plan(levels: &[Vec<GroupSummary>], query: &GridQuery) -> Self {
+        let children: Vec<HashMap<GroupKey, Vec<&GroupSummary>>> = levels
+            .iter()
+            .map(|level| {
+                let mut by_parent: HashMap<GroupKey, Vec<&GroupSummary>> = HashMap::new();
+                for summary in level {
+                    let parent = summary.key.parent().unwrap_or_default();
+                    by_parent.entry(parent).or_default().push(summary);
+                }
+                by_parent
+            })
+            .collect();
+
+        let size = query.page_size.max(1);
+        let walk = |page_index: usize| {
+            let start = page_index.saturating_mul(size);
+            let mut walk = Walk {
+                query,
+                children: &children,
+                footers: !query.aggregates.is_empty(),
+                start,
+                end: start.saturating_add(size),
+                position: 0,
+                page: Self::default(),
+                renumbered: HashMap::new(),
+            };
+            walk.level(&GroupKey::default(), 0);
+            walk.page.row_count = walk.position;
+            walk.page
+        };
+
+        let mut page = walk(query.page);
+        let last = page.row_count.div_ceil(size).saturating_sub(1);
+        if query.page > last {
+            page = walk(last);
+        }
+        page.total = levels
+            .first()
+            .map_or(0, |level| level.iter().map(|group| group.count).sum());
+        page
+    }
+
+    /// The row ranges to fetch, in order: each [`PagePart::Rows`] as its
+    /// group, offset and limit.
+    pub fn fetches(&self) -> impl Iterator<Item = (&GroupKey, usize, usize)> {
+        self.parts.iter().filter_map(|part| match part {
+            PagePart::Rows { key, offset, limit } => Some((key, *offset, *limit)),
+            PagePart::Header(_) | PagePart::Footer(_) => None,
+        })
+    }
+
+    /// The finished page: `fetched` holds the rows of each of
+    /// [`fetches`](GroupedPage::fetches), in the same order, and `totals` the
+    /// aggregates over every matching row.
+    #[must_use]
+    pub fn into_page<T>(self, fetched: Vec<Vec<T>>, totals: Vec<AggregateValue>) -> Page<T> {
+        let mut rows = Vec::new();
+        let mut layout = Vec::with_capacity(self.parts.len());
+        let mut fetched = fetched.into_iter();
+        for part in self.parts {
+            match part {
+                PagePart::Header(group) => layout.push(ViewRow::GroupHeader(group)),
+                PagePart::Footer(group) => layout.push(ViewRow::GroupFooter(group)),
+                PagePart::Rows { .. } => {
+                    for row in fetched.next().unwrap_or_default() {
+                        layout.push(ViewRow::Data(rows.len()));
+                        rows.push(row);
+                    }
+                }
+            }
+        }
+        Page {
+            rows,
+            total: self.total,
+            layout,
+            groups: self.groups,
+            row_count: Some(self.row_count),
+            totals,
+        }
+    }
+}
+
+/// The walk behind [`GroupedPage::plan`].
+struct Walk<'a> {
+    query: &'a GridQuery,
+    children: &'a [HashMap<GroupKey, Vec<&'a GroupSummary>>],
+    footers: bool,
+    /// The page, as positions among every row.
+    start: usize,
+    end: usize,
+    /// How many rows come before the one being placed.
+    position: usize,
+    page: GroupedPage,
+    /// Where each group placed on the page went in `page.groups`.
+    renumbered: HashMap<GroupKey, usize>,
+}
+
+impl Walk<'_> {
+    fn level(&mut self, parent: &GroupKey, level: usize) {
+        let children = self.children;
+        let Some(groups) = children.get(level).and_then(|by| by.get(parent)) else {
+            return;
+        };
+        let siblings = groups.len();
+        for (position, summary) in groups.iter().enumerate() {
+            let expanded = self.query.is_group_expanded(&summary.key);
+            let group = Group {
+                key: summary.key.clone(),
+                column: self
+                    .query
+                    .group_by
+                    .get(level)
+                    .cloned()
+                    .unwrap_or_else(|| ColumnId::new("")),
+                value: summary.key.0.last().cloned().flatten(),
+                level,
+                count: summary.count,
+                expanded,
+                position: position + 1,
+                siblings,
+                aggregates: summary.aggregates.clone(),
+            };
+            self.place(&group, PagePart::Header);
+            if !expanded {
+                continue;
+            }
+            if level + 1 < children.len() {
+                self.level(&summary.key, level + 1);
+            } else {
+                self.rows(&summary.key, summary.count);
+            }
+            if self.footers {
+                self.place(&group, PagePart::Footer);
+            }
+        }
+    }
+
+    /// Places a header or footer of `group`, if it is on the page.
+    fn place(&mut self, group: &Group, part: fn(usize) -> PagePart) {
+        if (self.start..self.end).contains(&self.position) {
+            let index = match self.renumbered.get(&group.key) {
+                Some(&index) => index,
+                None => {
+                    self.page.groups.push(group.clone());
+                    let index = self.page.groups.len() - 1;
+                    self.renumbered.insert(group.key.clone(), index);
+                    index
+                }
+            };
+            self.page.parts.push(part(index));
+        }
+        self.position += 1;
+    }
+
+    /// Places the part of a group's `count` rows that is on the page.
+    fn rows(&mut self, key: &GroupKey, count: usize) {
+        let first = self.position.max(self.start);
+        let last = self.position.saturating_add(count).min(self.end);
+        if first < last {
+            self.page.parts.push(PagePart::Rows {
+                key: key.clone(),
+                offset: first - self.position,
+                limit: last - first,
+            });
+        }
+        self.position += count;
+    }
 }

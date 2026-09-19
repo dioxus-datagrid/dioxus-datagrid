@@ -7,8 +7,8 @@
 #![allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::float_cmp)]
 
 use datagrid_core::{
-    Aggregate, AggregateKind, ColumnId, ColumnSpec, GridState, GroupKey, PageState, SortState,
-    Value, ViewRow, compute_view,
+    Aggregate, AggregateKind, ColumnId, ColumnSpec, GridQuery, GridState, GroupKey, GroupSummary,
+    GroupedPage, Page, PageState, SortState, Value, ViewRow, compute_view,
 };
 use proptest::prelude::*;
 use std::collections::HashSet;
@@ -479,4 +479,149 @@ fn grouping_state_round_trips() {
     // State saved before grouping existed still loads.
     let old: GridState = serde_json::from_str(r#"{"sort":[]}"#).unwrap();
     assert!(old.group_by.is_empty());
+}
+
+/// The groups of each level with their counts and aggregates, as a server
+/// would count them, in display order; taken from the local grouping with
+/// every group expanded.
+fn summaries(
+    rows: &[Row],
+    columns: &[ColumnSpec<Row>],
+    state: &GridState,
+) -> Vec<Vec<GroupSummary>> {
+    let all = GridState {
+        page: None,
+        groups_collapsed: false,
+        toggled_groups: Vec::new(),
+        ..state.clone()
+    };
+    let view = compute_view(rows, columns, &all);
+    (0..view.group_levels)
+        .map(|level| {
+            view.groups
+                .iter()
+                .filter(|group| group.level == level)
+                .map(|group| GroupSummary {
+                    key: group.key.clone(),
+                    count: group.count,
+                    aggregates: group.aggregates.clone(),
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// A group's rows in display order, as a server would select them.
+fn rows_of(
+    rows: &[Row],
+    columns: &[ColumnSpec<Row>],
+    state: &GridState,
+    key: &GroupKey,
+) -> Vec<Row> {
+    let flat = GridState {
+        page: None,
+        groups_collapsed: false,
+        toggled_groups: Vec::new(),
+        ..state.clone()
+    };
+    let view = compute_view(rows, columns, &flat);
+    let path = |row: &Row| {
+        GroupKey(
+            state
+                .group_by
+                .iter()
+                .filter_map(|id| columns.iter().find(|column| &column.id == id))
+                .map(|column| Value::from_cell(&column.read(row)))
+                .collect(),
+        )
+    };
+    view.indices
+        .iter()
+        .map(|&index| &rows[index])
+        .filter(|row| &path(row) == key)
+        .cloned()
+        .collect()
+}
+
+proptest! {
+    /// A server that counts groups and fetches only the rows a page shows
+    /// answers exactly like the grid would locally, headers, footers and
+    /// totals included.
+    #[test]
+    fn a_planned_page_equals_the_local_one(
+        rows in arb_rows(30),
+        group_by in prop::sample::select(vec![vec!["city"], vec!["team"], vec!["city", "team"], vec!["team", "city"]]),
+        page_size in 1_usize..9,
+        page in 0_usize..12,
+        collapse in prop::collection::vec(any::<bool>(), 6),
+        all_collapsed in any::<bool>(),
+        aggregates in any::<bool>(),
+    ) {
+        let columns = if aggregates {
+            columns()
+        } else {
+            columns().into_iter().map(|mut column| { column.aggregates.clear(); column }).collect()
+        };
+        let mut state = GridState::paged(page_size);
+        state.set_group_by(group_by.into_iter().map(ColumnId::from).collect());
+        state.set_all_groups_expanded(!all_collapsed);
+        // Toggle some of the groups there are.
+        let unpaged = compute_view(&rows, &columns, &GridState { page: None, ..state.clone() });
+        for (group, toggle) in unpaged.groups.iter().zip(&collapse) {
+            if *toggle {
+                state.toggle_group(&group.key);
+            }
+        }
+        state.set_page(page);
+
+        let local = compute_view(&rows, &columns, &state);
+        let expected = Page::from_view(&local, &rows);
+
+        let query = GridQuery::from_state(&state, page_size).with_aggregates(&columns);
+        let plan = GroupedPage::plan(&summaries(&rows, &columns, &state), &query);
+        let fetched: Vec<Vec<Row>> = plan
+            .fetches()
+            .map(|(key, offset, limit)| {
+                rows_of(&rows, &columns, &state, key).into_iter().skip(offset).take(limit).collect()
+            })
+            .collect();
+        let page = plan.into_page(fetched, local.totals.clone());
+
+        prop_assert_eq!(page, expected);
+    }
+}
+
+#[test]
+fn a_page_from_a_view_numbers_its_rows_and_groups_from_zero() {
+    let mut state = GridState::paged(4);
+    state.set_group_by(vec!["city".into()]);
+    state.set_page(1);
+    let view = compute_view(&rows(), &columns(), &state);
+    let page = Page::from_view(&view, &rows());
+    // Berlin fills the first page: header, two rows, footer. The second is
+    // Hamburg's, numbered from zero again.
+    assert_eq!(
+        page.layout,
+        [
+            ViewRow::GroupHeader(0),
+            ViewRow::Data(0),
+            ViewRow::Data(1),
+            ViewRow::GroupFooter(0),
+        ]
+    );
+    assert_eq!(page.groups[0].value, Some(Value::Text("Hamburg".into())));
+    assert_eq!(page.row_count, Some(11));
+    assert_eq!(page.total, 5);
+    assert_eq!(
+        page.rows.iter().map(|row| row.id).collect::<Vec<_>>(),
+        [1, 4]
+    );
+
+    // Without grouping, a page is its rows, as before.
+    let plain = Page::from_view(
+        &compute_view(&rows(), &columns(), &GridState::paged(2)),
+        &rows(),
+    );
+    assert!(plain.layout.is_empty());
+    assert_eq!(plain.row_count, None);
 }
