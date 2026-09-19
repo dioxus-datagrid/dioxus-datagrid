@@ -1,6 +1,3 @@
-# ...and leave it that way afterwards, pass or fail, so a local run does not
-# leave a tracked file modified.
-trap 'git -C "$repo_root" checkout -- "tests/fixtures/consumer-app/Cargo.toml" 2>/dev/null || true' EXIT
 #!/usr/bin/env bash
 # Registry smoke test.
 #
