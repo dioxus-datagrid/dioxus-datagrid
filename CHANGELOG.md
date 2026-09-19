@@ -6,6 +6,39 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Grouping. `GridState::group_by` groups rows by one or more columns, outermost first; groups follow
+  their column's sort and expand and collapse one at a time (`toggle_group`) or all at once. The
+  state is serializable like the rest. `GridHandle` has `group_by_column`, `ungroup_column`,
+  `set_group_by`, `toggle_group`, `set_all_groups_expanded` and `group_at`.
+- Aggregates. `.aggregate(Aggregate::Sum)` — or `Average`, `Min`, `Max`, `Count`, or
+  `Aggregate::custom` over the rows — under every group and under the whole grid.
+  `GridLocale::format_aggregate` formats results in the column's format.
+- A grouped grid is a WAI-ARIA treegrid: group headers carry `aria-level`, `aria-expanded`,
+  `aria-posinset` and `aria-setsize`, and `ArrowRight`, `ArrowLeft`, `Enter` and `Space` expand and
+  collapse them. `GridRow` renders group headers (`GridGroupRow`) and footers
+  (`GridGroupFooterRow`) where the view has them.
+- `GridFooter` shows the totals, stays reachable by keyboard as the last row, and reports its
+  height so a virtualized body keeps rows out from under it.
+- `GridGroupPanel`: drag a column header onto it, or pick a column from its list, to group; move and
+  remove grouped columns, expand or collapse everything.
+- Grouping on the server. `GridQuery` carries `group_by`, the expanded groups and the aggregates
+  wanted; `Page` can carry a layout of group rows, the groups, the row count and the totals.
+  `GridQuery::state`, `Aggregate::apply_query` and `Page::from_view` answer from rows in memory;
+  `GroupedPage::plan` lays out a page from group counts, for SQL. Older servers and clients still
+  understand each other.
+- The `data_grid_group_panel` registry component, and totals in `data_grid`.
+- `examples/server` groups in memory; `examples/fullstack` groups in SQLite, one `GROUP BY` per
+  level, fetching only the rows the page shows.
+
+### Changed
+
+- The view is a list of rows of kinds (`View::rows`, `ViewRow`), which everything that addresses
+  rows by position walks; `View::indices` stays as the data rows. `View::row_count` and
+  `View::row_offset` are what `aria-rowcount` and `aria-rowindex` count. With grouping, pages
+  count group headers and footers as rows.
+
 ## [0.7.0] - 2026-09-19
 
 ### Added

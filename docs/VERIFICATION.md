@@ -328,3 +328,27 @@ Geprüft am 2026-09-19 (ROADMAP §7: „nach Phase 9 prüfen, ob 0.8 stabil ist"
 - **Folge:** Wir bleiben auf 0.7. Ein Umstieg sieht nach heutigem Stand billig aus; er wird fällig,
   wenn 0.8 stabil erscheint. Die Zwischenablage-Events der Alpha sind für Phase 12 interessant:
   Sie könnten das `document::eval` aus Entscheidung 4 (ROADMAP §8) für das Einfügen ersparen.
+
+## 12. Phase 10: Ziehen auf eine Gruppenleiste
+
+Geprüft gegen `dioxus-html` 0.7.10 (`src/events/drag.rs`, `src/data_transfer.rs`).
+
+- **HTML-Drag-and-Drop ist da:** `ondragstart`, `ondragover`, `ondragleave`, `ondrop`, `ondragend`
+  mit `DragData`. `DragData::data_transfer()` liefert ein `DataTransfer` mit `set_data`/`get_data`.
+  Das Attribut `draggable` setzt `rsx!` wie jedes andere.
+- **`prevent_default` in `ondragover` nimmt den Drop an**, wie im Browser; ohne ihn feuert `ondrop`
+  nicht. `prevent_default` in `ondragstart` bricht das Ziehen ab — so verhindert der
+  Resize-Griff, dass ein Spaltenkopf mitgezogen wird.
+- **Firefox beginnt kein Ziehen ohne Daten.** Der Kopf legt deshalb seine Spalten-Id per
+  `set_data("text/plain", …)` in den `DataTransfer`. Gelesen wird sie von dort nicht: Welche Spalte
+  gezogen wird, merkt sich das Handle (`dragged_column`), das funktioniert auch dort, wo ein
+  Renderer den `DataTransfer` nicht durchreicht.
+- **Warum nicht Pointer-Events:** Bei Touch fängt der Browser den Zeiger implizit am Element, auf
+  dem er aufsetzt; ein `pointerup` über der Leiste käme dort nie an. Lösen ließe sich das nur mit
+  `releasePointerCapture`, also `web-sys`. HTML-Drag-and-Drop braucht das nicht.
+- **Playwright:** `dragTo` löst unter Chromium und Firefox echte HTML-Drags aus, unter WebKit
+  nicht. Der Drag-Test läuft deshalb ohne WebKit; der Tastaturweg (Liste in der Leiste) läuft
+  überall.
+- **Generische Komponenten ohne typisierte Props:** `DataGridGroupPanel::<User> {}` — der Turbofish
+  funktioniert in `rsx!`. Nötig, weil nichts sonst den Zeilentyp verrät, unter dem `DataGrid` sein
+  Handle in den Context legt.

@@ -227,6 +227,32 @@ in der Zelle.
   bedeuten, sagt die Status-Region als Zahl an. Die Komponente zeigt geänderte Zellen mit einem
   Balken, gelöschte Zeilen durchgestrichen, speichernde kursiv — nie nur über Farbe.
 
+## Gruppen und Aggregate
+
+Nach dem WAI-ARIA-**Treegrid**-Muster, sobald nach einer Spalte gruppiert ist; ohne Gruppen bleibt
+es `role="grid"`.
+
+- **Gruppenkopf:** eine Zeile mit genau einer Zelle über alle Spalten (`aria-colspan`). Die Zeile
+  trägt `aria-level` (1 für die äußerste Gruppe), `aria-expanded`, `aria-posinset` und
+  `aria-setsize` — Position und Zahl der Geschwistergruppen, auch wenn Paging oder
+  Virtualisierung nicht alle im DOM halten. Die Zelle nennt Spalte, Wert und Zeilenzahl
+  („Department: sales, 2 rows"); eine zugeklappte Gruppe nennt dort auch ihre Aggregate.
+- **Datenzeilen und Gruppenfüße** liegen eine Ebene tiefer (`aria-level`). `aria-rowindex` zählt
+  Köpfe und Füße mit, `aria-rowcount` ebenso — über alle Seiten.
+- **Tastatur auf einem Gruppenkopf:** `ArrowRight` klappt auf, `ArrowLeft` klappt zu; auf einer
+  schon zugeklappten Gruppe springt `ArrowLeft` zum Kopf der umgebenden Gruppe. `Enter` und
+  `Space` schalten um. `ArrowUp`/`ArrowDown` laufen über Köpfe, Zeilen und Füße gleichermaßen; die
+  Spalte bleibt erhalten, sodass es unter einem Kopf in derselben Spalte weitergeht. Auf
+  Datenzeilen bleiben `ArrowLeft`/`ArrowRight` Zellnavigation.
+- **Summenzeile (`GridFooter`):** eine eigene Zeilengruppe unter dem Körper, letzte Zeile der
+  Tastaturnavigation (`Ctrl+End`) und letzte bei `aria-rowindex`. Die erste Zelle ohne Aggregat
+  heißt „Totals"/„Gesamt". Aggregate stehen als Name und Wert je Zelle; bei fester Zeilenhöhe
+  trägt die Zelle den vollen Text zusätzlich im `title`.
+- **Gruppenleiste:** `role="group"`, benannt „Grouping"/„Gruppierung". Ziehen ist nie der einzige
+  Weg: Eine Auswahlliste gruppiert nach einer weiteren Spalte, je gruppierter Spalte gibt es Knöpfe
+  zum Vorziehen und Entfernen (mit Namen wie „Stop grouping by Department"), dazu
+  „Expand all"/„Collapse all".
+
 ## Automatisiert geprüft
 
 - **Markup:** SSR-Tests in `crates/dioxus-datagrid/tests/aria.rs`.
@@ -245,6 +271,10 @@ in der Zelle.
   Zeile, Formular, Batch, Anlegen, Löschen), Fokus nach Übernehmen und Abbrechen, Fokusfalle im
   Formular, und axe mit offenem Editor, mit Fehlermeldung, mit offenem Formular und offener
   Löschabfrage. Markup in `crates/dioxus-datagrid/tests/editing.rs`.
+- **Gruppen:** `tests/e2e/grouping.spec.ts` — Gruppieren über die Liste und per Ziehen,
+  `ArrowLeft`/`ArrowRight`/`Enter`/`Space` auf Köpfen, Gruppen über Seitengrenzen, Füße und
+  Summenzeile per `Ctrl+End`, axe gruppiert mit Summen im hellen und dunklen Theme, 100.000 Zeilen
+  gruppiert und virtualisiert. Markup in `crates/dioxus-datagrid/tests/grouping.rs`.
 - **Serverseitige Daten:** `crates/dioxus-datagrid/tests/remote.rs` (`aria-busy`, Statusregion,
   Zählung über die Server-Gesamtzahl) und `tests/e2e/server.spec.ts` im Browser.
 - **`axe`:** `@axe-core/playwright` über die ganze Komponente, im hellen **und** im dunklen Theme,

@@ -768,3 +768,64 @@ im Grid bräuchte eine Zeile, die nicht in den Daten steht, mitten in `aria-rowi
 Virtualisierung; das ist genau die View aus Zeilenarten (A2), die Phase 10 ohnehin baut. Gelöschte
 Zeilen verschwinden, wenn die App sie aus den Daten nimmt; im Batch werden sie bis zum Speichern
 durchgestrichen gezeigt.
+
+## ADR-0028 — Gruppen als Zeilen der View, gerechnet lokal oder auf dem Server
+
+**Kontext.** Phase 10 (`docs/ROADMAP.md`) verlangt Gruppieren nach einer oder mehreren Spalten,
+auf- und zuklappbar, Aggregate in Gruppenkopf, Gruppenfuß und unter dem Grid, und das mit Paging,
+Virtualisierung und Remote-Daten, als Treegrid bedienbar. Vorher kommt A2: die View als Liste von
+Zeilenarten.
+
+**Entscheidung.**
+
+- **A2:** `View::rows` ist eine Liste von `ViewRow` — `Data(index)`, `GroupHeader(group)`,
+  `GroupFooter(group)` —, und alles, was Zeilen per Position anspricht (Rendern, Tastatur,
+  Virtualisierung, `aria-rowindex`, Bearbeiten), zählt über sie. `View::indices` bleibt als
+  Liste der Datenzeilen, damit Auswahl und bestehender Code weiter funktionieren. Der Umbau kam als
+  eigener Schritt mit grünen Tests vor der ersten Gruppe. `ViewRow` ist `#[non_exhaustive]`, damit
+  Detailzeilen (Phase 12) dazukommen können.
+- **Gruppieren ist Sortieren plus Schnitt.** Die gruppierten Spalten gehen der Sortierung voran, in
+  ihrer Sortierrichtung, aufsteigend wenn unsortiert; danach gilt der Rest der Sortierung innerhalb
+  der Gruppe. Gruppen sind die Läufe gleicher Werte in dieser Reihenfolge. Der Schlüssel einer
+  Gruppe (`GroupKey`) ist der Pfad ihrer Werte; über ihn merkt sich `GridState`, welche Gruppen vom
+  Standard (`groups_collapsed`) abweichen. Beides ist serialisierbar und überlebt Persistenz.
+- **Paging zählt jede Zeile**, also auch Gruppenköpfe und -füße; eine zugeklappte Gruppe belegt
+  einen Platz. So bleibt eine Seite eine Seite, auch wenn Gruppen zugeklappt sind; eine Gruppe
+  kann auf der einen Seite beginnen und auf der nächsten enden. Köpfe werden auf Folgeseiten nicht
+  wiederholt, sonst hätte dieselbe Zeile zwei `aria-rowindex`.
+- **Aggregate** (`Sum`, `Average`, `Min`, `Max`, `Count`, eigene über die Zeilen) hängen an der
+  Spalte. Leere Zellen zählen nicht, `Count` zählt Werte wie SQL `COUNT(spalte)`. Eine Summe bleibt
+  ganzzahlig, solange alle Werte es sind und sie nicht überläuft. Wo sie erscheinen: im Fuß einer
+  aufgeklappten Gruppe, im Kopf einer zugeklappten (deren Fuß mit ihr verschwindet) und in
+  `GridFooter` über alle gefilterten Zeilen. Gruppenfüße entstehen nur, wenn eine Spalte ein
+  Aggregat hat.
+- **Treegrid.** Mit Gruppen wird `role="grid"` zu `treegrid`. Ein Gruppenkopf ist eine Zeile mit
+  **einer** Zelle über alle Spalten (`aria-colspan`), mit `aria-level`, `aria-expanded`,
+  `aria-posinset`, `aria-setsize`; Datenzeilen und Füße liegen eine Ebene tiefer. Auf dem Kopf
+  klappt `ArrowRight` auf, `ArrowLeft` zu bzw. springt zur umgebenden Gruppe; `Enter` und
+  `Space` schalten um. Auf Datenzeilen bleiben die Pfeile Zellnavigation — das Muster sieht
+  Zeilenfokus vor, den das Grid nicht hat; eine Kopfzeile mit einer Zelle ist die Entsprechung.
+  `GridFooter` gehört zur Tastaturnavigation (letzte Zeile) und meldet seine Höhe, damit ein
+  klebender Fuß beim Virtualisieren keine Zeile verdeckt.
+- **Gruppenleiste** (`GridGroupPanel`, Registry `data_grid_group_panel`): Spaltenköpfe werden per
+  HTML-Drag-and-Drop auf die Leiste gezogen (VERIFICATION §12). Jede Zieh-Aktion hat einen
+  Tastaturweg: eine Liste zum Hinzufügen, je gruppierter Spalte Knöpfe „zuerst danach
+  gruppieren" und „nicht mehr danach gruppieren", dazu „alle auf-/zuklappen".
+- **Remote.** `GridQuery` trägt Gruppierung, Auf-/Zuklappzustand und die gewünschten Aggregate;
+  `Page` kann ein Layout aus `ViewRow`, die Gruppen der Seite, die Gesamtzeilenzahl und die Summen
+  zurückgeben — alles mit `serde(default)`, alte Server und Clients verstehen sich weiter. Für
+  Server, die ihre Zeilen im Speicher haben, reichen `query.state()`, `Aggregate::apply_query`,
+  `compute_view` und `Page::from_view`. Für SQL rechnet `GroupedPage::plan` aus Gruppenzählungen
+  (ein `GROUP BY` je Ebene) aus, welche Köpfe, Füße und Zeilenabschnitte auf die Seite fallen; nur
+  diese Abschnitte werden mit `LIMIT`/`OFFSET` geholt. Ein Property-Test belegt, dass Planer plus
+  Nachladen exakt die lokale Seite ergibt; das Fullstack-Beispiel belegt es gegen SQLite.
+  Eigene Aggregate sind Closures des Clients und bleiben lokal.
+
+**Abweichungen vom Plan.**
+
+- **Gruppieren „per Spaltenmenü"** kommt mit dem Spaltenmenü in Phase 11. Bis dahin ist die Liste
+  in der Gruppenleiste der Weg ohne Ziehen, auch per Tastatur.
+- **`DataGridGroupPanel::<T>`** braucht den Zeilentyp als Turbofish, weil es keine typisierten
+  Props hat, aus denen er folgen könnte.
+- Das **Fullstack-Beispiel** zeigt Gruppen und Gruppenfüße, aber keine Summenzeile: Sie verschöbe
+  alle bestehenden Zeilenzählungen seiner Tests. Das Server-Beispiel zeigt sie.

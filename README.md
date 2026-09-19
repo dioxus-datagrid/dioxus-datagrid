@@ -148,6 +148,30 @@ save runs. If the save fails, the old value comes back with the message. Cells, 
 dialog and batches are supported, with adding, deleting and validation at the cell;
 [`docs.md`](registry/data_grid_editor/docs.md) has the details.
 
+## Grouping and aggregates
+
+Give columns aggregates, and `data_grid` shows them under the grid:
+
+```rust
+Column::new("total", "Total")
+    .value_of(|order: &Order| order.total)
+    .aggregate(Aggregate::Sum)
+    .aggregate(Aggregate::Average),
+```
+
+`dx components add data_grid_group_panel` adds a panel to group rows by: drag a column header onto
+it, or pick a column from its list.
+
+```rust
+DataGrid { data: orders, columns,
+    DataGridGroupPanel::<Order> {}
+}
+```
+
+Groups expand and collapse with a click or the arrow keys, each group shows its aggregates, and a
+grouped grid is a WAI-ARIA treegrid. Grouping works with paging, with 100,000 virtualized rows,
+and on the server: see [`docs.md`](registry/data_grid_group_panel/docs.md).
+
 ## Headless usage
 
 If you want your own markup, skip the registry component and compose the primitives. They render
@@ -209,6 +233,11 @@ server function and shows how a `GridQuery` becomes SQL.
 
 Column ids in a query come from the client. Map them to SQL through a fixed list of allowed columns
 and bind all filter text as parameters — never build SQL from the ids or text directly.
+
+Grouped queries carry `group_by` and the aggregates wanted. A server with its rows in memory answers
+with `Page::from_view(&compute_view(&rows, &columns, &query.state()), &rows)`. A SQL server counts
+the groups with one `GROUP BY` per level and lets `GroupedPage::plan` work out which group headers,
+footers and row ranges the page shows; `examples/fullstack` does exactly that.
 
 ## Accessibility
 
