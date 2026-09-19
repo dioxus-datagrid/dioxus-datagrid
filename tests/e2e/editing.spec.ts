@@ -320,3 +320,61 @@ test("Delete asks first, starting on Keep", async ({ page }) => {
   await expect(count(page)).toHaveText("11 rows");
   await expect(cell(page, 0, 1)).toHaveText("adam Fischer");
 });
+
+test("turning editing off makes the grid read-only again", async ({ page }) => {
+  await editMode(page, "cell");
+  await expect(page.locator("[aria-readonly]")).toHaveCount(0);
+  await page.getByTestId("edit-off").check();
+  await goTo(page, 0, 1);
+  await page.keyboard.press("Enter");
+  await expect(editor(page)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add" })).toHaveCount(0);
+});
+
+test("leaving batch mode drops the unsaved batch", async ({ page }) => {
+  await editMode(page, "batch");
+  await goTo(page, 0, 4);
+  await page.keyboard.press("Enter");
+  await retype(page, "60");
+  await page.keyboard.press("Enter");
+  await expect(cell(page, 0, 4)).toHaveText("60");
+
+  await editMode(page, "cell");
+  await expect(cell(page, 0, 4)).toHaveText("30");
+  await expect(grid(page).locator("[data-changed]")).toHaveCount(0);
+});
+
+// The theme's error colours are backgrounds in the dark scheme; messages have
+// to stay readable there too.
+test.describe("dark theme", () => {
+  test.use({ colorScheme: "dark" });
+
+  test("messages and a failed save have no axe violations", async ({ page }) => {
+    await page.getByTestId("toggle-fail-saves").check();
+    await editMode(page, "cell");
+    await goTo(page, 0, 1);
+    await page.keyboard.press("Enter");
+    await retype(page, "Nobody");
+    await page.keyboard.press("Enter");
+    await expect(status(page)).toHaveAttribute("data-state", "failed");
+    await goTo(page, 0, 4);
+    await page.keyboard.press("Enter");
+    await retype(page, "old");
+    await page.keyboard.press("Enter");
+    await expect(grid(page).getByRole("alert")).toBeVisible();
+
+    let results = await new AxeBuilder({ page }).include(".dg-wrapper").analyze();
+    expect(results.violations).toEqual([]);
+
+    await page.keyboard.press("Escape");
+    await editMode(page, "dialog");
+    await goTo(page, 1, 1);
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Tab");
+    await retype(page, "nope");
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("dialog").getByRole("alert").first()).toBeVisible();
+    results = await new AxeBuilder({ page }).include("[data-edit-dialog]").analyze();
+    expect(results.violations).toEqual([]);
+  });
+});

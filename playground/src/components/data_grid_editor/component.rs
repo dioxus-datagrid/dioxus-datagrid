@@ -73,7 +73,14 @@ pub struct DataGridEditorProps<T: GridRow + PartialEq + 'static> {
 #[component]
 pub fn DataGridEditor<T: GridRow + PartialEq + 'static>(props: DataGridEditorProps<T>) -> Element {
     // Put there by `DataGrid`; outside one there is nothing to edit.
-    let Some(mut grid) = try_use_context::<GridHandle<T>>() else {
+    let grid = try_use_context::<GridHandle<T>>();
+    // Removing the editor makes the grid read-only again.
+    use_drop(move || {
+        if let Some(mut grid) = grid {
+            grid.clear_editing();
+        }
+    });
+    let Some(mut grid) = grid else {
         return rsx! {};
     };
     grid.set_editing(Editing {

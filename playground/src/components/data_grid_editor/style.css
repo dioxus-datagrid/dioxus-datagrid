@@ -63,9 +63,19 @@
   margin-inline-start: 0.75rem;
 }
 
-.dg-edit-status[data-state="failed"],
-.dg-edit-status[data-state="invalid"] {
-  color: var(--primary-error-color);
+/* Error text always sits on the theme's error background with its contrast
+ * colour: in the dark theme the error colours are too dark for text on the
+ * page itself. */
+.dg-edit-status[data-state="failed"] [data-edit-message],
+.dg-edit-status[data-state="invalid"] [data-edit-message],
+.dg [data-edit-error],
+.dg-edit-dialog [data-edit-error],
+.dg-edit-dialog [data-edit-row-error] {
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.35rem;
+  background: var(--primary-error-color);
+  color: var(--contrast-error-color);
+  font-size: 0.8125rem;
 }
 
 /* Editors in cells fill their cell. The cell keeps its padding smaller while
@@ -103,27 +113,30 @@
   border-color: var(--primary-error-color);
 }
 
-/* A refused value's message hangs below its cell. */
+/* A refused value's message hangs below its cell, as wide as the cell, so
+ * the grid's frame never cuts it off at the side; in the last row it hangs
+ * above instead. */
 .dg [data-edit-error] {
   position: absolute;
   z-index: 2;
   top: 100%;
-  inset-inline-start: 0.4rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.35rem;
-  background: var(--primary-error-color);
-  color: var(--contrast-error-color);
-  font-size: 0.8125rem;
-  white-space: nowrap;
+  inset-inline: 0.4rem;
+  white-space: normal;
+}
+
+.dg-body [role="row"]:last-child [data-edit-error] {
+  top: auto;
+  bottom: 100%;
 }
 
 .dg-body [role="row"][data-editing="true"] [role="gridcell"] {
   background: var(--primary-color-3);
 }
 
-/* Unsaved batch changes: a marker in the cell's corner. */
+/* Unsaved batch changes: a bar along the cell's start and a tint. */
 .dg [role="gridcell"][data-changed="true"] {
-  box-shadow: inset 3px 0 0 var(--primary-warning-color);
+  background: var(--primary-warning-color);
+  box-shadow: inset 3px 0 0 var(--secondary-warning-color);
 }
 
 .dg-body [role="row"][data-deleted="true"] [role="gridcell"] {
@@ -199,12 +212,6 @@
   align-self: flex-start;
 }
 
-.dg-edit-dialog [data-edit-error],
-.dg-edit-dialog [data-edit-row-error] {
-  color: var(--primary-error-color);
-  font-size: 0.8125rem;
-}
-
 .dg-edit-dialog [data-edit-actions] {
   display: flex;
   justify-content: flex-end;
@@ -216,4 +223,8 @@
   .dg-edit-dialog button {
     min-height: 44px;
   }
+}
+
+.dg-edit-dialog [data-edit-error] {
+  align-self: flex-start;
 }

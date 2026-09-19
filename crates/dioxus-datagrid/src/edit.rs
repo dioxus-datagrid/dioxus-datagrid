@@ -374,9 +374,39 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
     pub fn set_editing(&mut self, editing: Editing<T>) {
         // Compared first: the callbacks keep their identity across renders,
         // so this writes only when something really changed.
-        if self.edit_config.peek().as_ref() != Some(&editing) {
-            self.edit_config.set(Some(editing));
+        let previous = *self.edit_config.peek();
+        if previous == Some(editing) {
+            return;
         }
+        // An edit or a batch started under another mode cannot be finished
+        // under this one: a batch would have no way left to be saved.
+        if previous.is_some_and(|previous| previous.mode != editing.mode) {
+            self.abandon_edits();
+        }
+        self.edit_config.set(Some(editing));
+    }
+
+    /// Makes the grid read-only again, dropping any edit in progress and any
+    /// unsaved batch. The registry's editor component calls it when it goes
+    /// away.
+    pub fn clear_editing(&mut self) {
+        if self
+            .edit_config
+            .try_peek()
+            .is_ok_and(|config| config.is_some())
+        {
+            self.abandon_edits();
+            set_quietly(&mut self.edit_config, |config| *config = None);
+        }
+    }
+
+    /// Drops the edit in progress, the batch and a pending delete.
+    fn abandon_edits(&mut self) {
+        set_quietly(&mut self.edit_session, |session| *session = None);
+        set_quietly(&mut self.edit_rows, |rows| {
+            rows.changes = Changes::default()
+        });
+        set_quietly(&mut self.edit_confirm, |confirm| *confirm = None);
     }
 
     /// How the grid edits, if it does. Reading it subscribes the caller.
