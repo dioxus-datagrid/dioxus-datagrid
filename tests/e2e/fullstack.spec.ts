@@ -137,3 +137,23 @@ test("a saved salary is in the database", async ({ page }, testInfo) => {
   await settled(page);
   await expect(cells(page, 4).first()).toHaveText(shown);
 });
+
+test("grouping runs in SQL, one page at a time", async ({ page }) => {
+  const tree = page.locator(".grid");
+  const rows = tree.locator(".body [role='row']");
+  await page.locator(".group-panel").getByRole("combobox", { name: "Group by" }).selectOption("department");
+  await expect(tree).toHaveAttribute("role", "treegrid", { timeout: 10_000 });
+  await expect(status(page)).toHaveAttribute("data-state", "idle");
+
+  // Twenty rows a page, the first a group header: 1,000 employees a department.
+  await expect(rows).toHaveCount(20);
+  await expect(rows.first()).toContainText("Department: engineering");
+  await expect(rows.first()).toContainText("1,000 rows");
+  // 5,000 rows, five group headers and five footers with the server's sums.
+  await expect(tree).toHaveAttribute("aria-rowcount", "5011");
+
+  await page.getByRole("button", { name: "Next page" }).click();
+  await expect(status(page)).toHaveAttribute("data-state", "idle");
+  await expect(rows.first()).toHaveAttribute("aria-rowindex", "22");
+  await expect(rows.first()).toHaveAttribute("aria-level", "2");
+});
