@@ -137,6 +137,52 @@ pub struct GridLocale {
     pub op_is_not_empty: Cow<'static, str>,
     /// Operator name.
     pub op_one_of: Cow<'static, str>,
+    /// An empty cell where a value is needed.
+    pub edit_required: Cow<'static, str>,
+    /// Text that is not a valid value.
+    pub edit_invalid: Cow<'static, str>,
+    /// Text that is not a number.
+    pub edit_invalid_number: Cow<'static, str>,
+    /// Text that is not a date.
+    pub edit_invalid_date: Cow<'static, str>,
+    /// A value that is not one of the column's choices.
+    pub edit_not_a_choice: Cow<'static, str>,
+    /// Starts a new row.
+    pub edit_add: Cow<'static, str>,
+    /// Starts editing a row.
+    pub edit_edit: Cow<'static, str>,
+    /// Deletes rows.
+    pub edit_delete: Cow<'static, str>,
+    /// Saves an edit.
+    pub edit_save: Cow<'static, str>,
+    /// Abandons an edit.
+    pub edit_cancel: Cow<'static, str>,
+    /// Title of the form for a new row.
+    pub edit_new_row: Cow<'static, str>,
+    /// Title of the form for an existing row.
+    pub edit_row: Cow<'static, str>,
+    /// Shown when an edit has errors.
+    pub edit_check: Cow<'static, str>,
+    /// Asks before deleting, with `{count}`.
+    pub delete_confirm: Cow<'static, str>,
+    /// Asks before deleting one row.
+    pub delete_confirm_one: Cow<'static, str>,
+    /// Declines deleting.
+    pub delete_keep: Cow<'static, str>,
+    /// Saves a batch of changes.
+    pub batch_save: Cow<'static, str>,
+    /// Abandons a batch of changes.
+    pub batch_discard: Cow<'static, str>,
+    /// How many changes are not saved, with `{count}`.
+    pub batch_pending: Cow<'static, str>,
+    /// One change not saved.
+    pub batch_pending_one: Cow<'static, str>,
+    /// While a save is in progress.
+    pub edit_saving: Cow<'static, str>,
+    /// After a save succeeded.
+    pub edit_saved: Cow<'static, str>,
+    /// After a save failed, with `{error}`.
+    pub edit_save_failed: Cow<'static, str>,
 }
 
 impl Default for GridLocale {
@@ -201,6 +247,29 @@ impl GridLocale {
             op_is_empty: Cow::Borrowed("is empty"),
             op_is_not_empty: Cow::Borrowed("is not empty"),
             op_one_of: Cow::Borrowed("is one of"),
+            edit_required: Cow::Borrowed("A value is required"),
+            edit_invalid: Cow::Borrowed("Not a valid value"),
+            edit_invalid_number: Cow::Borrowed("Enter a number"),
+            edit_invalid_date: Cow::Borrowed("Enter a date"),
+            edit_not_a_choice: Cow::Borrowed("Choose one of the listed values"),
+            edit_add: Cow::Borrowed("Add"),
+            edit_edit: Cow::Borrowed("Edit"),
+            edit_delete: Cow::Borrowed("Delete"),
+            edit_save: Cow::Borrowed("Save"),
+            edit_cancel: Cow::Borrowed("Cancel"),
+            edit_new_row: Cow::Borrowed("New row"),
+            edit_row: Cow::Borrowed("Edit row"),
+            edit_check: Cow::Borrowed("Please correct the marked fields"),
+            delete_confirm: Cow::Borrowed("Delete {count} rows?"),
+            delete_confirm_one: Cow::Borrowed("Delete this row?"),
+            delete_keep: Cow::Borrowed("Keep"),
+            batch_save: Cow::Borrowed("Save changes"),
+            batch_discard: Cow::Borrowed("Discard changes"),
+            batch_pending: Cow::Borrowed("{count} unsaved changes"),
+            batch_pending_one: Cow::Borrowed("1 unsaved change"),
+            edit_saving: Cow::Borrowed("Saving…"),
+            edit_saved: Cow::Borrowed("Saved"),
+            edit_save_failed: Cow::Borrowed("Could not save: {error}"),
         }
     }
 
@@ -259,6 +328,29 @@ impl GridLocale {
             op_is_empty: Cow::Borrowed("ist leer"),
             op_is_not_empty: Cow::Borrowed("ist nicht leer"),
             op_one_of: Cow::Borrowed("ist eines von"),
+            edit_required: Cow::Borrowed("Bitte einen Wert eingeben"),
+            edit_invalid: Cow::Borrowed("Kein gültiger Wert"),
+            edit_invalid_number: Cow::Borrowed("Bitte eine Zahl eingeben"),
+            edit_invalid_date: Cow::Borrowed("Bitte ein Datum eingeben"),
+            edit_not_a_choice: Cow::Borrowed("Bitte einen der angebotenen Werte wählen"),
+            edit_add: Cow::Borrowed("Hinzufügen"),
+            edit_edit: Cow::Borrowed("Bearbeiten"),
+            edit_delete: Cow::Borrowed("Löschen"),
+            edit_save: Cow::Borrowed("Speichern"),
+            edit_cancel: Cow::Borrowed("Abbrechen"),
+            edit_new_row: Cow::Borrowed("Neue Zeile"),
+            edit_row: Cow::Borrowed("Zeile bearbeiten"),
+            edit_check: Cow::Borrowed("Bitte die markierten Felder korrigieren"),
+            delete_confirm: Cow::Borrowed("{count} Zeilen löschen?"),
+            delete_confirm_one: Cow::Borrowed("Diese Zeile löschen?"),
+            delete_keep: Cow::Borrowed("Behalten"),
+            batch_save: Cow::Borrowed("Änderungen speichern"),
+            batch_discard: Cow::Borrowed("Änderungen verwerfen"),
+            batch_pending: Cow::Borrowed("{count} ungespeicherte Änderungen"),
+            batch_pending_one: Cow::Borrowed("1 ungespeicherte Änderung"),
+            edit_saving: Cow::Borrowed("Wird gespeichert …"),
+            edit_saved: Cow::Borrowed("Gespeichert"),
+            edit_save_failed: Cow::Borrowed("Speichern fehlgeschlagen: {error}"),
         }
     }
 
@@ -301,6 +393,32 @@ impl GridLocale {
     #[must_use]
     pub fn filter_more_values(&self, count: usize) -> String {
         fill(&self.filter_more_values, &[("count", &self.integer(count))])
+    }
+
+    /// "Delete 3 rows?", or "Delete this row?".
+    #[must_use]
+    pub fn delete_confirm(&self, count: usize) -> String {
+        if count == 1 {
+            self.delete_confirm_one.clone().into_owned()
+        } else {
+            fill(&self.delete_confirm, &[("count", &self.integer(count))])
+        }
+    }
+
+    /// "3 unsaved changes", or "1 unsaved change".
+    #[must_use]
+    pub fn batch_pending(&self, count: usize) -> String {
+        if count == 1 {
+            self.batch_pending_one.clone().into_owned()
+        } else {
+            fill(&self.batch_pending, &[("count", &self.integer(count))])
+        }
+    }
+
+    /// "Could not save: …".
+    #[must_use]
+    pub fn edit_save_failed(&self, error: &str) -> String {
+        fill(&self.edit_save_failed, &[("error", error)])
     }
 
     /// The name of a filter operator, as a menu lists it.

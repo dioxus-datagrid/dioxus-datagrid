@@ -1,7 +1,9 @@
 //! Column identity and column specifications.
 
+use crate::edit::{SetFn, ValidateFn};
 use crate::{
-    CellAlign, CellFormat, CellOverflow, CellValue, GridLocale, GridState, TextCollation, ValueKind,
+    CellAlign, CellFormat, CellOverflow, CellValue, GridLocale, GridState, TextCollation, Value,
+    ValueKind,
 };
 use std::borrow::Cow;
 use std::fmt;
@@ -145,6 +147,13 @@ pub struct ColumnSpec<T> {
     /// What kind of value the column holds. `None` lets
     /// [`ColumnSpec::value_kind`] find out from the rows.
     pub kind: Option<ValueKind>,
+    /// Writes an edited value into a row. A column without one is read-only;
+    /// see [`ColumnSpec::editable`].
+    pub set: Option<SetFn<T>>,
+    /// Checks a row after this column was edited.
+    pub validate: Option<ValidateFn<T>>,
+    /// The only values an edit may choose. Empty for any value.
+    pub choices: Vec<Value>,
 }
 
 impl<T> ColumnSpec<T> {
@@ -165,6 +174,9 @@ impl<T> ColumnSpec<T> {
             align: None,
             overflow: CellOverflow::Truncate,
             kind: None,
+            set: None,
+            validate: None,
+            choices: Vec::new(),
         }
     }
 
@@ -474,6 +486,9 @@ impl<T> Clone for ColumnSpec<T> {
             align: self.align,
             overflow: self.overflow,
             kind: self.kind,
+            set: self.set.clone(),
+            validate: self.validate.clone(),
+            choices: self.choices.clone(),
         }
     }
 }
@@ -493,6 +508,8 @@ impl<T> fmt::Debug for ColumnSpec<T> {
             .field("align", &self.align)
             .field("overflow", &self.overflow)
             .field("kind", &self.kind)
+            .field("editable", &self.is_editable())
+            .field("choices", &self.choices)
             .finish()
     }
 }
@@ -525,5 +542,8 @@ impl<T> PartialEq for ColumnSpec<T> {
             && self.kind == other.kind
             && same_closure(self.value.as_ref(), other.value.as_ref())
             && same_closure(self.filter_text.as_ref(), other.filter_text.as_ref())
+            && same_closure(self.set.as_ref(), other.set.as_ref())
+            && same_closure(self.validate.as_ref(), other.validate.as_ref())
+            && self.choices == other.choices
     }
 }

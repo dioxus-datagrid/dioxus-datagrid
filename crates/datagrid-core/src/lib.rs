@@ -62,6 +62,7 @@
 #![forbid(unsafe_code)]
 
 mod column;
+mod edit;
 mod filter;
 mod format;
 mod locale;
@@ -77,6 +78,7 @@ mod virtualize;
 pub use column::{
     ColumnId, ColumnSpec, ColumnWidth, DEFAULT_MIN_COLUMN_WIDTH, FilterTextFn, SortKeyFn, ValueFn,
 };
+pub use edit::{Changes, EditError, FromValue, SetFn, ValidateFn, changed_columns};
 pub use filter::{ColumnFilter, Condition, FilterOp, Value, ValueKind};
 
 /// The name [`Value`] had while only filters used it.
