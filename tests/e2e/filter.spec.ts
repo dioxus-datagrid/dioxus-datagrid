@@ -127,3 +127,30 @@ for (const mode of ["Condition", "Values"] as const) {
     expect(results.violations).toEqual([]);
   });
 }
+
+test("every menu stays inside a phone's screen", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 740 });
+  const buttons = page.locator("[data-filter-trigger]");
+  const total = await buttons.count();
+  expect(total).toBeGreaterThan(1);
+
+  for (let index = 0; index < total; index++) {
+    await buttons.nth(index).click();
+    const panel = dialog(page);
+    await expect(panel).toBeVisible();
+    // The value list is the wider half; wait for it where there is one.
+    const values = panel.getByRole("button", { name: "Values" });
+    if (await values.count()) {
+      await values.click();
+      await expect(panel.getByRole("listitem").first()).toBeVisible();
+    }
+    await expect
+      .poll(async () => {
+        const box = await panel.boundingBox();
+        return box !== null && box.x >= 0 && box.x + box.width <= 360;
+      })
+      .toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(panel).toHaveCount(0);
+  }
+});

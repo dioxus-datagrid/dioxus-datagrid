@@ -183,6 +183,23 @@ impl Draft {
     }
 }
 
+/// Space kept between a moved panel and the viewport's edge, in px.
+const VIEWPORT_MARGIN: f64 = 8.0;
+
+/// How far to move a panel sideways from where it sits unmoved, so it stays
+/// inside the viewport: left if it sticks out on the right, right if it sticks
+/// out on the left. A panel wider than the viewport keeps its start visible.
+fn fit_shift(left: f64, width: f64, viewport_left: f64, viewport_right: f64) -> f64 {
+    let overflow = left + width - (viewport_right - VIEWPORT_MARGIN);
+    let shift = if overflow > 0.0 { -overflow } else { 0.0 };
+    let min_left = viewport_left + VIEWPORT_MARGIN;
+    if left + shift < min_left {
+        min_left - left
+    } else {
+        shift
+    }
+}
+
 /// How an operand reads in an input.
 fn edit_text(value: &FilterValue) -> String {
     value.edit_text()
@@ -212,7 +229,9 @@ const fn input_type(kind: ValueKind) -> &'static str {
 /// column is filtered. Everything is unstyled: the root, button, panel and
 /// the panel's parts carry `data-filter-*` attributes to style them by. The
 /// click-outside layer is `position: fixed` and covers the page; give the panel
-/// a higher `z-index` and position it.
+/// a higher `z-index` and position it. If the panel then sticks out of the
+/// viewport at the side, as it does on a phone below a button near the edge,
+/// it is moved back inside with an inline `translate`.
 ///
 /// Renders nothing for a column that cannot be filtered.
 #[component]
@@ -230,6 +249,10 @@ pub fn GridFilterMenu<T: GridRowKey + PartialEq + 'static>(
     let mut draft = use_signal(|| None::<Draft>);
     let mut list = use_signal(|| None::<Result<DistinctValues, String>>);
     let mut trigger = use_signal(|| None::<Rc<MountedData>>);
+    let mut backdrop = use_signal(|| None::<Rc<MountedData>>);
+    let mut panel = use_signal(|| None::<Rc<MountedData>>);
+    // How far the panel is moved sideways to stay inside the viewport, in px.
+    let mut shift = use_signal(|| 0.0_f64);
     let panel_id = use_hook(|| format!("dg-filter-menu-{}", next_id()));
 
     let columns = grid.visible_columns();
@@ -263,6 +286,7 @@ pub fn GridFilterMenu<T: GridRowKey + PartialEq + 'static>(
             let current = grid.column_filter(&id);
             draft.set(Some(Draft::from_filter(current.as_ref(), kind)));
             list.set(None);
+            shift.set(0.0);
             open.set(true);
             if has_values {
                 let load = grid.distinct_values(id.clone(), value_limit);
@@ -329,6 +353,7 @@ pub fn GridFilterMenu<T: GridRowKey + PartialEq + 'static>(
                     "data-filter-backdrop": "",
                     aria_hidden: "true",
                     style: "position: fixed; inset: 0;",
+                    onmounted: move |event| backdrop.set(Some(event.data())),
                     onclick: move |_| close(),
                 }
                 div {
@@ -336,6 +361,25 @@ pub fn GridFilterMenu<T: GridRowKey + PartialEq + 'static>(
                     role: "dialog",
                     aria_label: "{label}",
                     "data-filter-panel": "",
+                    style: (shift() != 0.0).then(|| format!("translate: {}px 0;", shift())),
+                    onmounted: move |event| panel.set(Some(event.data())),
+                    // Measured whenever the panel changes size, as when the
+                    // value list arrives. The backdrop covers the viewport.
+                    onresize: move |_| {
+                        spawn(async move {
+                            let (Some(viewport), Some(own)) = (backdrop.peek().clone(), panel.peek().clone()) else {
+                                return;
+                            };
+                            let (Ok(viewport), Ok(own)) = (viewport.get_client_rect().await, own.get_client_rect().await) else {
+                                return;
+                            };
+                            let current = *shift.peek();
+                            let next = fit_shift(own.min_x() - current, own.width(), viewport.min_x(), viewport.max_x());
+                            if (next - current).abs() > 0.5 {
+                                shift.set(next);
+                            }
+                        });
+                    },
                     onkeydown: move |event: KeyboardEvent| {
                         if event.key() == Key::Escape {
                             event.prevent_default();
@@ -688,6 +732,18 @@ mod tests {
 
     fn draft(kind: ValueKind) -> Draft {
         Draft::from_filter(None, kind)
+    }
+
+    #[test]
+    fn a_panel_moves_back_inside_the_viewport() {
+        // Fits: stays.
+        assert_eq!(fit_shift(20.0, 300.0, 0.0, 400.0), 0.0);
+        // Sticks out 100 px on the right of a 360 px phone: moves 108 left.
+        assert_eq!(fit_shift(160.0, 300.0, 0.0, 360.0), -108.0);
+        // Sticks out on the left, as a right-to-left panel can.
+        assert_eq!(fit_shift(-50.0, 300.0, 0.0, 400.0), 58.0);
+        // Wider than the viewport: its start stays visible.
+        assert_eq!(fit_shift(100.0, 500.0, 0.0, 400.0), -92.0);
     }
 
     #[test]
