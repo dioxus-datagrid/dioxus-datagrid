@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-19
+
 ### Added
 
 - Editing. Columns become editable with a setter of the field's own type,
@@ -223,7 +225,8 @@ The first release.
 - The `data_grid` component, installable with `dx components add data_grid`, styled entirely with
   the dx-components theme variables, with optional search, per-column filters and paging.
 
-[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.3.0...v0.4.0
