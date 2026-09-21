@@ -294,6 +294,7 @@ fn App() -> Element {
     let mut german = use_signal(|| false);
     let mut totals = use_signal(|| false);
     let mut grouping = use_signal(|| false);
+    let mut reorder = use_signal(|| false);
     let cols = use_memo(move || columns(german(), totals()));
 
     let mut selection = use_signal(|| SelectionMode::Multi);
@@ -458,6 +459,16 @@ fn App() -> Element {
                 label { class: "toggle",
                     input {
                         r#type: "checkbox",
+                        "data-testid": "toggle-reorder",
+                        checked: reorder(),
+                        onchange: move |event| reorder.set(event.checked()),
+                    }
+                    "Reorder columns"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
                         "data-testid": "toggle-totals",
                         checked: totals(),
                         onchange: move |event| totals.set(event.checked()),
@@ -543,6 +554,7 @@ fn App() -> Element {
                         selected.set(keys);
                     },
                     column_picker: true,
+                    reorderable_columns: reorder(),
                     initial_state: initial_state.unwrap_or_else(default_state),
                     on_state_change: move |state: GridState| save_state(&state),
                     locale: if german() { GridLocale::german() } else { GridLocale::english() },

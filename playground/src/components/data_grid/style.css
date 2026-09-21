@@ -125,6 +125,16 @@
   background: var(--primary-color-5);
 }
 
+/* A header being dragged to a new position, or onto a group panel. Dimmed
+ * rather than moved: the browser already draws the drag image. */
+.dg [role="columnheader"][data-dragging="true"] {
+  opacity: 0.5;
+}
+
+.dg [role="columnheader"][draggable="true"] {
+  cursor: grab;
+}
+
 /* The sort arrow is decorative; aria-sort carries the real information. The
  * empty alternative text after the slash keeps the arrow out of the header's
  * accessible name, which would otherwise read as "Name, black up-pointing

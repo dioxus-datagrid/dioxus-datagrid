@@ -71,6 +71,10 @@ pub struct DataGridProps<T: GridRow + PartialEq + 'static> {
     /// `Alt+ArrowLeft` / `Alt+ArrowRight` on a focused header.
     #[props(default = true)]
     pub resizable_columns: bool,
+    /// Lets the user change the column order by dragging one header onto
+    /// another, or with `Alt+Shift+ArrowLeft` / `Alt+Shift+ArrowRight`.
+    #[props(default)]
+    pub reorderable_columns: bool,
     /// Shows a menu for showing and hiding columns. Columns defined with
     /// `.hidden()` stay hidden and are not listed.
     #[props(default)]
@@ -219,7 +223,12 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
                     grid,
                     class: "dg",
                     style: "--dg-template: {template}; {height_style}",
-                    GridHeader { grid, resizable: props.resizable_columns, class: "dg-head" }
+                    GridHeader {
+                        grid,
+                        resizable: props.resizable_columns,
+                        reorderable: props.reorderable_columns,
+                        class: "dg-head",
+                    }
                     if let Some(row_height) = props.row_height {
                         VirtualGridBody {
                             grid,
