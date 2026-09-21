@@ -33,7 +33,12 @@ fi
 find "$work_dir/wiki" -maxdepth 1 -name '*.md' -delete
 for page in "$source_dir"/*.md; do
   [[ "$(basename "$page")" == "README.md" ]] && continue
-  cp "$page" "$work_dir/wiki/"
+  # Links between the pages keep their .md in the repository, where the files
+  # are what a reader clicks. In the wiki the same suffix serves the raw file
+  # from raw.githubusercontent.com instead of the rendered page, so it comes
+  # off here. Only targets without a slash are pages; the links into the code
+  # repository are absolute and keep theirs.
+  sed 's|](\([A-Za-z0-9_-]*\)\.md)|](\1)|g' "$page" > "$work_dir/wiki/$(basename "$page")"
 done
 
 cd "$work_dir/wiki"

@@ -39,3 +39,8 @@ bash scripts/publish-wiki.sh
 
 The script clones the wiki repository, copies these files over, and pushes if anything changed.
 `DRY_RUN=1` shows what it would do without pushing.
+
+Link between these pages with the file name — `[Architecture](Architecture.md)` — so the links work
+here as well. The script strips the suffix on its way into the wiki, where a `.md` link serves the
+raw file instead of the rendered page. Links into the code repository are absolute and stay as they
+are.
