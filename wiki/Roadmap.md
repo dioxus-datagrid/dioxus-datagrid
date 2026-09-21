@@ -21,7 +21,7 @@ This page is a summary. The binding documents are
 | Phase 7 | 0.5.0 | **Foundation** — one typed value per column, formats (number, currency, percent, date), and `GridLocale` with English and German |
 | Phase 8 | 0.6.0 | **Filtering** — operators per kind of value, the filter menu, Excel-style value lists, typed filters in `GridQuery` |
 | Phase 9 | 0.7.0 | **Editing** — cell, row, dialog and batch; validation; add and delete; the grid never writes your data |
-| Phase 10 | 0.8.0 *(on `main`)* | **Grouping and aggregates** — multi-level grouping, a group panel, sum/average/min/max/count, the treegrid, grouping on the server |
+| Phase 10 | 0.8.0 | **Grouping and aggregates** — multi-level grouping, a group panel, sum/average/min/max/count, the treegrid, grouping on the server |
 
 ## Ahead
 

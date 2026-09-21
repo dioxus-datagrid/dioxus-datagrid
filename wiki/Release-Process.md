@@ -39,7 +39,7 @@ never done on someone's behalf.
 
 | Version | Phase |
 |---|---|
-| 0.8.0 | *Pending* — grouping and aggregates |
+| 0.8.0 | Grouping and aggregates: multi-level groups, a group panel, the treegrid |
 | 0.7.0 | Editing: cells, rows, a form dialog, batches, validation |
 | 0.6.0 | Typed filters: operators, filter menu, value lists |
 | 0.5.0 | Foundation: typed cell values, formats, `GridLocale` |

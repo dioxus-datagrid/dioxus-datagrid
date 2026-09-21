@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-21
+
 ### Added
 
 - Grouping. `GridState::group_by` groups rows by one or more columns, outermost first; groups follow
@@ -258,7 +260,8 @@ The first release.
 - The `data_grid` component, installable with `dx components add data_grid`, styled entirely with
   the dx-components theme variables, with optional search, per-column filters and paging.
 
-[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.4.0...v0.5.0

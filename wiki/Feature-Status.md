@@ -1,7 +1,7 @@
 # Feature status
 
-What the grid does today, area by area, and what is not there yet. The state is `main` after
-Phase 10 (grouping and aggregates); everything except that phase is in the released **0.7.0**.
+What the grid does today, area by area, and what is not there yet. The state is the released
+**0.8.0**, which ended Phase 10 with grouping and aggregates.
 
 The comparison is against the Syncfusion Blazor DataGrid, which is the yardstick the
 [roadmap](Roadmap.md) uses. "Planned" names the phase that will close the gap;

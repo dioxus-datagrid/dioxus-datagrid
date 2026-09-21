@@ -10,8 +10,7 @@ against rows in memory or against a server.
 
 | | |
 |---|---|
-| Latest release | **0.7.0** — editing (crates.io, docs.rs) |
-| On `main`, unreleased | **Phase 10** — grouping and aggregates, due as 0.8.0 |
+| Latest release | **0.8.0** — grouping and aggregates (crates.io, docs.rs) |
 | Next | Phase 11 — column layout: order, pinning, multi-level headers, column menu |
 | Long game | [Roadmap to 1.0](Roadmap.md) — parity with the Syncfusion Blazor DataGrid on the features people actually use |
 
