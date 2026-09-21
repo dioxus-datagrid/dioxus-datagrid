@@ -9,6 +9,10 @@ and mobile.
 [![crates.io](https://img.shields.io/crates/v/dioxus-datagrid.svg)](https://crates.io/crates/dioxus-datagrid)
 [![docs.rs](https://docs.rs/dioxus-datagrid/badge.svg)](https://docs.rs/dioxus-datagrid)
 
+The [wiki](https://github.com/dioxus-datagrid/dioxus-datagrid/wiki) has the wider view: what the
+grid can do today and what it cannot, how the pieces fit together, what is planned, and how to work
+on it.
+
 ## How it is put together
 
 The logic is versioned in crates, so fixes reach everyone. The styled shell is copied into your
