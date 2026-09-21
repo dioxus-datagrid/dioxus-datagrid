@@ -49,6 +49,9 @@ pub struct GridState {
     /// Columns hidden at runtime, on top of
     /// [`ColumnSpec::visible`](crate::ColumnSpec::visible).
     pub hidden_columns: Vec<ColumnId>,
+    /// The order the columns are shown in, overriding the order they were
+    /// declared in. Resolved by [`ordered_columns`](GridState::ordered_columns).
+    pub column_order: Vec<ColumnId>,
     /// The columns rows are grouped by, outermost first.
     pub group_by: Vec<ColumnId>,
     /// Whether groups start collapsed.
@@ -265,6 +268,65 @@ impl GridState {
             .iter()
             .find(|(id, _)| id == column)
             .map(|(_, width)| *width)
+    }
+
+    /// The declared columns in the order they are shown.
+    ///
+    /// Ids in [`column_order`](GridState::column_order) come first, in that
+    /// order; columns it does not mention follow in the order they were
+    /// declared. Ids that name no declared column are skipped, so a persisted
+    /// order survives a column being renamed or dropped from the code, and a
+    /// column added later appears rather than disappearing.
+    #[must_use]
+    pub fn ordered_columns(&self, declared: &[ColumnId]) -> Vec<ColumnId> {
+        let mut ordered: Vec<ColumnId> = self
+            .column_order
+            .iter()
+            .filter(|id| declared.contains(id))
+            .cloned()
+            .collect();
+        let rest: Vec<ColumnId> = declared
+            .iter()
+            .filter(|id| !ordered.contains(id))
+            .cloned()
+            .collect();
+        ordered.extend(rest);
+        ordered
+    }
+
+    /// Sets the column order outright.
+    pub fn set_column_order(&mut self, order: Vec<ColumnId>) {
+        self.column_order = order;
+    }
+
+    /// Moves a column so that it sits directly before `before`, or last when
+    /// `before` is `None`.
+    ///
+    /// `declared` is every column the grid knows, in declaration order. The
+    /// resolved order is written out whole, so later moves no longer depend on
+    /// it. Moving a column the grid does not declare, or before itself, does
+    /// nothing.
+    pub fn move_column(
+        &mut self,
+        declared: &[ColumnId],
+        column: &ColumnId,
+        before: Option<&ColumnId>,
+    ) {
+        if !declared.contains(column) || before == Some(column) {
+            return;
+        }
+
+        let mut order = self.ordered_columns(declared);
+        order.retain(|id| id != column);
+        let at = match before {
+            Some(target) => order
+                .iter()
+                .position(|id| id == target)
+                .unwrap_or(order.len()),
+            None => order.len(),
+        };
+        order.insert(at, column.clone());
+        self.column_order = order;
     }
 
     /// Groups the rows by these columns, outermost first; none turns grouping

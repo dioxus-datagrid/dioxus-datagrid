@@ -626,11 +626,15 @@ impl<T: GridRow> GridHandle<T> {
     /// keyboard navigation moves through.
     #[must_use]
     pub fn visible_columns(&self) -> Vec<Column<T>> {
-        let hidden = self.state.read().hidden_columns.clone();
-        self.columns
-            .read()
+        let state = self.state.read();
+        let columns = self.columns.read();
+        let declared: Vec<ColumnId> = columns.iter().map(|column| column.id().clone()).collect();
+
+        state
+            .ordered_columns(&declared)
             .iter()
-            .filter(|column| column.spec().is_visible(&hidden))
+            .filter_map(|id| columns.iter().find(|column| column.id() == id))
+            .filter(|column| column.spec().is_visible(&state.hidden_columns))
             .cloned()
             .collect()
     }
@@ -812,6 +816,115 @@ impl<T: GridRow> GridHandle<T> {
             .read()
             .iter()
             .any(|entry| entry.id() == column && entry.spec().is_visible(&state.hidden_columns))
+    }
+
+    // -- column order --------------------------------------------------------
+
+    /// Every column the grid declares, in the order it shows them — hidden
+    /// columns included, so that unhiding one puts it back where it was.
+    #[must_use]
+    pub fn column_order(&self) -> Vec<ColumnId> {
+        let declared: Vec<ColumnId> = self
+            .columns
+            .read()
+            .iter()
+            .map(|column| column.id().clone())
+            .collect();
+        self.state.read().ordered_columns(&declared)
+    }
+
+    /// Sets the column order outright. Ids the grid does not declare are kept
+    /// but have no effect; see [`GridState::ordered_columns`].
+    pub fn set_column_order(&mut self, order: Vec<ColumnId>) {
+        self.state.write().set_column_order(order);
+    }
+
+    /// Moves a column so that it sits directly before `before`, or last when
+    /// `before` is `None`. What a drop on another header does.
+    pub fn move_column_before(&mut self, column: &ColumnId, before: Option<&ColumnId>) {
+        let declared: Vec<ColumnId> = self
+            .columns
+            .read()
+            .iter()
+            .map(|column| column.id().clone())
+            .collect();
+        self.state.write().move_column(&declared, column, before);
+    }
+
+    /// Moves a column past `steps` of the columns beside it — negative towards
+    /// the start — and takes the focus with it. What `Alt+Shift+ArrowLeft` and
+    /// `Alt+Shift+ArrowRight` do on a header.
+    ///
+    /// Hidden columns are stepped over rather than counted, so the move matches
+    /// what is on screen. Returns whether anything moved: it does not at the
+    /// ends, where the caller should leave the key to the browser.
+    pub fn move_column_by(&mut self, column: &ColumnId, steps: isize) -> bool {
+        let visible: Vec<ColumnId> = self
+            .visible_columns()
+            .iter()
+            .map(|column| column.id().clone())
+            .collect();
+        let Some(from) = visible.iter().position(|id| id == column) else {
+            return false;
+        };
+
+        let last = visible.len().saturating_sub(1);
+        let target = from.saturating_add_signed(steps).min(last);
+        if target == from {
+            return false;
+        }
+
+        // Positions shift once the column is taken out, so the neighbour it
+        // lands in front of is named rather than counted.
+        let before = if target > from {
+            visible.get(target + 1)
+        } else {
+            visible.get(target)
+        };
+        self.move_column_before(column, before);
+
+        let focus = self.focus();
+        if focus.col == from {
+            self.set_focus(CellFocus::new(focus.row, target));
+        }
+        true
+    }
+
+    /// Moves the column being dragged next to `target` and ends the drag: it
+    /// lands after `target` when it came from the left, before it when it came
+    /// from the right, so it ends up where the pointer let go. Returns whether
+    /// a column moved.
+    ///
+    /// What a drop on a header does. A drop on a group panel groups instead;
+    /// see [`drop_dragged_column`](GridHandle::drop_dragged_column).
+    pub fn drop_dragged_column_at(&mut self, target: &ColumnId) -> bool {
+        let Some(dragged) = self.dragged_column() else {
+            return false;
+        };
+        self.end_column_drag();
+
+        let visible: Vec<ColumnId> = self
+            .visible_columns()
+            .iter()
+            .map(|column| column.id().clone())
+            .collect();
+        let (Some(from), Some(to)) = (
+            visible.iter().position(|id| id == &dragged),
+            visible.iter().position(|id| id == target),
+        ) else {
+            return false;
+        };
+        if from == to {
+            return false;
+        }
+
+        let before = if from < to {
+            visible.get(to + 1)
+        } else {
+            Some(target)
+        };
+        self.move_column_before(&dragged, before);
+        true
     }
 
     // -- column widths -------------------------------------------------------

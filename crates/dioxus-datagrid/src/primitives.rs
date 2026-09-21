@@ -258,6 +258,11 @@ pub fn GridHeader<T: GridRowKey + PartialEq + 'static>(
     /// Renders a [`ColumnResizeHandle`] in every resizable column's header.
     #[props(default)]
     resizable: bool,
+    /// Lets headers be dragged onto one another, and moved with
+    /// `Alt+Shift+ArrowLeft` / `Alt+Shift+ArrowRight`, to change the column
+    /// order.
+    #[props(default)]
+    reorderable: bool,
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
 ) -> Element {
     let mut grid = grid;
@@ -281,6 +286,7 @@ pub fn GridHeader<T: GridRowKey + PartialEq + 'static>(
                         grid,
                         column_index: index,
                         resizable,
+                        reorderable,
                     }
                 }
             }
@@ -298,6 +304,10 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
     /// `Alt+ArrowLeft` / `Alt+ArrowRight` to resize from the keyboard.
     #[props(default)]
     resizable: bool,
+    /// Lets the column be dragged onto another header to change the column
+    /// order, and moved with `Alt+Shift+ArrowLeft` / `Alt+Shift+ArrowRight`.
+    #[props(default)]
+    reorderable: bool,
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
 ) -> Element {
     let mut grid = grid;
@@ -324,26 +334,72 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
     let measured_id = id.clone();
     let resize_id = id.clone();
     let drag_id = id.clone();
-    // Dragged onto a group panel, a header groups by its column.
-    let draggable =
+    let over_id = id.clone();
+    let drop_id = id.clone();
+    let move_id = id.clone();
+    // Dragged onto a group panel, a header groups by its column; dragged onto
+    // another header, it changes the column order.
+    let groupable =
         grid.has_group_panel() && column.spec().is_groupable() && !grid.group_by().contains(&id);
+    let draggable = groupable || reorderable;
+    let dragging = grid.dragged_column().is_some_and(|dragged| dragged == id);
 
-    // The keyboard alternative to dragging. Handled here rather than on the root
-    // so it only exists where a handle does, and stopped from bubbling so the
-    // root does not also treat the arrow as navigation.
+    let shortcuts = match (show_handle, reorderable) {
+        (true, true) => {
+            Some("Alt+ArrowLeft Alt+ArrowRight Alt+Shift+ArrowLeft Alt+Shift+ArrowRight")
+        }
+        (true, false) => Some("Alt+ArrowLeft Alt+ArrowRight"),
+        (false, true) => Some("Alt+Shift+ArrowLeft Alt+Shift+ArrowRight"),
+        (false, false) => None,
+    };
+
+    // The keyboard alternatives to dragging. Handled here rather than on the
+    // root so they only exist where the affordance does, and stopped from
+    // bubbling so the root does not also treat the arrow as navigation.
     let onkeydown = move |event: KeyboardEvent| {
         let data = event.data();
-        if !show_handle || !data.modifiers().alt() {
+        if !data.modifiers().alt() {
             return;
         }
-        let delta = match data.key() {
-            Key::ArrowLeft => -COLUMN_RESIZE_STEP,
-            Key::ArrowRight => COLUMN_RESIZE_STEP,
+        let step = match data.key() {
+            Key::ArrowLeft => -1,
+            Key::ArrowRight => 1,
             _ => return,
         };
-        grid.resize_column_by(&resize_id, delta);
-        event.prevent_default();
-        event.stop_propagation();
+
+        // Shift moves the column, Alt alone resizes it. Reordering is checked
+        // first: it is the more specific gesture, and a column can be movable
+        // without being resizable.
+        let handled = if data.modifiers().shift() {
+            reorderable && grid.move_column_by(&move_id, step)
+        } else if show_handle {
+            grid.resize_column_by(&resize_id, step as f32 * COLUMN_RESIZE_STEP);
+            true
+        } else {
+            false
+        };
+
+        if handled {
+            event.prevent_default();
+            event.stop_propagation();
+        }
+    };
+
+    let ondragover = move |event: DragEvent| {
+        // Accepting the drop is what allows one at all, and only a column that
+        // could actually move should look like a target.
+        if reorderable
+            && grid
+                .dragged_column()
+                .is_some_and(|dragged| dragged != over_id)
+        {
+            event.prevent_default();
+        }
+    };
+    let ondrop = move |event: DragEvent| {
+        if reorderable && grid.drop_dragged_column_at(&drop_id) {
+            event.prevent_default();
+        }
     };
 
     let focused = grid.focus() == CellFocus::new(0, column_index);
@@ -374,7 +430,8 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
             "data-sort-priority": priority.map(|value| value.to_string()),
             "data-align": column.spec().effective_align().as_str(),
             "data-filtered": grid.is_filtered(column.id()).then_some("true"),
-            "aria-keyshortcuts": show_handle.then_some("Alt+ArrowLeft Alt+ArrowRight"),
+            "aria-keyshortcuts": shortcuts,
+            "data-dragging": dragging.then_some("true"),
             draggable: draggable.then_some("true"),
             ondragstart: move |event: DragEvent| {
                 if !draggable {
@@ -385,6 +442,8 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
                 grid.start_column_drag(drag_id.clone());
             },
             ondragend: move |_| grid.end_column_drag(),
+            ondragover,
+            ondrop,
             onmounted,
             onclick,
             onkeydown,
