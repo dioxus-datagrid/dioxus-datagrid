@@ -367,6 +367,13 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
             _ => return,
         };
 
+        // The key reached this cell, so this cell has DOM focus — but the grid
+        // only learns that from its own navigation. Without saying so here, a
+        // cell focused any other way (a script, the browser restoring focus)
+        // would move a column and then lose focus to the re-render, swallowing
+        // the next key.
+        grid.set_focus(CellFocus::new(0, column_index));
+
         // Shift moves the column, Alt alone resizes it. Reordering is checked
         // first: it is the more specific gesture, and a column can be movable
         // without being resizable.
