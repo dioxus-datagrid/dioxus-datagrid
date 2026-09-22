@@ -88,6 +88,45 @@ pub const DEFAULT_MIN_COLUMN_WIDTH: f32 = 48.0;
 /// Extracts the text a column filters and searches on.
 pub type FilterTextFn<T> = Rc<dyn Fn(&T) -> String>;
 
+/// Where a column is held in place while the grid scrolls sideways.
+///
+/// Pinned columns are laid out as a block at their edge, whatever the column
+/// order says, so that a pinned column can never end up between two scrolling
+/// ones. Logical rather than left and right, so this mirrors in right-to-left
+/// text.
+///
+/// The core crate only carries this value; making a column stick is the
+/// renderer's job.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum Pinned {
+    /// Scrolls with the rest.
+    #[default]
+    None,
+    /// Held at the start: the left edge in left-to-right text.
+    Start,
+    /// Held at the end: the right edge in left-to-right text.
+    End,
+}
+
+impl Pinned {
+    /// The value rendered as `data-pinned`, or `None` when the column scrolls.
+    #[must_use]
+    pub const fn as_str(self) -> Option<&'static str> {
+        match self {
+            Self::None => None,
+            Self::Start => Some("start"),
+            Self::End => Some("end"),
+        }
+    }
+
+    /// Whether the column is held at either edge.
+    #[must_use]
+    pub const fn is_pinned(self) -> bool {
+        !matches!(self, Self::None)
+    }
+}
+
 /// How wide a column should be laid out.
 ///
 /// The core crate only carries this value; turning it into CSS is the
@@ -160,6 +199,12 @@ pub struct ColumnSpec<T> {
     /// Whether rows can be grouped by this column. `true` by default; it has
     /// no effect without a value.
     pub groupable: bool,
+    /// Whether the column is held at an edge while the grid scrolls sideways.
+    ///
+    /// This is the column's own setting. At runtime
+    /// [`GridState::pinned_columns`](crate::GridState::pinned_columns) can
+    /// override it; see [`ColumnSpec::effective_pin`].
+    pub pinned: Pinned,
 }
 
 impl<T> ColumnSpec<T> {
@@ -185,6 +230,7 @@ impl<T> ColumnSpec<T> {
             choices: Vec::new(),
             aggregates: Vec::new(),
             groupable: true,
+            pinned: Pinned::None,
         }
     }
 
@@ -338,6 +384,29 @@ impl<T> ColumnSpec<T> {
     pub const fn groupable(mut self, groupable: bool) -> Self {
         self.groupable = groupable;
         self
+    }
+
+    /// Holds the column at an edge while the grid scrolls sideways.
+    ///
+    /// ```
+    /// # use datagrid_core::{ColumnSpec, Pinned};
+    /// # struct Order { id: u32 }
+    /// let id = ColumnSpec::new("id")
+    ///     .value_of(|order: &Order| order.id)
+    ///     .pin(Pinned::Start);
+    /// ```
+    #[must_use]
+    pub const fn pin(mut self, pinned: Pinned) -> Self {
+        self.pinned = pinned;
+        self
+    }
+
+    /// Where the column is pinned right now: what
+    /// [`GridState::pinned_columns`](crate::GridState::pinned_columns) says, or
+    /// else the column's own [`pinned`](ColumnSpec::pinned).
+    #[must_use]
+    pub fn effective_pin(&self, state: &GridState) -> Pinned {
+        state.pinned(&self.id).unwrap_or(self.pinned)
     }
 
     /// Whether rows can be grouped by this column: it has a value and is not
@@ -531,6 +600,7 @@ impl<T> Clone for ColumnSpec<T> {
             choices: self.choices.clone(),
             aggregates: self.aggregates.clone(),
             groupable: self.groupable,
+            pinned: self.pinned,
         }
     }
 }
@@ -554,6 +624,7 @@ impl<T> fmt::Debug for ColumnSpec<T> {
             .field("choices", &self.choices)
             .field("aggregates", &self.aggregates)
             .field("groupable", &self.is_groupable())
+            .field("pinned", &self.pinned)
             .finish()
     }
 }
@@ -591,5 +662,6 @@ impl<T> PartialEq for ColumnSpec<T> {
             && self.choices == other.choices
             && self.aggregates == other.aggregates
             && self.groupable == other.groupable
+            && self.pinned == other.pinned
     }
 }

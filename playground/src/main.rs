@@ -15,7 +15,7 @@ use components::data_grid_group_panel::DataGridGroupPanel;
 use dioxus::prelude::*;
 use dioxus_datagrid::{
     Aggregate, CellFormat, Column, ColumnId, ColumnWidth, Create, Delete, EditMode, GridLocale,
-    GridRow, GridState, Save, SaveBatch, SelectionMode,
+    GridRow, GridState, Pinned, Save, SaveBatch, SelectionMode,
 };
 
 const STYLE: Asset = asset!("/assets/playground.css");
@@ -155,7 +155,7 @@ fn label(id: &str, german: bool) -> &'static str {
 
 /// The columns, in English or German, with totals under age and salary if
 /// `totals` is set.
-fn columns(german: bool, totals: bool) -> Vec<Column<Employee>> {
+fn columns(german: bool, totals: bool, pinned: bool) -> Vec<Column<Employee>> {
     let label = |id| label(id, german);
     // Every column can be edited, once a `DataGridEditor` says how; without
     // one the setters are never called.
@@ -227,6 +227,18 @@ fn columns(german: bool, totals: bool) -> Vec<Column<Employee>> {
             .format(CellFormat::Date)
             .editable(|row: &mut Employee, since: NaiveDate| row.since = since),
     ];
+    let columns: Vec<Column<Employee>> = if pinned {
+        columns
+            .into_iter()
+            .map(|column| match column.id().as_str() {
+                "name" => column.pin(Pinned::Start),
+                "age" => column.pin(Pinned::End),
+                _ => column,
+            })
+            .collect()
+    } else {
+        columns
+    };
     if !totals {
         return columns;
     }
@@ -295,7 +307,8 @@ fn App() -> Element {
     let mut totals = use_signal(|| false);
     let mut grouping = use_signal(|| false);
     let mut reorder = use_signal(|| false);
-    let cols = use_memo(move || columns(german(), totals()));
+    let mut pinned = use_signal(|| false);
+    let cols = use_memo(move || columns(german(), totals(), pinned()));
 
     let mut selection = use_signal(|| SelectionMode::Multi);
     let mut paged = use_signal(|| true);
@@ -464,6 +477,16 @@ fn App() -> Element {
                         onchange: move |event| reorder.set(event.checked()),
                     }
                     "Reorder columns"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
+                        "data-testid": "toggle-pinning",
+                        checked: pinned(),
+                        onchange: move |event| pinned.set(event.checked()),
+                    }
+                    "Pin Name and Age"
                 }
 
                 label { class: "toggle",

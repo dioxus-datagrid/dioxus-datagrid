@@ -343,6 +343,8 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
         grid.has_group_panel() && column.spec().is_groupable() && !grid.group_by().contains(&id);
     let draggable = groupable || reorderable;
     let dragging = grid.dragged_column().is_some_and(|dragged| dragged == id);
+    let pin = grid.column_pin(&id);
+    let pin_offset = grid.column_pin_offset(&id);
 
     let shortcuts = match (show_handle, reorderable) {
         (true, true) => {
@@ -439,6 +441,8 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
             "data-filtered": grid.is_filtered(column.id()).then_some("true"),
             "aria-keyshortcuts": shortcuts,
             "data-dragging": dragging.then_some("true"),
+            "data-pinned": pin.as_str(),
+            style: pin_offset.map(|offset| format!("--dg-pin-offset: {offset}px;")),
             draggable: draggable.then_some("true"),
             ondragstart: move |event: DragEvent| {
                 if !draggable {
@@ -608,7 +612,11 @@ pub fn VirtualGridBody<T: GridRowKey + PartialEq + 'static>(
                     key: "{row_index}",
                     grid,
                     row_index,
-                    style: "height: {row_height}px; box-sizing: border-box; overflow: hidden;",
+                    // `clip` rather than `hidden`: both keep a tall cell inside
+                    // the fixed row height, but `hidden` makes the row a scroll
+                    // container, and a pinned cell would then stick to the row
+                    // instead of to the grid and scroll away with the rest.
+                    style: "height: {row_height}px; box-sizing: border-box; overflow: clip;",
                 }
             }
         }
@@ -729,6 +737,8 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
     };
     let align = column.spec().effective_align().as_str();
     let overflow = column.spec().overflow.as_str();
+    let pin = grid.column_pin(column.id());
+    let pin_offset = grid.column_pin_offset(column.id());
     // Only worth saying in a grid that edits at all.
     let read_only = !editable && grid.edit_mode().is_some();
     let changed = grid.is_cell_changed(row_index, column_index);
@@ -756,6 +766,8 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
             "data-overflow": overflow,
             "data-editing": editing.then_some("true"),
             "data-changed": changed.then_some("true"),
+            "data-pinned": pin.as_str(),
+            style: pin_offset.map(|offset| format!("--dg-pin-offset: {offset}px;")),
             title: tooltip,
             onmounted,
             onclick,

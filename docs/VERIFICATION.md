@@ -352,3 +352,36 @@ Geprüft gegen `dioxus-html` 0.7.10 (`src/events/drag.rs`, `src/data_transfer.rs
 - **Generische Komponenten ohne typisierte Props:** `DataGridGroupPanel::<User> {}` — der Turbofish
   funktioniert in `rsx!`. Nötig, weil nichts sonst den Zeilentyp verrät, unter dem `DataGrid` sein
   Handle in den Context legt.
+
+## 13. Phase 11: Fixierte Spalten im Subgrid
+
+Geprüft am 2026-09-22 im Playground (Chromium, Browser-Pane), Grid auf 370 px Breite mit
+198 px Überhang, `Name` an den Anfang und `Alter` ans Ende fixiert.
+
+- **`position: sticky` funktioniert für Zellen im CSS-Subgrid.** Die Zeile ist so breit wie der
+  gesamte Inhalt und der Scroll-Container ist `.dg`, also kann eine Zelle darin die volle
+  Scrollstrecke wandern. Ganz nach rechts gescrollt: die fixierte `Name`-Spalte steht weiter bei
+  `left = 25`, also exakt an der linken Kante des Grids, `Alter` bei `right = 395` an der rechten;
+  die ungebundene `E-Mail`-Spalte war auf `left = -77` gewandert.
+- **Der Abstand zur Kante braucht kein `web-sys`.** Er ist die Summe der Breiten der fixierten
+  Spalten davor (bzw. dahinter), und die kennt das Handle schon: feste Breiten aus der Spalte,
+  gemessene aus `onresize` (`record_column_width`). Sie stehen als `--dg-pin-offset` an der Zelle.
+- **Virtualisierung: `overflow: hidden` an der Zeile bricht das Fixieren.** Es macht die Zeile zu
+  einem eigenen Scroll-Container, und die Zelle klebt dann an der Zeile statt am Grid — im Test
+  wanderte sie auf `left = -173`. Mit `overflow: clip` bleibt die Zeile ein bloßer Clip und die
+  Zelle steht wieder bei `left = 25`. `clip` gibt es ab Chrome 90, Firefox 81 und Safari 16.
+- **Kopfzeilen kleben auf beiden Achsen.** Die Kopfgruppe ist vertikal sticky, die fixierte
+  Kopfzelle zusätzlich horizontal; sie braucht deshalb einen höheren `z-index` als beide.
+- **Hintergrund ist Pflicht.** Körperzellen haben von sich aus keinen, die scrollenden Zellen
+  schienen sonst durch. Die Regeln für Hover und Auswahl sind spezifischer und gewinnen weiterhin,
+  damit eine fixierte Zelle ihrer Zeile folgt.
+- **Die Breite einer Auto-Spalte lässt sich nicht verlässlich erfragen.** Für den Abstand zur Kante
+  bräuchte eine zweite fixierte Spalte die Breite der ersten. Alle drei Wege melden statt der
+  Spalte einen Kasten in Seitenbreite: `onresize` mit `get_border_box_size()` (684 px statt 114 px),
+  `onmounted` mit `get_client_rect()` (404 px — und laut §3 ohnehin zu früh) und dieselbe Messung
+  aus einem `use_effect` nach dem Layout (464 px bei 480 px Viewport). Die echte Spaltenbreite war
+  jedes Mal 114 px. Das betrifft `record_column_width` insgesamt, nicht nur das Fixieren, und
+  gehört in einen eigenen Spike mit einem nackten Grid-Item.
+- **Konsequenz:** `column_pin_offset` rechnet nur mit Breiten, die das Grid kennt — der festen
+  Breite der Spalte oder einer vom Nutzer gezogenen. Eine Auto-Spalte zählt null. Die äußerste
+  fixierte Spalte je Kante darf also automatisch breit sein, jede weitere braucht eine Breite.

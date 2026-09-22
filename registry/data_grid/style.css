@@ -80,6 +80,46 @@
   white-space: nowrap;
 }
 
+/* Pinned columns are held at their edge while the rest scrolls sideways. A
+ * cell sticks within its row, and a row is as wide as the whole grid, so the
+ * offset the grid works out from the pinned widths beside it is all it needs.
+ * The header group is already sticky vertically; a pinned header cell is sticky
+ * on both axes and therefore has to outrank both. */
+.dg [role="columnheader"][data-pinned],
+.dg [role="gridcell"][data-pinned] {
+  position: sticky;
+  z-index: 1;
+}
+
+.dg [role="columnheader"][data-pinned] {
+  z-index: 3;
+}
+
+/* Body cells carry no background of their own, so the scrolling ones would
+ * show through a pinned one. Hover and selection are more specific and still
+ * win, so a pinned cell keeps following its row. */
+.dg [role="gridcell"][data-pinned] {
+  background: var(--primary-color-2);
+}
+
+.dg [data-pinned="start"] {
+  inset-inline-start: var(--dg-pin-offset, 0);
+}
+
+.dg [data-pinned="end"] {
+  inset-inline-end: var(--dg-pin-offset, 0);
+}
+
+/* A line at the edge of the pinned block, so it reads as held in place rather
+ * than as a column that happens to sit there. */
+.dg [data-pinned="start"]:has(+ :not([data-pinned="start"])) {
+  box-shadow: 1px 0 0 var(--primary-color-6);
+}
+
+.dg :not([data-pinned="end"]) + [data-pinned="end"] {
+  box-shadow: -1px 0 0 var(--primary-color-6);
+}
+
 /* Numbers align at the end so their digits line up; the header follows its
  * column. Logical values, so this mirrors in right-to-left text. */
 .dg [data-align="end"] {

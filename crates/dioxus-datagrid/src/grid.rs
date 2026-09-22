@@ -4,9 +4,9 @@ use crate::Column;
 use crate::edit::{EditRows, EditStatus, EditTarget, Editing, Session};
 use datagrid_core::{
     CellFocus, ColumnFilter, ColumnId, ColumnSpec, ColumnWidth, DEFAULT_REMOTE_PAGE_SIZE,
-    DistinctValues, GridLocale, GridQuery, GridRow, GridState, NavKey, Selection, SelectionMode,
-    SortDirection, ValueKind, View, compute_view, distinct_values, navigate, reveal_scroll_top,
-    rows_per_viewport, visible_range,
+    DistinctValues, GridLocale, GridQuery, GridRow, GridState, NavKey, Pinned, Selection,
+    SelectionMode, SortDirection, ValueKind, View, compute_view, distinct_values, navigate,
+    reveal_scroll_top, rows_per_viewport, visible_range,
 };
 use dioxus::html::ScrollBehavior;
 use dioxus::html::geometry::PixelsVector2D;
@@ -630,13 +630,23 @@ impl<T: GridRow> GridHandle<T> {
         let columns = self.columns.read();
         let declared: Vec<ColumnId> = columns.iter().map(|column| column.id().clone()).collect();
 
-        state
+        let mut shown: Vec<Column<T>> = state
             .ordered_columns(&declared)
             .iter()
             .filter_map(|id| columns.iter().find(|column| column.id() == id))
             .filter(|column| column.spec().is_visible(&state.hidden_columns))
             .cloned()
-            .collect()
+            .collect();
+
+        // Pinned columns are laid out as a block at their edge, so that one can
+        // never end up between two scrolling columns — the order within each
+        // block is the column order, which a stable sort keeps.
+        shown.sort_by_key(|column| match column.spec().effective_pin(&state) {
+            Pinned::Start => 0,
+            Pinned::None => 1,
+            Pinned::End => 2,
+        });
+        shown
     }
 
     /// How many columns are visible.
@@ -925,6 +935,67 @@ impl<T: GridRow> GridHandle<T> {
         };
         self.move_column_before(&dragged, before);
         true
+    }
+
+    // -- pinned columns ------------------------------------------------------
+
+    /// Where a column is held while the grid scrolls sideways.
+    #[must_use]
+    pub fn column_pin(&self, column: &ColumnId) -> Pinned {
+        let state = self.state.read();
+        self.columns
+            .read()
+            .iter()
+            .find(|entry| entry.id() == column)
+            .map_or(Pinned::None, |entry| entry.spec().effective_pin(&state))
+    }
+
+    /// Pins a column at an edge, or unpins it with [`Pinned::None`]. It moves
+    /// to the block of pinned columns at that edge.
+    pub fn set_column_pin(&mut self, column: impl Into<ColumnId>, pinned: Pinned) {
+        self.state.write().set_pinned(column, pinned);
+    }
+
+    /// How far from its edge a pinned column sits: the widths of the pinned
+    /// columns between it and the edge. `None` for a column that scrolls.
+    ///
+    /// Only widths the grid *knows* count — a column's own fixed width, or one
+    /// the user set by resizing. An auto-sized column counts as zero, because
+    /// its width is whatever the browser worked out and asking for it is not
+    /// reliable (see `docs/VERIFICATION.md` §13). Pin the outermost column at
+    /// an edge freely; give any further one a width, or it will sit on top of
+    /// the one before it.
+    #[must_use]
+    pub fn column_pin_offset(&self, column: &ColumnId) -> Option<f64> {
+        let pin = self.column_pin(column);
+        if !pin.is_pinned() {
+            return None;
+        }
+
+        let state = self.state.read();
+        let width_of = |column: &Column<T>| match column.spec().effective_width(&state) {
+            ColumnWidth::Px(width) => f64::from(width),
+            _ => 0.0,
+        };
+
+        let shown = self.visible_columns();
+        let at = shown.iter().position(|entry| entry.id() == column)?;
+
+        // Towards the start edge the columns before it count, towards the end
+        // edge the ones after it — in both cases only the pinned ones.
+        let neighbours: Vec<&Column<T>> = match pin {
+            Pinned::Start => shown.get(..at).unwrap_or_default().iter().collect(),
+            Pinned::End => shown.get(at + 1..).unwrap_or_default().iter().collect(),
+            Pinned::None => Vec::new(),
+        };
+        let offset: f64 = neighbours
+            .into_iter()
+            .filter(|entry| entry.spec().effective_pin(&state) == pin)
+            .map(width_of)
+            .sum();
+        // The identity of a float sum is negative zero, and the column at the
+        // edge would be offset by "-0px".
+        Some(if offset == 0.0 { 0.0 } else { offset })
     }
 
     // -- column widths -------------------------------------------------------

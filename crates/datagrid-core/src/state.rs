@@ -1,6 +1,6 @@
 //! The state a grid derives its view from.
 
-use crate::{ColumnFilter, ColumnId, GroupKey, SortDirection, SortState};
+use crate::{ColumnFilter, ColumnId, GroupKey, Pinned, SortDirection, SortState};
 
 /// Which page of the filtered rows is shown.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -52,6 +52,10 @@ pub struct GridState {
     /// The order the columns are shown in, overriding the order they were
     /// declared in. Resolved by [`ordered_columns`](GridState::ordered_columns).
     pub column_order: Vec<ColumnId>,
+    /// Columns pinned at runtime, overriding their own
+    /// [`ColumnSpec::pinned`](crate::ColumnSpec::pinned). An entry of
+    /// [`Pinned::None`] unpins a column its definition pins.
+    pub pinned_columns: Vec<(ColumnId, Pinned)>,
     /// The columns rows are grouped by, outermost first.
     pub group_by: Vec<ColumnId>,
     /// Whether groups start collapsed.
@@ -327,6 +331,35 @@ impl GridState {
         };
         order.insert(at, column.clone());
         self.column_order = order;
+    }
+
+    /// Pins a column at an edge, or unpins it with [`Pinned::None`].
+    ///
+    /// The entry is kept either way, because it has to override a column that
+    /// pins itself; see
+    /// [`ColumnSpec::effective_pin`](crate::ColumnSpec::effective_pin).
+    pub fn set_pinned(&mut self, column: impl Into<ColumnId>, pinned: Pinned) {
+        let column = column.into();
+        if let Some(entry) = self.pinned_columns.iter_mut().find(|(id, _)| *id == column) {
+            entry.1 = pinned;
+        } else {
+            self.pinned_columns.push((column, pinned));
+        }
+    }
+
+    /// Where the state pins a column, if it says anything about it at all.
+    #[must_use]
+    pub fn pinned(&self, column: &ColumnId) -> Option<Pinned> {
+        self.pinned_columns
+            .iter()
+            .find(|(id, _)| id == column)
+            .map(|(_, pinned)| *pinned)
+    }
+
+    /// Forgets a runtime pin, so the column falls back to its own
+    /// [`pinned`](crate::ColumnSpec::pinned).
+    pub fn reset_pinned(&mut self, column: &ColumnId) {
+        self.pinned_columns.retain(|(id, _)| id != column);
     }
 
     /// Groups the rows by these columns, outermost first; none turns grouping

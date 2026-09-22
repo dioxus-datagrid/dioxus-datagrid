@@ -99,6 +99,6 @@ pub use datagrid_core::{
     Aggregate, AggregateKind, AggregateValue, CellAlign, CellFocus, CellFormat, CellOverflow,
     CellValue, Changes, ColumnFilter, ColumnId, ColumnWidth, Condition, DEFAULT_MIN_COLUMN_WIDTH,
     DEFAULT_REMOTE_PAGE_SIZE, DataSource, DistinctValues, EditError, FilterOp, FromValue,
-    GridLocale, GridQuery, GridRow, GridState, Group, GroupKey, NavKey, Page, SelectionMode,
-    SortDirection, SortValue, TextCollation, Value, ValueKind, View, ViewRow,
+    GridLocale, GridQuery, GridRow, GridState, Group, GroupKey, NavKey, Page, Pinned,
+    SelectionMode, SortDirection, SortValue, TextCollation, Value, ValueKind, View, ViewRow,
 };

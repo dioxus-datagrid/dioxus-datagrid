@@ -3,7 +3,7 @@
 use crate::CellEditor;
 use datagrid_core::{
     Aggregate, CellAlign, CellFormat, CellOverflow, CellValue, ColumnId, ColumnSpec, ColumnWidth,
-    EditError, FromValue, GridLocale, SortValue, TextCollation, Value, ValueKind,
+    EditError, FromValue, GridLocale, Pinned, SortValue, TextCollation, Value, ValueKind,
 };
 use dioxus::prelude::*;
 use std::fmt;
@@ -316,6 +316,14 @@ impl<T> Column<T> {
     #[must_use]
     pub fn groupable(mut self, groupable: bool) -> Self {
         self.spec = self.spec.groupable(groupable);
+        self
+    }
+
+    /// Holds the column at an edge while the grid scrolls sideways. Pinned
+    /// columns are laid out as a block at that edge, whatever the column order.
+    #[must_use]
+    pub fn pin(mut self, pinned: Pinned) -> Self {
+        self.spec = self.spec.pin(pinned);
         self
     }
 
