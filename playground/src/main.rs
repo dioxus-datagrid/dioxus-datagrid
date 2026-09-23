@@ -155,7 +155,7 @@ fn label(id: &str, german: bool) -> &'static str {
 
 /// The columns, in English or German, with totals under age and salary if
 /// `totals` is set.
-fn columns(german: bool, totals: bool, pinned: bool) -> Vec<Column<Employee>> {
+fn columns(german: bool, totals: bool, pinned: bool, header_groups: bool) -> Vec<Column<Employee>> {
     let label = |id| label(id, german);
     // Every column can be edited, once a `DataGridEditor` says how; without
     // one the setters are never called.
@@ -227,6 +227,18 @@ fn columns(german: bool, totals: bool, pinned: bool) -> Vec<Column<Employee>> {
             .format(CellFormat::Date)
             .editable(|row: &mut Employee, since: NaiveDate| row.since = since),
     ];
+    let columns: Vec<Column<Employee>> = if header_groups {
+        columns
+            .into_iter()
+            .map(|column| match column.id().as_str() {
+                "name" | "email" => column.group("Person"),
+                "department" | "age" => column.group(if german { "Arbeit" } else { "Work" }),
+                _ => column,
+            })
+            .collect()
+    } else {
+        columns
+    };
     let columns: Vec<Column<Employee>> = if pinned {
         columns
             .into_iter()
@@ -308,7 +320,8 @@ fn App() -> Element {
     let mut grouping = use_signal(|| false);
     let mut reorder = use_signal(|| false);
     let mut pinned = use_signal(|| false);
-    let cols = use_memo(move || columns(german(), totals(), pinned()));
+    let mut header_groups = use_signal(|| false);
+    let cols = use_memo(move || columns(german(), totals(), pinned(), header_groups()));
 
     let mut selection = use_signal(|| SelectionMode::Multi);
     let mut paged = use_signal(|| true);
@@ -487,6 +500,16 @@ fn App() -> Element {
                         onchange: move |event| pinned.set(event.checked()),
                     }
                     "Pin Name and Age"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
+                        "data-testid": "toggle-header-groups",
+                        checked: header_groups(),
+                        onchange: move |event| header_groups.set(event.checked()),
+                    }
+                    "Column groups"
                 }
 
                 label { class: "toggle",

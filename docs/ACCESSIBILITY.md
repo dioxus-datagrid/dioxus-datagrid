@@ -74,8 +74,9 @@ den Header nach dem Sortieren nicht mehr über seinen Namen fand.
 
 ## Tastatur
 
-Die Kopfzeile ist Teil des Gitters, nicht davor. `CellFocus::row == 0` ist die Kopfzeile,
-`row == n` die *n*-te Zeile der aktuellen Seite. Damit stimmt die Fokus-Koordinate direkt mit
+Die Kopfzeilen sind Teil des Gitters, nicht davor. Ohne Spaltengruppen ist `CellFocus::row == 0`
+die Kopfzeile und `row == n` die *n*-te Zeile der aktuellen Seite; mit Gruppen kommt je Ebene eine
+Kopfzeile davor (`GridHandle::header_rows`). Damit stimmt die Fokus-Koordinate direkt mit
 `aria-rowindex` überein.
 
 | Taste | Wirkung |
@@ -253,6 +254,26 @@ es `role="grid"`.
   zum Vorziehen und Entfernen (mit Namen wie „Stop grouping by Department"), dazu
   „Expand all"/„Collapse all".
 
+## Spaltenreihenfolge, fixierte Spalten und mehrstufige Köpfe
+
+- **Reihenfolge ändern:** Ein Kopf mit `reorderable` ist `draggable` und nennt in
+  `aria-keyshortcuts` zusätzlich `Alt+Shift+ArrowLeft` und `Alt+Shift+ArrowRight`. Die Tasten
+  schieben die Spalte um einen Platz und nehmen den Fokus mit, am Rand passiert nichts. Ziehen ist
+  damit nie der einzige Weg. `Alt` ohne `Shift` bleibt die Breitenänderung.
+- **Fixierte Spalten:** tragen `data-pinned="start"` bzw. `"end"` an Kopf- und Körperzelle und
+  werden als Block an ihrer Kante gelegt. Für Hilfstechnologie ändert sich nichts außer der
+  Reihenfolge: `aria-colindex` zählt die Spalten so, wie sie stehen, und die Pfeiltasten laufen in
+  derselben Reihenfolge.
+- **Mehrstufige Köpfe:** je Gruppenebene eine weitere Zeile mit `role="row"` über den
+  Spaltenköpfen, von außen nach innen. Eine Gruppenzelle ist ein `columnheader` mit `aria-colspan`
+  über die Spalten, die sie benennt, und `aria-colindex` der ersten davon. Über einer Spalte ohne
+  Gruppe steht eine leere Zelle, damit jede Kopfzeile jede Spalte abdeckt. `aria-rowcount` und
+  `aria-rowindex` zählen alle Kopfzeilen mit, die erste Datenzeile ist also `header_rows + 1`.
+- **Tastatur im mehrstufigen Kopf:** `ArrowUp` von einer Spalte führt auf die Gruppe darüber,
+  `ArrowDown` zurück. Eine Gruppenzelle hält den Roving-`tabindex` für jede ihrer Spalten, sodass
+  `ArrowLeft`/`ArrowRight` innerhalb der Gruppe nicht springen. Der Tab-Stopp liegt anfangs auf
+  den Spaltenköpfen, nicht auf einer Gruppe: eine Gruppe ist eine Beschriftung, kein Bedienelement.
+
 ## Automatisiert geprüft
 
 - **Markup:** SSR-Tests in `crates/dioxus-datagrid/tests/aria.rs`.
@@ -275,6 +296,17 @@ es `role="grid"`.
   `ArrowLeft`/`ArrowRight`/`Enter`/`Space` auf Köpfen, Gruppen über Seitengrenzen, Füße und
   Summenzeile per `Ctrl+End`, axe gruppiert mit Summen im hellen und dunklen Theme, 100.000 Zeilen
   gruppiert und virtualisiert. Markup in `crates/dioxus-datagrid/tests/grouping.rs`.
+- **Spaltenreihenfolge:** `tests/e2e/column-order.spec.ts` — Ziehen eines Kopfes auf einen
+  anderen, `Alt+Shift`+Pfeiltasten mit dem Fokus, Verhalten am Rand, Zellen folgen den Köpfen,
+  Reihenfolge übersteht Neuladen und Ausblenden, axe. Markup in
+  `crates/dioxus-datagrid/tests/column_order.rs`, Kern in
+  `crates/datagrid-core/tests/column_order.rs`.
+- **Fixierte Spalten:** `tests/e2e/pinned.spec.ts` — Kante und Abstand, Lage im Block, Kopf und
+  Zelle bleiben pixelgenau an der Kante, während die Nachbarspalte dahinter durchläuft,
+  virtualisierte Zeilen, axe. Markup in `crates/dioxus-datagrid/tests/pinned.rs`.
+- **Mehrstufige Köpfe:** `crates/dioxus-datagrid/tests/header_groups.rs` — Zeilen je Ebene,
+  `aria-colspan`, leere Zellen über Spalten ohne Gruppe, Zeilennummern, Tab-Stopp auf den
+  Spaltenköpfen. Aufteilung im Kern in `crates/datagrid-core/tests/header.rs`.
 - **Serverseitige Daten:** `crates/dioxus-datagrid/tests/remote.rs` (`aria-busy`, Statusregion,
   Zählung über die Server-Gesamtzahl) und `tests/e2e/server.spec.ts` im Browser.
 - **`axe`:** `@axe-core/playwright` über die ganze Komponente, im hellen **und** im dunklen Theme,

@@ -205,6 +205,9 @@ pub struct ColumnSpec<T> {
     /// [`GridState::pinned_columns`](crate::GridState::pinned_columns) can
     /// override it; see [`ColumnSpec::effective_pin`].
     pub pinned: Pinned,
+    /// The groups this column sits under in a multi-level header, outermost
+    /// first. Empty for a column that stands on its own.
+    pub group_path: Vec<String>,
 }
 
 impl<T> ColumnSpec<T> {
@@ -231,6 +234,7 @@ impl<T> ColumnSpec<T> {
             aggregates: Vec::new(),
             groupable: true,
             pinned: Pinned::None,
+            group_path: Vec::new(),
         }
     }
 
@@ -398,6 +402,25 @@ impl<T> ColumnSpec<T> {
     #[must_use]
     pub const fn pin(mut self, pinned: Pinned) -> Self {
         self.pinned = pinned;
+        self
+    }
+
+    /// Puts the column under a group in a multi-level header. Called more than
+    /// once, the groups nest, outermost first.
+    ///
+    /// Neighbouring columns that name the same groups share one header cell.
+    ///
+    /// ```
+    /// # use datagrid_core::ColumnSpec;
+    /// # struct Order { street: String }
+    /// let street = ColumnSpec::new("street")
+    ///     .value_text(|order: &Order| order.street.as_str())
+    ///     .group("Customer")
+    ///     .group("Address");
+    /// ```
+    #[must_use]
+    pub fn group(mut self, label: impl Into<String>) -> Self {
+        self.group_path.push(label.into());
         self
     }
 
@@ -601,6 +624,7 @@ impl<T> Clone for ColumnSpec<T> {
             aggregates: self.aggregates.clone(),
             groupable: self.groupable,
             pinned: self.pinned,
+            group_path: self.group_path.clone(),
         }
     }
 }
@@ -625,6 +649,7 @@ impl<T> fmt::Debug for ColumnSpec<T> {
             .field("aggregates", &self.aggregates)
             .field("groupable", &self.is_groupable())
             .field("pinned", &self.pinned)
+            .field("group_path", &self.group_path)
             .finish()
     }
 }
@@ -663,5 +688,6 @@ impl<T> PartialEq for ColumnSpec<T> {
             && self.aggregates == other.aggregates
             && self.groupable == other.groupable
             && self.pinned == other.pinned
+            && self.group_path == other.group_path
     }
 }

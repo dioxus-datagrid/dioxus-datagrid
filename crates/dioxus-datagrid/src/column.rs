@@ -327,6 +327,15 @@ impl<T> Column<T> {
         self
     }
 
+    /// Puts the column under a group in a multi-level header. Called more than
+    /// once, the groups nest, outermost first. Neighbouring columns naming the
+    /// same groups share one header cell.
+    #[must_use]
+    pub fn group(mut self, label: impl Into<String>) -> Self {
+        self.spec = self.spec.group(label);
+        self
+    }
+
     /// Replaces the column's editor with one of your own. It gets a
     /// [`CellEditor`] with the text and the handlers to wire up; the grid
     /// still reads, validates and saves the text.

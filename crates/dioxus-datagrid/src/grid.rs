@@ -4,9 +4,9 @@ use crate::Column;
 use crate::edit::{EditRows, EditStatus, EditTarget, Editing, Session};
 use datagrid_core::{
     CellFocus, ColumnFilter, ColumnId, ColumnSpec, ColumnWidth, DEFAULT_REMOTE_PAGE_SIZE,
-    DistinctValues, GridLocale, GridQuery, GridRow, GridState, NavKey, Pinned, Selection,
-    SelectionMode, SortDirection, ValueKind, View, compute_view, distinct_values, navigate,
-    reveal_scroll_top, rows_per_viewport, visible_range,
+    DistinctValues, GridLocale, GridQuery, GridRow, GridState, GroupSpan, NavKey, Pinned,
+    Selection, SelectionMode, SortDirection, ValueKind, View, compute_view, distinct_values,
+    group_header_rows, group_levels, navigate, reveal_scroll_top, rows_per_viewport, visible_range,
 };
 use dioxus::html::ScrollBehavior;
 use dioxus::html::geometry::PixelsVector2D;
@@ -440,7 +440,14 @@ where
         columns,
         state,
         selection,
-        focus: use_signal(CellFocus::default),
+        // The tab stop starts on the column headers. With a multi-level header
+        // that is not row 0: landing on a group label, which does nothing, is
+        // not where a user tabbing in wants to be.
+        focus: use_signal(|| {
+            let columns = columns.peek();
+            let specs: Vec<&ColumnSpec<T>> = columns.iter().map(Column::spec).collect();
+            CellFocus::new(group_levels(&specs), 0)
+        }),
         focus_nonce: use_signal(|| 0_u64),
         mode,
         focus_pending: use_signal(|| false),
@@ -937,6 +944,30 @@ impl<T: GridRow> GridHandle<T> {
         true
     }
 
+    // -- the header ----------------------------------------------------------
+
+    /// The group header rows above the columns, outermost first, derived from
+    /// the visible columns' groups. Empty when no visible column is grouped.
+    #[must_use]
+    pub fn group_header_rows(&self) -> Vec<Vec<GroupSpan>> {
+        let columns = self.visible_columns();
+        let specs: Vec<&ColumnSpec<T>> = columns.iter().map(Column::spec).collect();
+        group_header_rows(&specs)
+    }
+
+    /// How many rows the header takes: the row of column headers, plus one for
+    /// each level of column groups above it.
+    ///
+    /// Rows below it are data rows, which is what
+    /// [`focus_data_row`](GridHandle::focus_data_row) and `aria-rowindex` count
+    /// from.
+    #[must_use]
+    pub fn header_rows(&self) -> usize {
+        let columns = self.visible_columns();
+        let specs: Vec<&ColumnSpec<T>> = columns.iter().map(Column::spec).collect();
+        group_levels(&specs) + 1
+    }
+
     // -- pinned columns ------------------------------------------------------
 
     /// Where a column is held while the grid scrolls sideways.
@@ -1386,8 +1417,7 @@ impl<T: GridRow> GridHandle<T> {
     /// root stands in as the tab stop.
     #[must_use]
     pub fn focus_is_rendered(&self) -> bool {
-        let row = self.focus().row;
-        match (row.checked_sub(1), self.rendered_range()) {
+        match (self.focus_data_row(), self.rendered_range()) {
             // The header is never virtualized away.
             (None, _) | (_, None) => true,
             // Nor is the footer.
@@ -1563,13 +1593,23 @@ impl<T: GridRow> GridHandle<T> {
     /// which is 1-based and includes header rows.
     #[must_use]
     pub fn focusable_row_count(&self) -> usize {
-        self.view.read().len() + 1 + usize::from(*self.footer.read())
+        self.view.read().len() + self.header_rows() + usize::from(*self.footer.read())
     }
 
-    /// Whether the focus currently sits on the header row.
+    /// Whether the focus currently sits on one of the header rows.
     #[must_use]
     pub fn focus_is_header(&self) -> bool {
-        self.focus().row == 0
+        self.focus().row < self.header_rows()
+    }
+
+    /// The row the focus is on as an index into the page's data rows, or `None`
+    /// while it sits on a header row.
+    ///
+    /// The one place that knows how many rows the header takes, so that the
+    /// rest does not have to.
+    #[must_use]
+    pub fn focus_data_row(&self) -> Option<usize> {
+        self.focus().row.checked_sub(self.header_rows())
     }
 
     /// Applies a navigation key to the focus.

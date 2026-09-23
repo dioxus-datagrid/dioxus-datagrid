@@ -121,8 +121,7 @@ impl<T: GridRow> GridHandle<T> {
     /// collapsed group, moves to the group it is in, and `Enter` or `Space`
     /// toggle. Returns whether the key was used.
     pub fn group_key(&mut self, key: GroupKeyPress) -> bool {
-        let focus = self.focus();
-        let Some(row_index) = focus.row.checked_sub(1) else {
+        let Some(row_index) = self.focus_data_row() else {
             return false;
         };
         let Some(ViewRow::GroupHeader(_)) = self.row_kind(row_index) else {
@@ -144,7 +143,8 @@ impl<T: GridRow> GridHandle<T> {
                     .parent()
                     .and_then(|parent| self.view().read().group_header_position(&parent));
                 if let Some(position) = parent {
-                    self.set_focus(CellFocus::new(position + 1, focus.col));
+                    let column = self.focus().col;
+                    self.set_focus(CellFocus::new(position + self.header_rows(), column));
                 }
             }
             GroupKeyPress::Toggle => self.toggle_group(&group.key),

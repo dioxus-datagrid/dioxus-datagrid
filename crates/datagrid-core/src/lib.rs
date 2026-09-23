@@ -66,6 +66,7 @@ mod edit;
 mod filter;
 mod format;
 mod group;
+mod header;
 mod locale;
 mod navigate;
 mod remote;
@@ -91,6 +92,7 @@ pub use group::{
     Aggregate, AggregateFn, AggregateKind, AggregateValue, Group, GroupKey, GroupSummary,
     GroupedPage, PagePart, find_aggregate,
 };
+pub use header::{GroupSpan, group_header_rows, group_levels};
 pub use locale::GridLocale;
 pub use navigate::{CellFocus, NavKey, navigate};
 pub use remote::{

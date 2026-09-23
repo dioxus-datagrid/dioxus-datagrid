@@ -19,8 +19,8 @@ pub use crate::group_ui::{
 };
 use crate::{COLUMN_RESIZE_STEP, GridHandle};
 use datagrid_core::{
-    CellFocus, GridRow as GridRowKey, NavKey, SelectionMode, SortDirection, ViewRow, offset_of,
-    total_height,
+    CellFocus, GridRow as GridRowKey, GroupSpan, NavKey, Pinned, SelectionMode, SortDirection,
+    ViewRow, offset_of, total_height,
 };
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -55,9 +55,10 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
 ) -> Element {
     let mut grid = grid;
     // `aria-rowcount` spans every page, not just the rendered one, and counts
-    // the header row — that is the whole point of the attribute when the grid
+    // the header rows — that is the whole point of the attribute when the grid
     // is paged.
-    let row_count = grid.view().read().row_count + 1 + usize::from(grid.has_footer());
+    let row_count =
+        grid.view().read().row_count + grid.header_rows() + usize::from(grid.has_footer());
     let column_count = grid.visible_column_count();
     // Groups make rows nest, which is what a treegrid is for.
     let role = if grid.is_grouped() {
@@ -94,7 +95,7 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
             if shift && grid.selection_mode() == SelectionMode::Multi && !grid.focus_is_header() {
                 // Shift+Arrow extends the selection as it moves.
                 grid.move_focus(key);
-                if let Some(target) = grid.focus().row.checked_sub(1) {
+                if let Some(target) = grid.focus_data_row() {
                     if let Some(row_key) = grid.key_at(target) {
                         grid.extend_select(row_key);
                     }
@@ -110,7 +111,7 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
         match data.key() {
             // On a header, both Enter and Space sort. Shift makes it additive so
             // a second column can join the sort.
-            Key::Enter | Key::Character(_) if focus.row == 0 => {
+            Key::Enter | Key::Character(_) if grid.focus_is_header() => {
                 if data.key() != Key::Enter && data.key() != Key::Character(" ".into()) {
                     return;
                 }
@@ -123,8 +124,11 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
                 }
             }
             // On a body cell, Enter or F2 starts editing it, if it can be.
-            Key::Enter | Key::F2 if focus.row > 0 => {
-                if grid.start_edit(focus.row - 1, focus.col) {
+            Key::Enter | Key::F2 if !grid.focus_is_header() => {
+                if grid
+                    .focus_data_row()
+                    .is_some_and(|row| grid.start_edit(row, focus.col))
+                {
                     event.prevent_default();
                 }
             }
@@ -132,9 +136,8 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
             // part of.
             Key::Delete
                 if grid.can_delete()
-                    && focus
-                        .row
-                        .checked_sub(1)
+                    && grid
+                        .focus_data_row()
                         .is_some_and(|row| grid.key_at(row).is_some()) =>
             {
                 let keys = grid.delete_candidates();
@@ -146,7 +149,7 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
                 if grid.selection_mode() == SelectionMode::None {
                     return;
                 }
-                if let Some(target) = focus.row.checked_sub(1) {
+                if let Some(target) = grid.focus_data_row() {
                     if let Some(row_key) = grid.key_at(target) {
                         if shift {
                             grid.extend_select(row_key);
@@ -267,6 +270,9 @@ pub fn GridHeader<T: GridRowKey + PartialEq + 'static>(
 ) -> Element {
     let mut grid = grid;
     let columns = grid.visible_columns();
+    // One row per level of column groups, then the columns themselves.
+    let groups = grid.group_header_rows();
+    let leaf_index = groups.len() + 1;
 
     rsx! {
         div {
@@ -279,7 +285,23 @@ pub fn GridHeader<T: GridRowKey + PartialEq + 'static>(
                 }
             },
             ..attributes,
-            div { role: "row", aria_rowindex: "1",
+            for (level , spans) in groups.into_iter().enumerate() {
+                div {
+                    key: "group-{level}",
+                    role: "row",
+                    aria_rowindex: "{level + 1}",
+                    "data-group-header-row": "{level}",
+                    for span in spans {
+                        GridGroupHeaderCell {
+                            key: "{level}-{span.start}",
+                            grid,
+                            level,
+                            span,
+                        }
+                    }
+                }
+            }
+            div { role: "row", aria_rowindex: "{leaf_index}",
                 for (index , column) in columns.into_iter().enumerate() {
                     GridHeaderCell {
                         key: "{column.id()}",
@@ -290,6 +312,74 @@ pub fn GridHeader<T: GridRowKey + PartialEq + 'static>(
                     }
                 }
             }
+        }
+    }
+}
+
+/// One cell of a group header row: a label over the columns it covers.
+///
+/// Rendered by [`GridHeader`] for every level of column groups, derived from the
+/// columns' own groups. A cell with no label stands above a column that has no
+/// group at that level, so that every header row covers every column and
+/// `aria-colindex` keeps counting straight.
+///
+/// Carries `aria-colspan` when it covers more than one column, and
+/// `data-group-header` for styling. It holds the roving tabindex for any of its
+/// columns, so arrowing up from a column header lands on the group above it and
+/// arrowing across within the group stays put.
+#[component]
+pub fn GridGroupHeaderCell<T: GridRowKey + PartialEq + 'static>(
+    grid: GridHandle<T>,
+    /// Which group header row this is, outermost first.
+    level: usize,
+    /// The columns it covers, and what to call them.
+    span: GroupSpan,
+) -> Element {
+    let mut grid = grid;
+    let covered = span.columns();
+    let start = span.start;
+
+    let focus = grid.focus();
+    let focused = focus.row == level && span.covers(focus.col);
+    let width = span.span;
+    let onmounted = use_focus_pull_where(grid, move |focus| {
+        focus.row == level && focus.col >= start && focus.col < start + width
+    });
+
+    // A group over pinned columns has to be held too, or it would scroll away
+    // from the columns it names. Only when they agree: a group that straddles
+    // the edge of the pinned block belongs to neither side.
+    let columns = grid.visible_columns();
+    let pins: Vec<Pinned> = covered
+        .clone()
+        .filter_map(|index| columns.get(index))
+        .map(|column| grid.column_pin(column.id()))
+        .collect();
+    let pin = match pins.first() {
+        Some(first) if pins.iter().all(|pin| pin == first) => *first,
+        _ => Pinned::None,
+    };
+    let pin_offset = columns
+        .get(start)
+        .filter(|_| pin.is_pinned())
+        .and_then(|column| grid.column_pin_offset(column.id()));
+
+    rsx! {
+        div {
+            role: "columnheader",
+            aria_colindex: "{start + 1}",
+            aria_colspan: (span.span > 1).then(|| span.span.to_string()),
+            tabindex: if focused { "0" } else { "-1" },
+            "data-group-header": "{level}",
+            "data-pinned": pin.as_str(),
+            style: format!(
+                "grid-column: span {};{}",
+                span.span,
+                pin_offset.map_or(String::new(), |offset| format!(" --dg-pin-offset: {offset}px;")),
+            ),
+            onmounted,
+            onclick: move |_| grid.set_focus(CellFocus::new(level, start)),
+            {span.label.clone().unwrap_or_default()}
         }
     }
 }
@@ -345,6 +435,9 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
     let dragging = grid.dragged_column().is_some_and(|dragged| dragged == id);
     let pin = grid.column_pin(&id);
     let pin_offset = grid.column_pin_offset(&id);
+    // The column headers are the last of the header rows; any above them are
+    // the group headers.
+    let leaf_row = grid.header_rows().saturating_sub(1);
 
     let shortcuts = match (show_handle, reorderable) {
         (true, true) => {
@@ -374,7 +467,7 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
         // cell focused any other way (a script, the browser restoring focus)
         // would move a column and then lose focus to the re-render, swallowing
         // the next key.
-        grid.set_focus(CellFocus::new(0, column_index));
+        grid.set_focus(CellFocus::new(leaf_row, column_index));
 
         // Shift moves the column, Alt alone resizes it. Reordering is checked
         // first: it is the more specific gesture, and a column can be movable
@@ -411,8 +504,8 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
         }
     };
 
-    let focused = grid.focus() == CellFocus::new(0, column_index);
-    let onmounted = use_focus_pull(grid, CellFocus::new(0, column_index));
+    let focused = grid.focus() == CellFocus::new(leaf_row, column_index);
+    let onmounted = use_focus_pull(grid, CellFocus::new(leaf_row, column_index));
 
     let onclick = move |event: MouseEvent| {
         // The click that ends a resize drag lands here when the pointer is
@@ -420,7 +513,7 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
         if grid.take_resize_click() || !sortable {
             return;
         }
-        grid.set_focus(CellFocus::new(0, column_index));
+        grid.set_focus(CellFocus::new(leaf_row, column_index));
         grid.toggle_sort(id.clone(), event.modifiers().shift());
     };
 
@@ -649,13 +742,17 @@ pub fn GridRow<T: GridRowKey + PartialEq + 'static>(
 
     let columns = grid.visible_columns();
     let key = grid.key_at(row_index);
+    let header_rows = grid.header_rows();
 
-    // aria-rowindex is 1-based over every row of the view and counts the
-    // header row, so page 2 of a 25-row page starts at 27.
+    // aria-rowindex is 1-based over every row of the view and counts the header
+    // rows, so page 2 of a 25-row page starts at 27 under a one-row header.
     let (aria_row_index, group_levels) = {
         let view = grid.view();
         let view = view.read();
-        (view.row_offset + row_index + 2, view.group_levels)
+        (
+            view.row_offset + row_index + header_rows + 1,
+            view.group_levels,
+        )
     };
     // In a treegrid, data rows sit one level below the innermost groups.
     let aria_level = (group_levels > 0).then(|| (group_levels + 1).to_string());
@@ -706,7 +803,7 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
     };
 
     // Focus coordinates count the header as row 0.
-    let focus_row = row_index + 1;
+    let focus_row = row_index + grid.header_rows();
     let focused = grid.focus() == CellFocus::new(focus_row, column_index);
     let onmounted = use_focus_pull(grid, CellFocus::new(focus_row, column_index));
 

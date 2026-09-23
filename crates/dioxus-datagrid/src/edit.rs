@@ -968,7 +968,7 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
     /// focused row is part of it, otherwise the focused row alone.
     #[must_use]
     pub fn delete_candidates(&self) -> Vec<T::Key> {
-        let Some(row_index) = self.focus().row.checked_sub(1) else {
+        let Some(row_index) = self.focus_data_row() else {
             return self.selected_keys();
         };
         match self.key_at(row_index) {

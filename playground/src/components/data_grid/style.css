@@ -82,6 +82,17 @@
   white-space: nowrap;
 }
 
+/* A cell of a multi-level header: a label over the columns it covers. An empty
+ * one stands above a column outside every group, so the rows line up. */
+.dg [data-group-header] {
+  text-align: center;
+  border-inline-start: 1px solid var(--primary-color-6);
+}
+
+.dg [data-group-header]:first-child {
+  border-inline-start: none;
+}
+
 /* Pinned columns are held at their edge while the rest scrolls sideways. A
  * cell sticks within its row, and a row is as wide as the whole grid, so the
  * offset the grid works out from the pinned widths beside it is all it needs.
