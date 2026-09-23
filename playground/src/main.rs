@@ -243,7 +243,7 @@ fn columns(german: bool, totals: bool, pinned: bool, header_groups: bool) -> Vec
         columns
             .into_iter()
             .map(|column| match column.id().as_str() {
-                "name" => column.pin(Pinned::Start),
+                "name" | "email" => column.pin(Pinned::Start),
                 "age" => column.pin(Pinned::End),
                 _ => column,
             })
@@ -499,7 +499,7 @@ fn App() -> Element {
                         checked: pinned(),
                         onchange: move |event| pinned.set(event.checked()),
                     }
-                    "Pin Name and Age"
+                    "Pin Name, Email and Age"
                 }
 
                 label { class: "toggle",

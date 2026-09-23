@@ -220,6 +220,9 @@ pub struct GridHandle<T: GridRow + 'static> {
     /// starts from the width the column actually has, which for an `Auto` or
     /// `Fraction` column only layout knows.
     measured_widths: Signal<Vec<(ColumnId, f64)>>,
+    /// The header cells, so their widths can be measured on demand. `onresize`
+    /// reaches only the grid root (see `docs/VERIFICATION.md` §13).
+    column_elements: Signal<Vec<(ColumnId, Rc<MountedData>)>>,
     /// The column resize in progress, if any.
     resize: Signal<Option<ColumnResize>>,
     /// Set when a resize ends, so the click that follows the release is not
@@ -375,6 +378,7 @@ pub(crate) struct GridBase<T: GridRow + 'static> {
     layout: Signal<Layout>,
     virtual_body: Signal<Option<(f64, usize)>>,
     measured_widths: Signal<Vec<(ColumnId, f64)>>,
+    column_elements: Signal<Vec<(ColumnId, Rc<MountedData>)>>,
     resize: Signal<Option<ColumnResize>>,
     resize_click: Signal<bool>,
     pressed_handle: Signal<Option<ColumnId>>,
@@ -457,6 +461,7 @@ where
         layout: use_signal(Layout::default),
         virtual_body: use_signal(|| None::<(f64, usize)>),
         measured_widths: use_signal(Vec::new),
+        column_elements: use_signal(Vec::new),
         resize: use_signal(|| None::<ColumnResize>),
         resize_click: use_signal(|| false),
         pressed_handle: use_signal(|| None::<ColumnId>),
@@ -529,6 +534,7 @@ impl<T: GridRow + PartialEq> GridBase<T> {
             layout: self.layout,
             virtual_body: self.virtual_body,
             measured_widths: self.measured_widths,
+            column_elements: self.column_elements,
             resize: self.resize,
             resize_click: self.resize_click,
             pressed_handle: self.pressed_handle,
@@ -990,12 +996,10 @@ impl<T: GridRow> GridHandle<T> {
     /// How far from its edge a pinned column sits: the widths of the pinned
     /// columns between it and the edge. `None` for a column that scrolls.
     ///
-    /// Only widths the grid *knows* count — a column's own fixed width, or one
-    /// the user set by resizing. An auto-sized column counts as zero, because
-    /// its width is whatever the browser worked out and asking for it is not
-    /// reliable (see `docs/VERIFICATION.md` §13). Pin the outermost column at
-    /// an edge freely; give any further one a width, or it will sit on top of
-    /// the one before it.
+    /// A column's own fixed width counts directly; an auto-sized one counts by
+    /// what it was last measured at ([`measure_columns`](GridHandle::measure_columns)).
+    /// Before the first measurement that is zero, so a column sticks from the
+    /// first frame and settles once the grid has been laid out.
     #[must_use]
     pub fn column_pin_offset(&self, column: &ColumnId) -> Option<f64> {
         let pin = self.column_pin(column);
@@ -1004,9 +1008,13 @@ impl<T: GridRow> GridHandle<T> {
         }
 
         let state = self.state.read();
+        let measured = self.measured_widths.read();
         let width_of = |column: &Column<T>| match column.spec().effective_width(&state) {
             ColumnWidth::Px(width) => f64::from(width),
-            _ => 0.0,
+            _ => measured
+                .iter()
+                .find(|(id, _)| id == column.id())
+                .map_or(0.0, |(_, width)| *width),
         };
 
         let shown = self.visible_columns();
@@ -1149,6 +1157,35 @@ impl<T: GridRow> GridHandle<T> {
             .iter()
             .find(|(id, _)| id == column)
             .map(|(_, width)| *width)
+    }
+
+    /// Remembers a column header's element, so its width can be measured later.
+    /// Called by the header cell when it mounts.
+    pub fn register_column_element(&mut self, column: &ColumnId, element: Rc<MountedData>) {
+        let mut elements = self.column_elements.write();
+        match elements.iter_mut().find(|(id, _)| id == column) {
+            Some(entry) => entry.1 = element,
+            None => elements.push((column.clone(), element)),
+        }
+    }
+
+    /// Measures every column header and records the widths.
+    ///
+    /// Called from the grid root's `onresize`, which is the one resize that
+    /// reaches us: Dioxus observes only the element the listener sits on, and
+    /// a header cell's own `onresize` never fires — `docs/VERIFICATION.md` §13.
+    /// Measuring from here also means it happens after layout, which a
+    /// measurement taken while mounting does not.
+    pub fn measure_columns(&mut self) {
+        let elements = self.column_elements.peek().clone();
+        let mut grid = *self;
+        spawn(async move {
+            for (column, element) in elements {
+                if let Ok(rect) = element.get_client_rect().await {
+                    grid.record_column_width(&column, rect.width());
+                }
+            }
+        });
     }
 
     /// Widens (positive `delta`) or narrows a column by `delta` pixels, starting

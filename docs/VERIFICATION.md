@@ -375,13 +375,41 @@ Geprüft am 2026-09-22 im Playground (Chromium, Browser-Pane), Grid auf 370 px B
 - **Hintergrund ist Pflicht.** Körperzellen haben von sich aus keinen, die scrollenden Zellen
   schienen sonst durch. Die Regeln für Hover und Auswahl sind spezifischer und gewinnen weiterhin,
   damit eine fixierte Zelle ihrer Zeile folgt.
-- **Die Breite einer Auto-Spalte lässt sich nicht verlässlich erfragen.** Für den Abstand zur Kante
-  bräuchte eine zweite fixierte Spalte die Breite der ersten. Alle drei Wege melden statt der
-  Spalte einen Kasten in Seitenbreite: `onresize` mit `get_border_box_size()` (684 px statt 114 px),
-  `onmounted` mit `get_client_rect()` (404 px — und laut §3 ohnehin zu früh) und dieselbe Messung
-  aus einem `use_effect` nach dem Layout (464 px bei 480 px Viewport). Die echte Spaltenbreite war
-  jedes Mal 114 px. Das betrifft `record_column_width` insgesamt, nicht nur das Fixieren, und
-  gehört in einen eigenen Spike mit einem nackten Grid-Item.
-- **Konsequenz:** `column_pin_offset` rechnet nur mit Breiten, die das Grid kennt — der festen
-  Breite der Spalte oder einer vom Nutzer gezogenen. Eine Auto-Spalte zählt null. Die äußerste
-  fixierte Spalte je Kante darf also automatisch breit sein, jede weitere braucht eine Breite.
+
+## 14. Phase 11: `onresize` erreicht nur ein Element pro Grid
+
+Geprüft am 2026-09-23 im Playground (Chromium, Browser-Pane), Grid mit vier Spaltenköpfen, die
+alle einen `onresize`-Handler tragen.
+
+**Der Befund.** Ändert sich die Breite des Grids, verschickt Dioxus sein `resize`-CustomEvent
+**nur auf `.dg`** — dem Element, auf dem `GridRoot` seinen Handler hat. Mit einem Listener in der
+Capture-Phase am `document` mitgeschnitten:
+
+```
+Breite geändert → 2 Ereignisse, beide mit target = div.dg
+Kopfzellen im DOM: 4, davon beobachtet: 0
+```
+
+Ein **eigener** `ResizeObserver` auf derselben Kopfzelle meldet dagegen korrekt: 96 px, nach einer
+Änderung 174 px. Am Browser und am Element liegt es also nicht.
+
+**Die Folge war still und falsch.** Die Handler der Kopfzellen liefen trotzdem — mit dem Eintrag
+des Grid-Wurzelelements. `record_column_width` hat deshalb für jede Auto-Spalte dieselbe
+Seitenbreite gespeichert (684 px statt 96 px). Das erklärt auch die vorher hier notierten
+404 px und 464 px: dieselbe Messung, nur zu einem anderen Zeitpunkt.
+
+**Die Lösung.** Messen an einer Stelle statt an jeder Zelle:
+
+- Die Kopfzelle **misst nicht mehr selbst**. Sie reicht beim Einhängen ihr `MountedData` an das
+  Handle weiter (`register_column_element`) — messen wäre dort ohnehin zu früh, siehe §3.
+- `GridHandle::measure_columns` misst alle registrierten Köpfe per `get_client_rect()`.
+- `GridRoot` ruft das aus einem `use_effect` auf, also **nachdem** der DOM steht, und zusätzlich
+  aus seinem eigenen `onresize` — dem einen, das feuert.
+
+Nachgemessen: Zwei an den Anfang fixierte Spalten, die erste automatisch breit. `--dg-pin-offset`
+der zweiten ist 96 px, exakt die gemessene Breite der ersten; ganz nach rechts gescrollt stehen
+sie nebeneinander an der Kante (`left = 25` und `left = 121`) statt übereinander.
+
+**Offen für Dioxus.** Warum `createResizeObserver` nur das eine Element erfasst, ist von außen
+nicht zu klären — ein Bugreport mit dem Capture-Mitschnitt oben wäre der nächste Schritt.
+Für uns ist der Weg über eine Stelle ohnehin der bessere: eine Messung statt einer pro Zelle.

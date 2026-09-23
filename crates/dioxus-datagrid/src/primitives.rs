@@ -177,6 +177,16 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
         }
     });
 
+    // Column widths, measured after the DOM is committed rather than while the
+    // headers mount: at mount the stylesheet may not have been applied and a
+    // header still spans the container. Re-runs whenever the view changes,
+    // which covers the columns changing; `onresize` covers the window.
+    use_effect(move || {
+        let _ = grid.view().read().len();
+        let _ = grid.visible_column_count();
+        grid.measure_columns();
+    });
+
     // The root is the tab stop only while the focused cell is not in the DOM;
     // otherwise that cell is, and the root must not add a second one. It stays
     // programmatically focusable either way.
@@ -198,6 +208,9 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
                 if let Ok(size) = event.data().get_content_box_size() {
                     grid.record_viewport_height(size.height);
                 }
+                // The grid's own resize is the one that fires, so the columns
+                // are measured from here rather than each from its own header.
+                grid.measure_columns();
             },
             // A remote grid keeps showing the previous page while the next loads;
             // aria-busy tells assistive technology the content is about to change.
@@ -421,7 +434,6 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
     };
 
     let show_handle = resizable && column.spec().resizable;
-    let measured_id = id.clone();
     let resize_id = id.clone();
     let drag_id = id.clone();
     let over_id = id.clone();
@@ -505,7 +517,15 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
     };
 
     let focused = grid.focus() == CellFocus::new(leaf_row, column_index);
-    let onmounted = use_focus_pull(grid, CellFocus::new(leaf_row, column_index));
+    let mut pull_focus = use_focus_pull(grid, CellFocus::new(leaf_row, column_index));
+    let measured_id = id.clone();
+    let onmounted = move |event: MountedEvent| {
+        // Handed to the grid rather than measured here: at mount the stylesheet
+        // may not have been applied, so the header still spans the container.
+        // The grid measures it once its own resize fires, after layout.
+        grid.register_column_element(&measured_id, event.data());
+        pull_focus(event);
+    };
 
     let onclick = move |event: MouseEvent| {
         // The click that ends a resize drag lands here when the pointer is
@@ -551,11 +571,6 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
             onmounted,
             onclick,
             onkeydown,
-            onresize: move |event| {
-                if let Ok(size) = event.data().get_border_box_size() {
-                    grid.record_column_width(&measured_id, size.width);
-                }
-            },
             ..attributes,
             {column.render_header()}
             if show_handle {

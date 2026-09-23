@@ -45,19 +45,38 @@ async function open(page: Page, { virtualized = false } = {}) {
   await expect(grid(page)).toHaveAttribute("aria-colcount", "6");
 }
 
+/** The `--dg-pin-offset` a header carries, in pixels. */
+const offsetOf = (page: Page, name: string) =>
+  header(page, name).evaluate((el) =>
+    Number.parseFloat(getComputedStyle(el).getPropertyValue("--dg-pin-offset")),
+  );
+
 test("a pinned column says which edge it is held at", async ({ page }) => {
   await open(page);
 
   await expect(header(page, "Name")).toHaveAttribute("data-pinned", "start");
+  await expect(header(page, "Email")).toHaveAttribute("data-pinned", "start");
   await expect(header(page, "Age")).toHaveAttribute("data-pinned", "end");
-  await expect(header(page, "Email")).not.toHaveAttribute("data-pinned", /.*/);
-  // Both are outermost at their edge, so neither is offset from it.
-  for (const name of ["Name", "Age"]) {
-    const offset = await header(page, name).evaluate((el) =>
-      getComputedStyle(el).getPropertyValue("--dg-pin-offset").trim(),
-    );
-    expect(offset).toBe("0px");
-  }
+  await expect(header(page, "Department")).not.toHaveAttribute("data-pinned", /.*/);
+
+  // Outermost at their edge, so against it.
+  expect(await offsetOf(page, "Name")).toBe(0);
+  expect(await offsetOf(page, "Age")).toBe(0);
+});
+
+test("a second pinned column clears the first", async ({ page }) => {
+  await open(page);
+
+  // Name is auto-sized, so this only works if the grid measured it — which is
+  // what docs/VERIFICATION.md 13 is about.
+  const width = await header(page, "Name").evaluate((el) => el.getBoundingClientRect().width);
+  await expect.poll(() => offsetOf(page, "Email")).toBeCloseTo(width, 0);
+
+  await scrollToEnd(page);
+  const name = await edges(page, '[role="columnheader"][data-pinned="start"]');
+  const email = await edges(page, '[role="columnheader"][data-pinned="start"] ~ [data-pinned="start"]');
+  // Side by side at the edge, not stacked on top of each other.
+  expect(email.left).toBe(name.right);
 });
 
 test("a pinned column moves to its edge, whatever the column order", async ({ page }) => {
@@ -75,23 +94,28 @@ test("the pinned columns stay at the edges while the rest scrolls away", async (
   await open(page);
 
   const before = await edges(page, '[role="columnheader"][data-pinned="start"]');
-  const email = await edges(page, '[role="columnheader"]:nth-child(2)');
+  const scrolling = '[role="columnheader"]:not([data-pinned])';
+  const email = await edges(page, scrolling);
   const overflow = await scrollToEnd(page);
   expect(overflow).toBeGreaterThan(50);
 
   const gridBox = await edges(page, ".dg");
   const start = await edges(page, '[role="columnheader"][data-pinned="start"]');
   const end = await edges(page, '[role="columnheader"][data-pinned="end"]');
-  const emailAfter = await edges(page, '[role="columnheader"]:nth-child(2)');
+  const emailAfter = await edges(page, scrolling);
 
   // The pinned ones are still against their edges, to the pixel.
   expect(start.left).toBe(gridBox.left);
   expect(start.left).toBe(before.left);
   expect(end.right).toBe(gridBox.right);
-  // The one beside them scrolled left, far enough to pass behind the pinned
-  // column rather than being pushed along by it.
+  // The one beside them scrolled left, far enough to pass behind the block of
+  // pinned columns rather than being pushed along by it.
+  const blockEnd = await page
+    .locator('.dg [role="columnheader"][data-pinned="start"]')
+    .last()
+    .evaluate((el) => Math.round(el.getBoundingClientRect().right));
   expect(emailAfter.left).toBeLessThan(email.left);
-  expect(emailAfter.left).toBeLessThan(start.right);
+  expect(emailAfter.left).toBeLessThan(blockEnd);
 });
 
 test("the cells are held along with their header", async ({ page }) => {
