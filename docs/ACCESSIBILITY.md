@@ -271,9 +271,23 @@ es `role="grid"`.
   Gruppe steht eine leere Zelle, damit jede Kopfzeile jede Spalte abdeckt. `aria-rowcount` und
   `aria-rowindex` zählen alle Kopfzeilen mit, die erste Datenzeile ist also `header_rows + 1`.
 - **Tastatur im mehrstufigen Kopf:** `ArrowUp` von einer Spalte führt auf die Gruppe darüber,
-  `ArrowDown` zurück. Eine Gruppenzelle hält den Roving-`tabindex` für jede ihrer Spalten, sodass
-  `ArrowLeft`/`ArrowRight` innerhalb der Gruppe nicht springen. Der Tab-Stopp liegt anfangs auf
-  den Spaltenköpfen, nicht auf einer Gruppe: eine Gruppe ist eine Beschriftung, kein Bedienelement.
+  `ArrowDown` zurück auf die erste Spalte darunter. Eine Gruppenzelle hält den Roving-`tabindex`
+  für jede ihrer Spalten und ist ein einziger Stopp: `ArrowRight` geht zur nächsten Gruppe, nicht
+  zur nächsten Spalte derselben Gruppe. Der Tab-Stopp liegt anfangs auf den Spaltenköpfen, nicht
+  auf einer Gruppe: eine Gruppe ist eine Beschriftung, kein Bedienelement.
+
+## Zellen über mehrere Spalten
+
+Eine Spalte kann pro Zeile sagen, über wie viele Spalten ihre Zelle läuft (`Column::span`).
+
+- **Die Zeile bleibt so breit wie der Kopf.** Die breite Zelle trägt `aria-colspan`, die Spalten,
+  die sie verdeckt, rendern keine eigene Zelle. `aria-colindex` zählt weiter in Spalten: nach
+  einer Zelle über drei Spalten kommt `aria-colindex="4"`.
+- **Eine Zelle ist ein Stopp.** `ArrowRight` aus einer breiten Zelle führt auf die Spalte dahinter,
+  nicht in die verdeckten; `ArrowDown` auf eine verdeckte Spalte landet auf der Zelle, die sie
+  abdeckt. `Home`/`End` ebenso. Der Roving-`tabindex` liegt damit immer auf genau einer Zelle.
+- **Fixierte Spalten begrenzen sie.** Eine Zelle läuft nie über die Kante ihres fixierten Blocks
+  hinaus, sonst müsste sie zugleich kleben und mitscrollen.
 
 ## Spaltenmenü
 
@@ -326,9 +340,15 @@ vergessen.
 - **Fixierte Spalten:** `tests/e2e/pinned.spec.ts` — Kante und Abstand, Lage im Block, Kopf und
   Zelle bleiben pixelgenau an der Kante, während die Nachbarspalte dahinter durchläuft,
   virtualisierte Zeilen, axe. Markup in `crates/dioxus-datagrid/tests/pinned.rs`.
-- **Mehrstufige Köpfe:** `crates/dioxus-datagrid/tests/header_groups.rs` — Zeilen je Ebene,
-  `aria-colspan`, leere Zellen über Spalten ohne Gruppe, Zeilennummern, Tab-Stopp auf den
-  Spaltenköpfen. Aufteilung im Kern in `crates/datagrid-core/tests/header.rs`.
+- **Mehrstufige Köpfe:** `tests/e2e/header-groups.spec.ts` — Gruppen über den Spalten, die sie
+  benennen, Zeilennummern über beide Kopfzeilen, Ausblenden und Umsortieren ordnen den Kopf neu,
+  `ArrowUp`/`ArrowDown` zwischen Gruppe und Spalte, eine Gruppe als ein Stopp, ein Tab-Stopp, axe.
+  Markup in `crates/dioxus-datagrid/tests/header_groups.rs`, Aufteilung im Kern in
+  `crates/datagrid-core/tests/header.rs`.
+- **Zellen über mehrere Spalten:** `tests/e2e/column-span.spec.ts` — `aria-colspan` und die
+  fortlaufenden `aria-colindex`, Breite der Zelle gegen die Spalten darüber, Pfeiltasten über und
+  auf eine breite Zelle, `Home`/`End`, ein Tab-Stopp, axe. Markup in
+  `crates/dioxus-datagrid/tests/span.rs`, Kern in `crates/datagrid-core/tests/span.rs`.
 - **Spaltenmenü:** `tests/e2e/column-menu.spec.ts` — Sortieren, Gruppieren, Fixieren, Ausblenden
   und Breite über das Menü, `Alt+↓` zum Öffnen, Fokus auf dem ersten Eintrag und zurück auf dem
   Kopf, Umlaufen der Pfeiltasten, kein zweiter Tab-Stopp, Klick daneben, axe bei offenem Menü.

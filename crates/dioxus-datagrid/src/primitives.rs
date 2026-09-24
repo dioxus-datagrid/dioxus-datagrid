@@ -339,8 +339,8 @@ pub fn GridHeader<T: GridRowKey + PartialEq + 'static>(
 ///
 /// Carries `aria-colspan` when it covers more than one column, and
 /// `data-group-header` for styling. It holds the roving tabindex for any of its
-/// columns, so arrowing up from a column header lands on the group above it and
-/// arrowing across within the group stays put.
+/// columns, so arrowing up from a column header lands on the group above it —
+/// and, being one cell, it is one stop: arrowing across goes to the next group.
 #[component]
 pub fn GridGroupHeaderCell<T: GridRowKey + PartialEq + 'static>(
     grid: GridHandle<T>,
@@ -782,6 +782,14 @@ pub fn GridRow<T: GridRowKey + PartialEq + 'static>(
     let key = grid.key_at(row_index);
     let header_rows = grid.header_rows();
 
+    // A cell may cover several columns, so what the row renders is its cells,
+    // not its columns; the covered ones draw nothing.
+    let spans = grid.row_spans(row_index);
+    let cells: Vec<(usize, usize)> = (0..columns.len())
+        .filter(|column| spans.is_anchor(*column))
+        .map(|column| (column, spans.width(column)))
+        .collect();
+
     // aria-rowindex is 1-based over every row of the view and counts the header
     // rows, so page 2 of a 25-row page starts at 27 under a one-row header.
     let (aria_row_index, group_levels) = {
@@ -812,12 +820,13 @@ pub fn GridRow<T: GridRowKey + PartialEq + 'static>(
             "data-deleted": grid.is_row_deleted(row_index).then_some("true"),
             "data-saving": grid.is_row_saving(row_index).then_some("true"),
             ..attributes,
-            for column_index in 0..columns.len() {
+            for (column_index , span) in cells {
                 GridCell {
                     key: "{column_index}",
                     grid,
                     row_index,
                     column_index,
+                    span,
                 }
             }
         }
@@ -832,6 +841,12 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
     row_index: usize,
     /// Position among the visible columns, zero-based.
     column_index: usize,
+    /// How many columns the cell covers. The columns it covers render no cell
+    /// of their own; [`GridRow`] works that out with
+    /// [`GridHandle::row_spans`](crate::GridHandle::row_spans) and a loop of
+    /// your own should do the same.
+    #[props(default = 1)]
+    span: usize,
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
 ) -> Element {
     let mut grid = grid;
@@ -842,8 +857,14 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
 
     // Focus coordinates count the header as row 0.
     let focus_row = row_index + grid.header_rows();
-    let focused = grid.focus() == CellFocus::new(focus_row, column_index);
-    let onmounted = use_focus_pull(grid, CellFocus::new(focus_row, column_index));
+    let span = span.max(1);
+    // A cell covering several columns holds the focus for any of them, the way
+    // a group's header cell holds it for its whole row.
+    let covers = move |focus: CellFocus| {
+        focus.row == focus_row && focus.col >= column_index && focus.col < column_index + span
+    };
+    let focused = covers(grid.focus());
+    let onmounted = use_focus_pull_where(grid, covers);
 
     let editable = column.is_editable();
     let editing = editable
@@ -891,10 +912,21 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
         }
     };
 
+    // A row is a subgrid, so a cell that covers several columns says so in the
+    // layout as well as to the reader.
+    let mut style = String::new();
+    if span > 1 {
+        style.push_str(&format!("grid-column: span {span};"));
+    }
+    if let Some(offset) = pin_offset {
+        style.push_str(&format!(" --dg-pin-offset: {offset}px;"));
+    }
+
     rsx! {
         div {
             role: "gridcell",
             aria_colindex: "{column_index + 1}",
+            aria_colspan: (span > 1).then(|| span.to_string()),
             aria_readonly: read_only.then_some("true"),
             tabindex: if focused { "0" } else { "-1" },
             "data-align": align,
@@ -902,7 +934,7 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
             "data-editing": editing.then_some("true"),
             "data-changed": changed.then_some("true"),
             "data-pinned": pin.as_str(),
-            style: pin_offset.map(|offset| format!("--dg-pin-offset: {offset}px;")),
+            style: (!style.is_empty()).then_some(style),
             title: tooltip,
             onmounted,
             onclick,

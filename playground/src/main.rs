@@ -156,7 +156,13 @@ fn label(id: &str, german: bool) -> &'static str {
 
 /// The columns, in English or German, with totals under age and salary if
 /// `totals` is set.
-fn columns(german: bool, totals: bool, pinned: bool, header_groups: bool) -> Vec<Column<Employee>> {
+fn columns(
+    german: bool,
+    totals: bool,
+    pinned: bool,
+    header_groups: bool,
+    spanning: bool,
+) -> Vec<Column<Employee>> {
     let label = |id| label(id, german);
     // Every column can be edited, once a `DataGridEditor` says how; without
     // one the setters are never called.
@@ -234,6 +240,36 @@ fn columns(german: bool, totals: bool, pinned: bool, header_groups: bool) -> Vec
             .map(|column| match column.id().as_str() {
                 "name" | "email" => column.group("Person"),
                 "department" | "age" => column.group(if german { "Arbeit" } else { "Work" }),
+                _ => column,
+            })
+            .collect()
+    } else {
+        columns
+    };
+    // Someone still in onboarding has no work email and no department yet, so
+    // their name runs across both columns instead.
+    let columns: Vec<Column<Employee>> = if spanning {
+        columns
+            .into_iter()
+            .map(|column| match column.id().as_str() {
+                "name" => column
+                    .span(|row: &Employee| if row.age < 26 { 3 } else { 1 })
+                    .cell(move |row: &Employee| {
+                        if row.age < 26 {
+                            let note = if german {
+                                "wird noch eingearbeitet"
+                            } else {
+                                "still in onboarding"
+                            };
+                            rsx! {
+                                "{row.name} â {note}"
+                            }
+                        } else {
+                            rsx! {
+                                "{row.name}"
+                            }
+                        }
+                    }),
                 _ => column,
             })
             .collect()
@@ -323,7 +359,8 @@ fn App() -> Element {
     let mut pinned = use_signal(|| false);
     let mut header_groups = use_signal(|| false);
     let mut column_menu = use_signal(|| false);
-    let cols = use_memo(move || columns(german(), totals(), pinned(), header_groups()));
+    let mut spanning = use_signal(|| false);
+    let cols = use_memo(move || columns(german(), totals(), pinned(), header_groups(), spanning()));
 
     let mut selection = use_signal(|| SelectionMode::Multi);
     let mut paged = use_signal(|| true);
@@ -512,6 +549,16 @@ fn App() -> Element {
                         onchange: move |event| header_groups.set(event.checked()),
                     }
                     "Column groups"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
+                        "data-testid": "toggle-span",
+                        checked: spanning(),
+                        onchange: move |event| spanning.set(event.checked()),
+                    }
+                    "Name over three columns while onboarding"
                 }
 
                 label { class: "toggle",

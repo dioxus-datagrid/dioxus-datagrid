@@ -236,6 +236,14 @@ A column only does what you give it a closure for:
 - `.hidden()` — not shown, and not offered in the column menu.
 - `.aggregate(...)` — a total for the footer and every group footer.
 - `.groupable(false)` — rows cannot be grouped by it.
+- `.pin(Pinned::Start)` — held at that edge while the grid scrolls sideways.
+  Pinned columns are laid out as a block at their edge, whatever the order.
+- `.group("Customer")` — puts the column under a group in a multi-level header.
+  Called more than once the groups nest, outermost first; neighbouring columns
+  naming the same groups share one header cell.
+- `.span(|row| ...)` — how many columns this column's cell covers in that row.
+  The columns it covers render no cell of their own; the wide cell carries
+  `aria-colspan` and never leaves its pinned block.
 
 Sorting text is case-insensitive by default; `.collation(TextCollation::CaseSensitive)`
 changes that per column.
@@ -247,7 +255,10 @@ jump within a row and `Ctrl+Home`/`Ctrl+End` to the corners. On a header,
 `Enter` sorts and `Shift+Enter` adds that column to a multi-column sort. On a
 row, `Space` selects and `Shift+Space` or `Shift+Arrow` extends the selection.
 On a group header, `ArrowRight` expands, `ArrowLeft` collapses, and `Enter` or
-`Space` toggle.
+`Space` toggle. On a header, `Alt+ArrowLeft`/`Alt+ArrowRight` resize the column
+and `Alt+Shift+ArrowLeft`/`Alt+Shift+ArrowRight` move it. A cell over several
+columns — and a group over several headers — is one stop: the arrows move past
+it rather than into the columns it covers.
 
 ## Styling
 

@@ -88,6 +88,10 @@ pub const DEFAULT_MIN_COLUMN_WIDTH: f32 = 48.0;
 /// Extracts the text a column filters and searches on.
 pub type FilterTextFn<T> = Rc<dyn Fn(&T) -> String>;
 
+/// How many columns a column's cell covers in one row; see
+/// [`ColumnSpec::span`].
+pub type SpanFn<T> = Rc<dyn Fn(&T) -> usize>;
+
 /// Where a column is held in place while the grid scrolls sideways.
 ///
 /// Pinned columns are laid out as a block at their edge, whatever the column
@@ -208,6 +212,9 @@ pub struct ColumnSpec<T> {
     /// The groups this column sits under in a multi-level header, outermost
     /// first. Empty for a column that stands on its own.
     pub group_path: Vec<String>,
+    /// How many columns this column's cell covers, row by row; see
+    /// [`ColumnSpec::span`].
+    pub span: Option<SpanFn<T>>,
 }
 
 impl<T> ColumnSpec<T> {
@@ -235,6 +242,7 @@ impl<T> ColumnSpec<T> {
             groupable: true,
             pinned: Pinned::None,
             group_path: Vec::new(),
+            span: None,
         }
     }
 
@@ -422,6 +430,42 @@ impl<T> ColumnSpec<T> {
     pub fn group(mut self, label: impl Into<String>) -> Self {
         self.group_path.push(label.into());
         self
+    }
+
+    /// Sets how many columns this column's cell covers, row by row.
+    ///
+    /// The cell covers the columns to its right as they are laid out now, so
+    /// what it covers follows reordering, hiding and pinning; the covered
+    /// columns render no cell of their own. A span never leaves the pinned
+    /// block its column is in, and never runs past the last column. Returning
+    /// `1` â or `0` â leaves the row alone, which is what a row that should not
+    /// span returns.
+    ///
+    /// ```
+    /// # use datagrid_core::ColumnSpec;
+    /// # struct Entry { note: String, kind: Kind }
+    /// # #[derive(PartialEq)] enum Kind { Note, Number }
+    /// // A note runs across the three number columns after it.
+    /// let note = ColumnSpec::new("note")
+    ///     .value_text(|entry: &Entry| entry.note.as_str())
+    ///     .span(|entry: &Entry| if entry.kind == Kind::Note { 4 } else { 1 });
+    /// ```
+    #[must_use]
+    pub fn span<F>(mut self, span: F) -> Self
+    where
+        F: Fn(&T) -> usize + 'static,
+    {
+        self.span = Some(Rc::new(span));
+        self
+    }
+
+    /// How many columns this column's cell covers in `row`: what
+    /// [`span`](ColumnSpec::span) says, or one.
+    ///
+    /// Never zero, so a caller can use it as a width without checking.
+    #[must_use]
+    pub fn span_at(&self, row: &T) -> usize {
+        self.span.as_ref().map_or(1, |span| span(row)).max(1)
     }
 
     /// Where the column is pinned right now: what
@@ -625,6 +669,7 @@ impl<T> Clone for ColumnSpec<T> {
             groupable: self.groupable,
             pinned: self.pinned,
             group_path: self.group_path.clone(),
+            span: self.span.clone(),
         }
     }
 }
@@ -650,6 +695,7 @@ impl<T> fmt::Debug for ColumnSpec<T> {
             .field("groupable", &self.is_groupable())
             .field("pinned", &self.pinned)
             .field("group_path", &self.group_path)
+            .field("spans", &self.span.is_some())
             .finish()
     }
 }
@@ -689,5 +735,6 @@ impl<T> PartialEq for ColumnSpec<T> {
             && self.groupable == other.groupable
             && self.pinned == other.pinned
             && self.group_path == other.group_path
+            && same_closure(self.span.as_ref(), other.span.as_ref())
     }
 }

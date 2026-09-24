@@ -72,6 +72,7 @@ mod navigate;
 mod remote;
 mod selection;
 mod sort;
+mod span;
 mod state;
 mod value;
 mod view;
@@ -79,7 +80,7 @@ mod virtualize;
 
 pub use column::{
     ColumnId, ColumnSpec, ColumnWidth, DEFAULT_MIN_COLUMN_WIDTH, FilterTextFn, Pinned, SortKeyFn,
-    ValueFn,
+    SpanFn, ValueFn,
 };
 pub use edit::{Changes, EditError, FromValue, SetFn, ValidateFn, changed_columns};
 pub use filter::{ColumnFilter, Condition, FilterOp, Value, ValueKind};
@@ -100,6 +101,7 @@ pub use remote::{
 };
 pub use selection::{Selection, SelectionMode};
 pub use sort::{SortDirection, SortState, SortValue, TextCollation};
+pub use span::RowSpans;
 pub use state::{GridState, PageState};
 pub use value::CellValue;
 pub use view::{DistinctValues, View, ViewRow, compute_view, distinct_values};

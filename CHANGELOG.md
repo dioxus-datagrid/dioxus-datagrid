@@ -23,6 +23,17 @@ All notable changes to this project are documented here. The format follows
   content — following the WAI-ARIA menu pattern, opened with a click or `Alt+ArrowDown`. What a
   column offers is public as `column_menu_entries`, and `ColumnAction::apply` carries one out.
 - `GridState::set_sort` and `clear_sort`, for picking a direction rather than cycling through them.
+- Cells over several columns. `.span(|row| 3)` lets a column's cell cover the columns after it, row
+  by row; they render no cell of their own. The wide cell carries `aria-colspan`, `aria-colindex`
+  keeps counting in columns, and a span never leaves its pinned block or the row. `RowSpans` in
+  `datagrid-core` resolves one row and is what the keyboard moves through.
+
+### Changed
+
+- A cell over several columns, and a group over several column headers, is one stop for the arrow
+  keys: `ArrowRight` moves to the cell after it instead of standing still, and a move that lands on
+  a covered column lands on the cell covering it. Multi-level headers behaved differently in 0.8.0,
+  where the arrow keys were silent inside a wide group.
 
 ### Fixed
 
@@ -33,6 +44,9 @@ All notable changes to this project are documented here. The format follows
 - A header moved with the keyboard keeps DOM focus, so a second key press is not swallowed.
 - A column header names itself with `aria-label`, so a button inside it does not end up in the
   column's name.
+- Group rows, group footers and the totals row counted on the header being one row. With a
+  multi-level header above a grouped grid, their `aria-rowindex` and the row the keyboard put them
+  on were off by the number of group levels.
 
 ## [0.8.0] - 2026-09-21
 

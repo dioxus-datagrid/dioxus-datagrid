@@ -4,9 +4,10 @@ use crate::Column;
 use crate::edit::{EditRows, EditStatus, EditTarget, Editing, Session};
 use datagrid_core::{
     CellFocus, ColumnFilter, ColumnId, ColumnSpec, ColumnWidth, DEFAULT_REMOTE_PAGE_SIZE,
-    DistinctValues, GridLocale, GridQuery, GridRow, GridState, GroupSpan, NavKey, Pinned,
-    Selection, SelectionMode, SortDirection, ValueKind, View, compute_view, distinct_values,
-    group_header_rows, group_levels, navigate, reveal_scroll_top, rows_per_viewport, visible_range,
+    DistinctValues, GridLocale, GridQuery, GridRow, GridState, GroupSpan, NavKey, Pinned, RowSpans,
+    Selection, SelectionMode, SortDirection, ValueKind, View, ViewRow, compute_view,
+    distinct_values, group_header_rows, group_levels, navigate, reveal_scroll_top,
+    rows_per_viewport, visible_range,
 };
 use dioxus::html::ScrollBehavior;
 use dioxus::html::geometry::PixelsVector2D;
@@ -996,6 +997,88 @@ impl<T: GridRow> GridHandle<T> {
         group_levels(&specs) + 1
     }
 
+    // -- cells over several columns ------------------------------------------
+
+    /// Which cell covers each column of the data row at `row_index` on the
+    /// current page.
+    ///
+    /// A column can cover several columns with
+    /// [`Column::span`](crate::Column::span), row by row. This resolves what
+    /// every column declares for this one row, in the order and the pinning the
+    /// columns are laid out in right now. A grid whose columns span nothing â
+    /// the usual case â gets a row of single cells without reading a row at
+    /// all.
+    ///
+    /// Read from the stored row, not from an edit in progress: how wide a cell
+    /// is should not change under the editor while it is open.
+    #[must_use]
+    pub fn row_spans(&self, row_index: usize) -> RowSpans {
+        let columns = self.visible_columns();
+        if columns.iter().all(|column| column.spec().span.is_none()) {
+            return RowSpans::none(columns.len());
+        }
+
+        let pins: Vec<Pinned> = {
+            let state = self.state.read();
+            columns
+                .iter()
+                .map(|column| column.spec().effective_pin(&state))
+                .collect()
+        };
+        let index = self.view().read().data_index(row_index);
+        let data = self.data.read();
+        let Some(row) = index.and_then(|index| data.get(index)) else {
+            return RowSpans::none(columns.len());
+        };
+
+        let declared: Vec<(usize, Pinned)> = columns
+            .iter()
+            .zip(&pins)
+            .map(|(column, pin)| (column.spec().span_at(row), *pin))
+            .collect();
+        RowSpans::resolve(&declared)
+    }
+
+    /// The cells of the row the focus coordinates call `row`, whichever kind of
+    /// row that is: a group header row above the columns, the column headers
+    /// themselves, a group's own row, or a data row.
+    ///
+    /// What the keyboard needs in order to land on cells rather than on columns
+    /// covered by one.
+    fn focus_row_spans(&self, row: usize) -> RowSpans {
+        let columns = self.visible_columns().len();
+        let header_rows = self.header_rows();
+
+        // A group header row: each cell covers the columns it names.
+        if row + 1 < header_rows {
+            let mut declared = vec![(1, Pinned::None); columns];
+            for span in self.group_header_rows().get(row).into_iter().flatten() {
+                if let Some(slot) = declared.get_mut(span.start) {
+                    slot.0 = span.span;
+                }
+            }
+            return RowSpans::resolve(&declared);
+        }
+
+        let Some(row_index) = row.checked_sub(header_rows) else {
+            // The column headers themselves; they never span.
+            return RowSpans::none(columns);
+        };
+
+        match self.row_kind(row_index) {
+            // A group's own row is one cell across the whole grid.
+            Some(ViewRow::GroupHeader(_)) => {
+                let mut declared = vec![(1, Pinned::None); columns];
+                if let Some(first) = declared.first_mut() {
+                    first.0 = columns;
+                }
+                RowSpans::resolve(&declared)
+            }
+            Some(ViewRow::Data(_)) => self.row_spans(row_index),
+            _ => RowSpans::none(columns),
+        }
+    }
+
     // -- pinned columns ------------------------------------------------------
 
     /// Where a column is held while the grid scrolls sideways.
@@ -1681,7 +1764,12 @@ impl<T: GridRow> GridHandle<T> {
             Some(row_height) => rows_per_viewport(self.body_viewport_height(), row_height),
             None => rows.max(1),
         };
-        let moved = navigate(self.focus(), key, rows, cols, page_rows);
+        let focus = self.focus();
+        let mut moved = navigate(focus, key, rows, cols, page_rows);
+        // Cells, not columns: a cell covering several columns is one stop, and
+        // a key that would land inside the cell it started on carries on past
+        // it. The row it lands on decides, so this comes after the move.
+        moved.col = self.focus_row_spans(moved.row).step(focus.col, moved.col);
         self.set_focus(moved);
         self.reveal_focus();
     }

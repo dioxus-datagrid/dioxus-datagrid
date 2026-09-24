@@ -207,6 +207,18 @@ DataGrid { data: orders, columns,
 }
 ```
 
+A column can also cover several columns in a row of its own choosing, which the columns it covers
+leave to it:
+
+```rust
+Column::new("note", "Note")
+    .value_text(|order: &Order| order.note.as_str())
+    .span(|order: &Order| if order.cancelled { 3 } else { 1 }),
+```
+
+The cell carries `aria-colspan`, `aria-colindex` keeps counting in columns, and the arrow keys
+treat it as the single cell it is.
+
 ## Headless usage
 
 If you want your own markup, skip the registry component and compose the primitives. They render
@@ -280,7 +292,8 @@ The grid is a single tab stop with a roving tabindex. Arrow keys move between ce
 within a row, `Ctrl+Home`/`Ctrl+End` to the corners. `Enter` on a header sorts, `Shift+Enter` adds
 a sort column. `Space` selects a row, `Shift+Space` and `Shift+Arrow` extend the selection.
 `aria-rowcount` and `aria-rowindex` stay correct across pages. On a header, `Alt+ArrowLeft` and
-`Alt+ArrowRight` resize the column.
+`Alt+ArrowRight` resize the column. A cell over several columns, and a group over several column
+headers, is one stop: the arrows move to the cell after it, never into the columns it covers.
 
 [`docs/ACCESSIBILITY.md`](docs/ACCESSIBILITY.md) documents exactly what is rendered.
 

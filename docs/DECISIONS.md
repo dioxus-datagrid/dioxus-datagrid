@@ -878,3 +878,55 @@ es ohne Maus erreichbar ist, und ob das Filtern hineingehört.
   `z-index`; sonst schnitte sie das Panel an ihrer Kante ab.
 - Was eine Spalte anbietet, liegt als `column_menu_entries` offen, und `ColumnAction::apply` führt
   es aus — wer ein eigenes Menü baut, braucht die Komponente nicht.
+
+---
+
+## ADR-0030 — Zellen über mehrere Spalten: eine Zeile entscheidet, die Tastatur folgt
+
+**Kontext.** `docs/ROADMAP.md` Phase 11 nennt „Zellen über Spalten verbinden (Column Spanning),
+soweit ARIA es sauber erlaubt". Offen war, wer die Breite bestimmt, was mit den verdeckten Spalten
+passiert und wie sich die Pfeiltasten verhalten.
+
+**Entscheidung.**
+
+1. **Die Spalte sagt es pro Zeile**, nicht die Zeile pro Spalte: `Column::span(|row| n)`. Eine
+   Zeile kennt ihre Spalten nicht — die Spalten sind es, die wissen, was sie darstellen, und die
+   schon `cell`, `value` und `format` pro Zeile liefern. Ohne `span` liest die Bibliothek keine
+   Zeile: `row_spans` gibt sofort `RowSpans::none` zurück.
+
+2. **Die verdeckten Spalten rendern nichts.** `GridRow` fragt `RowSpans`, welche Zellen es gibt,
+   und rendert nur die. `aria-colindex` zählt weiter in Spalten, nicht in Zellen, und die breite
+   Zelle trägt `aria-colspan` — damit bleibt die Zeile für den Screenreader so breit wie der Kopf.
+   Die Zeile ist ein `subgrid`, also sagt dieselbe Zelle dem Layout `grid-column: span n`.
+
+3. **Eine Zelle verlässt ihren fixierten Block nicht.** Sie kann nicht gleichzeitig am Rand kleben
+   und mitscrollen; eine Spanne, die über die Kante des Blocks liefe, wird an ihr gekappt. Ebenso
+   an der letzten Spalte. Ein `span` von 0 oder 1 ist dasselbe: die Spalte allein.
+
+4. **Die Spanne folgt der Anordnung, nicht der Deklaration.** Sie verdeckt die Spalten, die gerade
+   rechts von ihr stehen — Umsortieren, Ausblenden und Fixieren ändern also, was sie verdeckt. Das
+   ist die Regel, die keine zweite Wahrheit einführt; die Alternative (benannte Nachbarn) hätte
+   einen zweiten Ordnungsbegriff neben `column_order` gebraucht.
+
+5. **Die Tastatur bewegt sich in Zellen.** `RowSpans::step` setzt den Fokus nach jedem Zug auf
+   eine Zelle: ein Zug nach rechts, der in derselben Zelle endete, geht über sie hinaus — eine
+   Pfeiltaste, die sichtbar nichts tut, liest sich als kaputte Taste; ein Zug, der auf einer
+   verdeckten Spalte landet, landet auf der Zelle darüber. Ein Zug nach unten behält die Spalte
+   und ist deshalb ausdrücklich kein Zug nach rechts — die erste Fassung verwechselte beides, und
+   ein E2E-Test hat es gefunden.
+
+6. **Dieselbe Regel gilt für die mehrstufigen Köpfe.** Eine Gruppenkopfzelle ist eine Zelle über
+   mehreren Spalten, also ist sie jetzt ebenfalls ein einziger Stopp: `→` springt zur nächsten
+   Gruppe, statt innerhalb der Gruppe stehen zu bleiben. Das ist eine Verhaltensänderung
+   gegenüber 0.8.0, und die bessere: vorher war die Taste in einer breiten Gruppe stumm.
+
+**Folgen.**
+
+- `GridCell` hat eine neue Prop `span` (Vorgabe 1). Wer die Primitives von Hand in einer Schleife
+  zusammensetzt, fragt `grid.row_spans(row)`; `GridRow` und damit `data_grid` tun es von selbst.
+- Die Spanne wird aus der **gespeicherten** Zeile gelesen, nicht aus einer laufenden Bearbeitung:
+  eine Zelle, die unter dem offenen Editor die Breite wechselt, wäre schlechter als eine, die
+  einen Takt zu spät nachzieht.
+- `GridGroupRow` und die Fußzeilen rechneten mit „eine Kopfzeile"; sie fragen jetzt
+  `header_rows()`. Mit mehrstufigen Köpfen *und* Gruppierung waren `aria-rowindex` und die
+  Fokuszeile vorher um die Gruppenebenen verschoben.

@@ -336,6 +336,29 @@ impl<T> Column<T> {
         self
     }
 
+    /// Sets how many columns this column's cell covers, row by row. The
+    /// columns it covers render no cell of their own.
+    ///
+    /// The cell covers the columns to its right as they are laid out now, and
+    /// never leaves the pinned block its column is in. Returning `1` leaves the
+    /// row alone.
+    ///
+    /// ```
+    /// # use dioxus_datagrid::Column;
+    /// # struct Entry { note: String, heading: bool }
+    /// let note = Column::new("note", "Note")
+    ///     .value_text(|entry: &Entry| entry.note.as_str())
+    ///     .span(|entry: &Entry| if entry.heading { 4 } else { 1 });
+    /// ```
+    #[must_use]
+    pub fn span<F>(mut self, span: F) -> Self
+    where
+        F: Fn(&T) -> usize + 'static,
+    {
+        self.spec = self.spec.span(span);
+        self
+    }
+
     /// Replaces the column's editor with one of your own. It gets a
     /// [`CellEditor`] with the text and the handlers to wire up; the grid
     /// still reads, validates and saves the text.
