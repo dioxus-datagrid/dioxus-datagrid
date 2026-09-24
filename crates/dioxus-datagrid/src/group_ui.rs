@@ -59,13 +59,16 @@ pub fn GridGroupRow<T: GridRowKey + PartialEq + 'static>(
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
 ) -> Element {
     let mut grid = grid;
-    let focus_row = row_index + 1;
+    // How many rows the header takes is the grid's to know: a multi-level
+    // header pushes every row below it down.
+    let header_rows = grid.header_rows();
+    let focus_row = row_index + header_rows;
     // The one cell stands for every column of its row.
     let onmounted = use_focus_pull_where(grid, move |focus| focus.row == focus_row);
     let Some(group) = grid.group_at(row_index) else {
         return rsx! {};
     };
-    let aria_row_index = grid.view().read().row_offset + row_index + 2;
+    let aria_row_index = grid.view().read().row_offset + row_index + header_rows + 1;
     let column_count = grid.visible_column_count();
     let focused = grid.focus().row == focus_row;
 
@@ -158,6 +161,7 @@ pub fn GridGroupFooterRow<T: GridRowKey + PartialEq + 'static>(
     row_index: usize,
     #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
 ) -> Element {
+    let header_rows = grid.header_rows();
     let (aria_row_index, group) = {
         let view = grid.view();
         let view = view.read();
@@ -165,7 +169,7 @@ pub fn GridGroupFooterRow<T: GridRowKey + PartialEq + 'static>(
             .row(row_index)
             .and_then(|row| row.group_index())
             .and_then(|index| Some((index, view.groups.get(index)?.level)));
-        (view.row_offset + row_index + 2, group)
+        (view.row_offset + row_index + header_rows + 1, group)
     };
     let Some((group, level)) = group else {
         return rsx! {};
@@ -186,7 +190,7 @@ pub fn GridGroupFooterRow<T: GridRowKey + PartialEq + 'static>(
                     key: "{column_index}",
                     grid,
                     source: AggregateSource::Group(group),
-                    focus_row: row_index + 1,
+                    focus_row: row_index + header_rows,
                     column_index,
                 }
             }
@@ -296,10 +300,15 @@ pub fn GridFooter<T: GridRowKey + PartialEq + 'static>(
         return rsx! {};
     }
 
+    let header_rows = grid.header_rows();
     let (focus_row, aria_row_index, grouped) = {
         let view = grid.view();
         let view = view.read();
-        (view.len() + 1, view.row_count + 2, view.group_levels > 0)
+        (
+            view.len() + header_rows,
+            view.row_count + header_rows + 1,
+            view.group_levels > 0,
+        )
     };
     let columns = grid.visible_column_count();
     let totals = grid.locale().read().totals.to_string();
