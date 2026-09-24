@@ -829,3 +829,52 @@ Zeilenarten.
   Props hat, aus denen er folgen könnte.
 - Das **Fullstack-Beispiel** zeigt Gruppen und Gruppenfüße, aber keine Summenzeile: Sie verschöbe
   alle bestehenden Zeilenzählungen seiner Tests. Das Server-Beispiel zeigt sie.
+
+---
+
+## ADR-0029 — Spaltenmenü als Zusatzkomponente, geöffnet mit `Alt+↓`
+
+**Kontext.** `docs/ROADMAP.md` Phase 11 nennt ein Spaltenmenü am Kopf mit „sortieren, filtern,
+gruppieren, fixieren, ausblenden, automatische Breite". Drei Fragen waren offen: wo es lebt, wie
+es ohne Maus erreichbar ist, und ob das Filtern hineingehört.
+
+**Entscheidung.**
+
+1. **Eigene Registry-Komponente `data_grid_column_menu`**, nicht eine Prop an `data_grid`. Die
+   Kernkomponente steht bei 256 Zeilen, die Regel sagt „< ~250"; Pinning und Menü hätten sie
+   deutlich darüber getrieben. Das ist genau der Fall, für den A3 die Familie vorgesehen hat.
+   Die Anmeldung läuft wie bei der Gruppenleiste über das Handle (`set_column_menu`), nicht über
+   einen Import: `data_grid` muss die Zusatzkomponente nicht kennen, und wer sie nicht
+   installiert, kompiliert nichts davon.
+
+2. **Der Knopf ist kein Tab-Stopp.** Er sitzt in einer Gitterzelle, und „das Gitter ist ein
+   einziger Tab-Stopp" ist eine geprüfte Zusage (`docs/ACCESSIBILITY.md`). Vier fokussierbare
+   Knöpfe in vier Köpfen wären vier weitere. Er trägt `tabindex="-1"` und wird mit **`Alt+↓`**
+   auf dem fokussierten Spaltenkopf geöffnet — die übliche Taste für ein Menü an einem
+   Bedienelement, und sie reiht sich in `Alt+←/→` (Breite) und `Alt+Shift+←/→` (Reihenfolge) ein.
+   Geschlossen wird auf den **Kopf** zurückfokussiert, nicht auf den Knopf: Fokus auf einem
+   Element ohne Tab-Stopp ließe die Pfeiltasten des Gitters ins Leere laufen.
+
+   *Alternative:* Knopf mit `tabindex="0"`. Verworfen — bricht die Zusage und ihre Tests.
+
+3. **Offen/zu liegt im Handle**, nicht in der Komponente (`open_column_menu`). Sonst könnte die
+   Kopfzelle das Menü in sich nicht öffnen; nebenbei ist damit höchstens ein Menü offen.
+
+4. **Kein Filtern im Menü.** `data_grid` setzt mit `filter_menu` bereits ein Filtermenü an jede
+   Spalte. Zwei Wege zum selben Panel wären zwei Stellen zum Suchen und zwei Zustände, die
+   auseinanderlaufen können. Das ist eine bewusste Abweichung von der Aufzählung in der Roadmap.
+
+5. **„Automatische Breite" ist „Breite vergessen".** Auto-Spalten wachsen ohnehin mit ihrem Inhalt;
+   was der Nutzer will, ist die gezogene Breite loszuwerden. Der Eintrag erscheint deshalb nur,
+   wenn es eine gibt, und ruft `reset_column_width`.
+
+**Folgen.**
+
+- Die Kopfzelle benennt sich jetzt selbst (`aria-label` aus dem Spaltenlabel). Ohne das wäre der
+  Knopftext in den Namen der Spalte gerutscht — „Name Column options for Name".
+- Klicks im Menü werden gestoppt, bevor sie die Kopfzelle erreichen: ein Klick auf den Knopf hätte
+  sonst die Spalte sortiert.
+- Solange das Menü offen ist, hebt die Kopfzelle ihr `overflow: hidden` auf und steigt im
+  `z-index`; sonst schnitte sie das Panel an ihrer Kante ab.
+- Was eine Spalte anbietet, liegt als `column_menu_entries` offen, und `ColumnAction::apply` führt
+  es aus — wer ein eigenes Menü baut, braucht die Komponente nicht.

@@ -4,6 +4,7 @@
   "members": [
     "data_grid",
     "data_grid_editor",
-    "data_grid_group_panel"
+    "data_grid_group_panel",
+    "data_grid_column_menu"
   ]
 }

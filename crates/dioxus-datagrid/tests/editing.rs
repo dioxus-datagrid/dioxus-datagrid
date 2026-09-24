@@ -312,9 +312,11 @@ fn the_dialog_is_a_labelled_modal_form() {
     assert!(open.contains(r#"role="dialog""#), "{open}");
     assert!(open.contains(r#"aria-modal="true""#), "{open}");
     assert!(open.contains("Edit row"), "{open}");
-    // Fields are named by labels, not aria-label.
-    assert!(open.contains(r#"<label for=""#), "{open}");
-    assert!(!open.contains(r#"aria-label="Age""#), "{open}");
+    // Fields are named by labels, not aria-label. Only within the dialog: the
+    // column headers name themselves with one, which is a different question.
+    let dialog = open.split(r#"role="dialog""#).nth(1).unwrap_or_default();
+    assert!(dialog.contains(r#"<label for=""#), "{open}");
+    assert!(!dialog.contains("aria-label="), "{open}");
     // The cells themselves stay as they are.
     assert!(!open.contains(r#"data-editing="true""#), "{open}");
 

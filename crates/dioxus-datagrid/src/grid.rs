@@ -263,6 +263,11 @@ pub struct GridHandle<T: GridRow + 'static> {
     pub(crate) footer: Signal<bool>,
     /// Whether a group panel is mounted, which makes column headers draggable.
     pub(crate) group_panel: Signal<bool>,
+    /// Whether a column menu add-on is mounted, so headers show its button.
+    pub(crate) column_menu: Signal<bool>,
+    /// Which column's menu is open, if any. In the handle so a header cell can
+    /// open the menu it contains without reaching into it.
+    pub(crate) open_column_menu: Signal<Option<ColumnId>>,
 }
 
 impl<T: GridRow> Clone for GridHandle<T> {
@@ -396,6 +401,8 @@ pub(crate) struct GridBase<T: GridRow + 'static> {
     dragged_column: Signal<Option<ColumnId>>,
     footer: Signal<bool>,
     group_panel: Signal<bool>,
+    column_menu: Signal<bool>,
+    open_column_menu: Signal<Option<ColumnId>>,
 }
 
 /// Creates the signals shared by local and remote grids, in a fixed hook order.
@@ -479,6 +486,8 @@ where
         dragged_column: use_signal(|| None::<ColumnId>),
         footer: use_signal(|| false),
         group_panel: use_signal(|| false),
+        column_menu: use_signal(|| false),
+        open_column_menu: use_signal(|| None),
     }
 }
 
@@ -554,6 +563,8 @@ impl<T: GridRow + PartialEq> GridBase<T> {
             dragged_column: self.dragged_column,
             footer: self.footer,
             group_panel: self.group_panel,
+            column_menu: self.column_menu,
+            open_column_menu: self.open_column_menu,
         }
     }
 }
@@ -698,6 +709,17 @@ impl<T: GridRow> GridHandle<T> {
     /// replacing it.
     pub fn toggle_sort(&mut self, column: impl Into<ColumnId>, additive: bool) {
         self.state.write().toggle_sort(column, additive);
+    }
+
+    /// Sorts by a column in a given direction, replacing any other sort. What a
+    /// menu does, where the direction is picked rather than cycled through.
+    pub fn set_sort(&mut self, column: impl Into<ColumnId>, direction: SortDirection) {
+        self.state.write().set_sort(column, direction);
+    }
+
+    /// Takes a column out of the sort, leaving the others in place.
+    pub fn clear_sort(&mut self, column: &ColumnId) {
+        self.state.write().clear_sort(column);
     }
 
     /// The direction a column is sorted in, if it is sorted at all.

@@ -169,6 +169,41 @@ impl<T: GridRow> GridHandle<T> {
         }
     }
 
+    /// Whether column headers show a menu button, because a column menu add-on
+    /// is mounted.
+    #[must_use]
+    pub fn has_column_menu(&self) -> bool {
+        *self.column_menu.read()
+    }
+
+    /// Records whether a column menu is mounted. Called by the add-on, so that
+    /// `data_grid` need not know it exists.
+    pub fn set_column_menu(&mut self, mounted: bool) {
+        if *self.column_menu.peek() != mounted {
+            self.column_menu.set(mounted);
+        }
+    }
+
+    /// Whether a column's menu is open. At most one is, anywhere in the grid.
+    #[must_use]
+    pub fn is_column_menu_open(&self, column: &ColumnId) -> bool {
+        self.open_column_menu.read().as_ref() == Some(column)
+    }
+
+    /// Opens a column's menu, closing whichever was open. Kept on the handle so
+    /// that the header cell can open the menu inside it — `Alt+ArrowDown` —
+    /// without reaching into the menu's own state.
+    pub fn open_column_menu(&mut self, column: ColumnId) {
+        self.open_column_menu.set(Some(column));
+    }
+
+    /// Closes whichever column menu is open.
+    pub fn close_column_menu(&mut self) {
+        if self.open_column_menu.peek().is_some() {
+            self.open_column_menu.set(None);
+        }
+    }
+
     /// Starts dragging a column's header.
     pub fn start_column_drag(&mut self, column: ColumnId) {
         self.dragged_column.set(Some(column));

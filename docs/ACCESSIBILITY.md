@@ -156,8 +156,9 @@ Mit `GridHeader { resizable: true }` trägt jede in der Breite veränderbare Kop
   lückenlos. Die letzte sichtbare Spalte lässt sich nicht ausblenden. Liegt der Fokus auf einer
   Spalte, die verschwindet, rückt er auf die nächste vorhandene Zelle — das Gitter bleibt genau ein
   Tab-Stopp. Dasselbe gilt, wenn ein Filter die fokussierte Zeile entfernt.
-- Das Spaltenmenü der Registry-Komponente liegt **außerhalb** von `role="grid"` und besteht aus
-  normalen Checkboxen mit Label.
+- Die Spaltenauswahl der Registry-Komponente (`column_picker`) liegt **außerhalb** von
+  `role="grid"` und besteht aus normalen Checkboxen mit Label. Nicht zu verwechseln mit dem
+  Spaltenmenü am Kopf, das weiter unten steht.
 
 ## Serverseitige Daten
 
@@ -274,6 +275,27 @@ es `role="grid"`.
   `ArrowLeft`/`ArrowRight` innerhalb der Gruppe nicht springen. Der Tab-Stopp liegt anfangs auf
   den Spaltenköpfen, nicht auf einer Gruppe: eine Gruppe ist eine Beschriftung, kein Bedienelement.
 
+## Spaltenmenü
+
+Eine Zusatzkomponente (`data_grid_column_menu`) setzt in jede Kopfzelle einen Knopf, der ein Menü
+nach dem WAI-ARIA-**Menu**-Muster öffnet: sortieren, gruppieren, fixieren, ausblenden, Breite
+vergessen.
+
+- **Der Knopf ist kein Tab-Stopp** (`tabindex="-1"`). Das Gitter bleibt ein einziger Tab-Stopp;
+  geöffnet wird mit **`Alt+↓`** auf dem fokussierten Spaltenkopf. Der Knopf meldet
+  `aria-haspopup="menu"`, `aria-expanded` und über `aria-controls` das Panel.
+- **Das Panel** ist `role="menu"`, benannt wie der Knopf. Einträge sind `menuitem`; wo sie eine
+  Auswahl zwischen Zuständen sind — die Sortierrichtung, die Kante — sind es `menuitemradio` mit
+  `aria-checked`, sodass Hilfstechnologie den geltenden Zustand nennt.
+- **Tastatur im Menü:** `↓` und `↑` gehen weiter und laufen um, `Home`/`End` an die Enden, `Enter`
+  und `Space` wählen, `Escape` schließt. Nach dem Öffnen liegt der Fokus auf dem ersten Eintrag,
+  nach dem Schließen wieder auf dem **Spaltenkopf** — nicht auf dem Knopf, der keiner
+  Tab-Reihenfolge angehört.
+- **Die Kopfzelle benennt sich selbst** (`aria-label` aus dem Spaltenlabel), damit der Knopftext
+  nicht in den Namen der Spalte gerät.
+- **Angeboten wird nur, was etwas tut:** keine Sortierung ohne Wert, kein „Sortierung aufheben"
+  ohne Sortierung, kein „Fixierung aufheben" ohne Fixierung, kein Ausblenden der letzten Spalte.
+
 ## Automatisiert geprüft
 
 - **Markup:** SSR-Tests in `crates/dioxus-datagrid/tests/aria.rs`.
@@ -307,6 +329,10 @@ es `role="grid"`.
 - **Mehrstufige Köpfe:** `crates/dioxus-datagrid/tests/header_groups.rs` — Zeilen je Ebene,
   `aria-colspan`, leere Zellen über Spalten ohne Gruppe, Zeilennummern, Tab-Stopp auf den
   Spaltenköpfen. Aufteilung im Kern in `crates/datagrid-core/tests/header.rs`.
+- **Spaltenmenü:** `tests/e2e/column-menu.spec.ts` — Sortieren, Gruppieren, Fixieren, Ausblenden
+  und Breite über das Menü, `Alt+↓` zum Öffnen, Fokus auf dem ersten Eintrag und zurück auf dem
+  Kopf, Umlaufen der Pfeiltasten, kein zweiter Tab-Stopp, Klick daneben, axe bei offenem Menü.
+  Die Einträge selbst in `crates/dioxus-datagrid/tests/column_menu.rs`.
 - **Serverseitige Daten:** `crates/dioxus-datagrid/tests/remote.rs` (`aria-busy`, Statusregion,
   Zählung über die Server-Gesamtzahl) und `tests/e2e/server.spec.ts` im Browser.
 - **`axe`:** `@axe-core/playwright` über die ganze Komponente, im hellen **und** im dunklen Theme,

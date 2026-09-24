@@ -10,6 +10,7 @@ mod components;
 
 use chrono::NaiveDate;
 use components::data_grid::DataGrid;
+use components::data_grid_column_menu::DataGridColumnMenu;
 use components::data_grid_editor::DataGridEditor;
 use components::data_grid_group_panel::DataGridGroupPanel;
 use dioxus::prelude::*;
@@ -321,6 +322,7 @@ fn App() -> Element {
     let mut reorder = use_signal(|| false);
     let mut pinned = use_signal(|| false);
     let mut header_groups = use_signal(|| false);
+    let mut column_menu = use_signal(|| false);
     let cols = use_memo(move || columns(german(), totals(), pinned(), header_groups()));
 
     let mut selection = use_signal(|| SelectionMode::Multi);
@@ -515,6 +517,16 @@ fn App() -> Element {
                 label { class: "toggle",
                     input {
                         r#type: "checkbox",
+                        "data-testid": "toggle-column-menu",
+                        checked: column_menu(),
+                        onchange: move |event| column_menu.set(event.checked()),
+                    }
+                    "Column menu"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
                         "data-testid": "toggle-totals",
                         checked: totals(),
                         onchange: move |event| totals.set(event.checked()),
@@ -608,6 +620,9 @@ fn App() -> Element {
                     lang: if german() { "de" } else { "en" },
                     if grouping() {
                         DataGridGroupPanel::<Employee> {}
+                    }
+                    if column_menu() {
+                        DataGridColumnMenu::<Employee> {}
                     }
                     if let Some(mode) = edit_mode() {
                         DataGridEditor {

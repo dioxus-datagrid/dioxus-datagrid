@@ -223,12 +223,11 @@ fn aria_colindex_counts_the_pinned_column_where_it_is_shown() {
 
     // Age is shown first, so it is colindex 1 — the keyboard walks the columns
     // in the order they appear, not the order they were declared.
-    let age = html.find("Age").unwrap();
-    let before_age = &html[..age];
-    assert!(
-        before_age.rfind(r#"aria-colindex="1""#) > before_age.rfind(r#"aria-colindex="2""#),
-        "{html}"
-    );
+    let age_header = html
+        .split("<div ")
+        .find(|tag| tag.contains(r#"aria-label="Age""#))
+        .unwrap();
+    assert!(age_header.contains(r#"aria-colindex="1""#), "{html}");
 }
 
 #[test]

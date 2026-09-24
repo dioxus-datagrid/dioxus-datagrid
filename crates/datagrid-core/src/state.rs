@@ -142,6 +142,34 @@ impl GridState {
         self.reset_page();
     }
 
+    /// Sorts by a column in a given direction, replacing any other sort.
+    ///
+    /// What a menu does, where the direction is chosen rather than cycled
+    /// through as [`toggle_sort`](GridState::toggle_sort) does. Resets paging.
+    pub fn set_sort(&mut self, column: impl Into<ColumnId>, direction: SortDirection) {
+        let column = column.into();
+        if self.sort.len() == 1
+            && self
+                .sort
+                .first()
+                .is_some_and(|entry| entry.column == column && entry.direction == direction)
+        {
+            return;
+        }
+        self.sort.clear();
+        self.sort.push(SortState::new(column, direction));
+        self.reset_page();
+    }
+
+    /// Takes a column out of the sort, leaving the others in place.
+    pub fn clear_sort(&mut self, column: &ColumnId) {
+        let before = self.sort.len();
+        self.sort.retain(|entry| &entry.column != column);
+        if self.sort.len() != before {
+            self.reset_page();
+        }
+    }
+
     /// Sets the filter text for a column. An empty string removes the filter.
     ///
     /// Resets paging to the first page.

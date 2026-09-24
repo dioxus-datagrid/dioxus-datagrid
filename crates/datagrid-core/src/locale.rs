@@ -183,6 +183,26 @@ pub struct GridLocale {
     pub edit_saved: Cow<'static, str>,
     /// After a save failed, with `{error}`.
     pub edit_save_failed: Cow<'static, str>,
+    /// Accessible name of a column header's options menu, for `{column}`.
+    pub column_menu: Cow<'static, str>,
+    /// Sorts the column from low to high.
+    pub sort_ascending: Cow<'static, str>,
+    /// Sorts the column from high to low.
+    pub sort_descending: Cow<'static, str>,
+    /// Removes the column from the sort.
+    pub sort_clear: Cow<'static, str>,
+    /// Groups the rows by this column.
+    pub group_by_column: Cow<'static, str>,
+    /// Holds the column at the start edge.
+    pub pin_start: Cow<'static, str>,
+    /// Holds the column at the end edge.
+    pub pin_end: Cow<'static, str>,
+    /// Lets the column scroll with the rest again.
+    pub pin_none: Cow<'static, str>,
+    /// Hides the column.
+    pub hide_column: Cow<'static, str>,
+    /// Sizes the column to its content again.
+    pub fit_width: Cow<'static, str>,
     /// Accessible name of the panel that groups rows.
     pub group_panel: Cow<'static, str>,
     /// What the group panel says while nothing is grouped.
@@ -301,6 +321,16 @@ impl GridLocale {
             edit_saving: Cow::Borrowed("Saving…"),
             edit_saved: Cow::Borrowed("Saved"),
             edit_save_failed: Cow::Borrowed("Could not save: {error}"),
+            column_menu: Cow::Borrowed("Column options for {column}"),
+            sort_ascending: Cow::Borrowed("Sort ascending"),
+            sort_descending: Cow::Borrowed("Sort descending"),
+            sort_clear: Cow::Borrowed("Clear sort"),
+            group_by_column: Cow::Borrowed("Group by this column"),
+            pin_start: Cow::Borrowed("Pin to the start"),
+            pin_end: Cow::Borrowed("Pin to the end"),
+            pin_none: Cow::Borrowed("Unpin"),
+            hide_column: Cow::Borrowed("Hide column"),
+            fit_width: Cow::Borrowed("Fit width to content"),
             group_panel: Cow::Borrowed("Grouping"),
             group_drop_hint: Cow::Borrowed("Drag a column header here to group by it"),
             group_by: Cow::Borrowed("Group by"),
@@ -397,6 +427,16 @@ impl GridLocale {
             edit_saving: Cow::Borrowed("Wird gespeichert …"),
             edit_saved: Cow::Borrowed("Gespeichert"),
             edit_save_failed: Cow::Borrowed("Speichern fehlgeschlagen: {error}"),
+            column_menu: Cow::Borrowed("Spaltenoptionen für {column}"),
+            sort_ascending: Cow::Borrowed("Aufsteigend sortieren"),
+            sort_descending: Cow::Borrowed("Absteigend sortieren"),
+            sort_clear: Cow::Borrowed("Sortierung aufheben"),
+            group_by_column: Cow::Borrowed("Nach dieser Spalte gruppieren"),
+            pin_start: Cow::Borrowed("Am Anfang fixieren"),
+            pin_end: Cow::Borrowed("Am Ende fixieren"),
+            pin_none: Cow::Borrowed("Fixierung aufheben"),
+            hide_column: Cow::Borrowed("Spalte ausblenden"),
+            fit_width: Cow::Borrowed("Breite an Inhalt anpassen"),
             group_panel: Cow::Borrowed("Gruppierung"),
             group_drop_hint: Cow::Borrowed("Spaltenkopf hierher ziehen, um danach zu gruppieren"),
             group_by: Cow::Borrowed("Gruppieren nach"),
@@ -441,6 +481,13 @@ impl GridLocale {
         } else {
             fill(&self.row_count, &[("count", &self.integer(count))])
         }
+    }
+
+    /// "Column options for Name", the accessible name of a column menu's
+    /// button.
+    #[must_use]
+    pub fn column_menu(&self, column: &str) -> String {
+        fill(&self.column_menu, &[("column", column)])
     }
 
     /// "Filter options for Name", the accessible name of a filter menu's

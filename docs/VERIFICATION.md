@@ -410,6 +410,10 @@ Nachgemessen: Zwei an den Anfang fixierte Spalten, die erste automatisch breit. 
 der zweiten ist 96 px, exakt die gemessene Breite der ersten; ganz nach rechts gescrollt stehen
 sie nebeneinander an der Kante (`left = 25` und `left = 121`) statt übereinander.
 
-**Offen für Dioxus.** Warum `createResizeObserver` nur das eine Element erfasst, ist von außen
-nicht zu klären — ein Bugreport mit dem Capture-Mitschnitt oben wäre der nächste Schritt.
+**Nicht generell kaputt.** Das Panel des Filtermenüs bekommt sein `onresize` sehr wohl — die
+Einpassung in den Viewport hängt daran und ist per E2E-Test abgedeckt. Die Regel ist also enger
+als „ein Element pro App"; welche Elemente erfasst werden und welche nicht, ist von außen nicht
+zu klären.
+
+**Offen für Dioxus.** Ein Bugreport mit dem Capture-Mitschnitt oben wäre der nächste Schritt.
 Für uns ist der Weg über eine Stelle ohnehin der bessere: eine Messung statt einer pro Zelle.

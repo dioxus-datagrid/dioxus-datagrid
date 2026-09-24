@@ -1,3 +1,6 @@
+| [`registry/data_grid_editor`](registry/data_grid_editor) | Editing for it: cells, rows, a form dialog or batches, installed next to `data_grid`. |
+| [`registry/data_grid_group_panel`](registry/data_grid_group_panel) | Grouping: drag a header onto the panel, or pick a column from its list. |
+| [`registry/data_grid_column_menu`](registry/data_grid_column_menu) | A menu at every header: sort, group, pin, hide, fit the width. |
 # dioxus-datagrid
 
 A typed, accessible data grid for **Dioxus 0.7**: sorting, filtering, search, paging, selection,
@@ -24,6 +27,8 @@ project by `dx components add` and is yours to change from then on.
 | [`dioxus-datagrid`](crates/dioxus-datagrid) | The `use_grid` hook and unstyled primitives implementing the ARIA grid pattern. No `web-sys`. |
 | [`registry/data_grid`](registry/data_grid) | The styled component that `dx components add data_grid` installs. |
 | [`registry/data_grid_editor`](registry/data_grid_editor) | Editing for it: cells, rows, a form dialog or batches, installed next to `data_grid`. |
+| [`registry/data_grid_group_panel`](registry/data_grid_group_panel) | Grouping: drag a header onto the panel, or pick a column from its list. |
+| [`registry/data_grid_column_menu`](registry/data_grid_column_menu) | A menu at every header: sort, group, pin, hide, fit the width. |
 
 ## Installation
 
@@ -175,6 +180,32 @@ DataGrid { data: orders, columns,
 Groups expand and collapse with a click or the arrow keys, each group shows its aggregates, and a
 grouped grid is a WAI-ARIA treegrid. Grouping works with paging, with 100,000 virtualized rows,
 and on the server: see [`docs.md`](registry/data_grid_group_panel/docs.md).
+
+## Column layout
+
+Columns can be reordered by dragging one header onto another, or with `Alt+Shift+←`/`→`; pinned to
+either edge, where they stay put while the grid scrolls sideways; and grouped under a multi-level
+header by naming the groups a column sits under:
+
+```rust
+Column::new("street", "Street")
+    .value_text(|order: &Order| order.street.as_str())
+    .group("Customer")
+    .group("Address")
+    .pin(Pinned::Start),
+```
+
+The header above the columns is derived from those groups, so reordering, hiding or pinning a
+column rearranges it too, and `aria-colspan` always agrees with the columns below.
+
+`dx components add data_grid_column_menu` puts a menu in every header — sort, group, pin, hide,
+size back to content — opened with a click or `Alt+↓`:
+
+```rust
+DataGrid { data: orders, columns,
+    DataGridColumnMenu::<Order> {}
+}
+```
 
 ## Headless usage
 

@@ -71,6 +71,7 @@
 #![forbid(unsafe_code)]
 
 mod column;
+mod column_menu;
 mod edit;
 mod edit_ui;
 mod filter_menu;
@@ -82,6 +83,7 @@ mod remote;
 mod timer;
 
 pub use column::{CellRenderer, Column, EditorRenderer, HeaderRenderer};
+pub use column_menu::{ColumnAction, ColumnMenuEntry};
 pub use edit::{
     Create, Delete, EditMode, EditMove, EditStatus, EditTarget, Editing, Save, SaveBatch,
 };

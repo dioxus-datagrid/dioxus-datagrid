@@ -6,6 +6,34 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Column order. `GridState::column_order` decides what order the columns are shown in, and survives
+  columns being added, renamed or dropped. `GridHeader { reorderable: true }` makes headers
+  draggable onto one another and answers `Alt+Shift+ArrowLeft` / `Alt+Shift+ArrowRight`, which take
+  the focus along; `data_grid` has a `reorderable_columns` prop.
+- Pinned columns. `.pin(Pinned::Start)` on a column, or `GridState::pinned_columns` at runtime,
+  holds it at an edge while the grid scrolls sideways. Pinned columns are laid out as a block at
+  their edge whatever the column order says, and `aria-colindex` counts them where they are shown.
+- Multi-level column headers. `.group("Customer")` puts a column under a group, nesting when called
+  more than once; the header above the columns is derived from those groups, so reordering, hiding
+  or pinning a column rearranges it too. `GridHandle::header_rows` and `focus_data_row` are what
+  everything else counts rows from.
+- `data_grid_column_menu`: a menu at every column header — sort, group, pin, hide, size back to
+  content — following the WAI-ARIA menu pattern, opened with a click or `Alt+ArrowDown`. What a
+  column offers is public as `column_menu_entries`, and `ColumnAction::apply` carries one out.
+- `GridState::set_sort` and `clear_sort`, for picking a direction rather than cycling through them.
+
+### Fixed
+
+- Column widths are measured from the grid root, once the DOM is committed, instead of by each
+  header cell: Dioxus dispatches its resize event only on the element `GridRoot` sits on, so every
+  auto-sized column had been recording the same page-wide number. `docs/VERIFICATION.md` §14 has
+  the measurements.
+- A header moved with the keyboard keeps DOM focus, so a second key press is not swallowed.
+- A column header names itself with `aria-label`, so a button inside it does not end up in the
+  column's name.
+
 ## [0.8.0] - 2026-09-21
 
 ### Added

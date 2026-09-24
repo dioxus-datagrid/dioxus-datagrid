@@ -9,6 +9,7 @@
 mod components;
 
 use components::data_grid::DataGrid;
+use components::data_grid_column_menu::DataGridColumnMenu;
 use components::data_grid_editor::DataGridEditor;
 use components::data_grid_group_panel::DataGridGroupPanel;
 use dioxus::prelude::*;
@@ -74,6 +75,7 @@ fn App() -> Element {
                 let _ = keys;
             },
             DataGridGroupPanel::<User> {}
+            DataGridColumnMenu::<User> {}
             DataGridEditor {
                 mode: EditMode::Row,
                 on_save: move |save: Save<User>| {

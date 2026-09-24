@@ -8,6 +8,7 @@
 //! is called `GridRow`, which would collide with the
 //! [`GridRow`](datagrid_core::GridRow) trait you implement on your row type.
 
+pub use crate::column_menu::{GridColumnMenu, column_menu_entries};
 pub use crate::edit_ui::{
     GridCellEditor, GridDeleteConfirm, GridEditDialog, GridEditStatus, GridEditToolbar,
 };
@@ -437,6 +438,7 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
     let resize_id = id.clone();
     let drag_id = id.clone();
     let over_id = id.clone();
+    let menu_id = id.clone();
     let drop_id = id.clone();
     let move_id = id.clone();
     // Dragged onto a group panel, a header groups by its column; dragged onto
@@ -468,11 +470,13 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
         if !data.modifiers().alt() {
             return;
         }
-        let step = match data.key() {
-            Key::ArrowLeft => -1,
-            Key::ArrowRight => 1,
-            _ => return,
-        };
+        // Only the keys this cell claims; everything else bubbles on.
+        if !matches!(
+            data.key(),
+            Key::ArrowLeft | Key::ArrowRight | Key::ArrowDown
+        ) {
+            return;
+        }
 
         // The key reached this cell, so this cell has DOM focus — but the grid
         // only learns that from its own navigation. Without saying so here, a
@@ -480,6 +484,17 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
         // would move a column and then lose focus to the re-render, swallowing
         // the next key.
         grid.set_focus(CellFocus::new(leaf_row, column_index));
+
+        // Alt+Down opens the column menu, where there is one: the button sits
+        // inside the cell and is not a tab stop, so this is the way in.
+        if data.key() == Key::ArrowDown && grid.has_column_menu() {
+            grid.open_column_menu(menu_id.clone());
+            event.prevent_default();
+            event.stop_propagation();
+            return;
+        }
+
+        let step = if data.key() == Key::ArrowLeft { -1 } else { 1 };
 
         // Shift moves the column, Alt alone resizes it. Reordering is checked
         // first: it is the more specific gesture, and a column can be movable
@@ -540,6 +555,9 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
     rsx! {
         div {
             role: "columnheader",
+            // Named explicitly, so that a menu button or any other control
+            // inside the cell does not end up in the column's name.
+            aria_label: column.label(),
             aria_colindex: "{column_index + 1}",
             aria_sort,
             tabindex: if focused { "0" } else { "-1" },
@@ -573,6 +591,11 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
             onkeydown,
             ..attributes,
             {column.render_header()}
+            // Rendered only where a column menu add-on is mounted, so the core
+            // component need not know that one exists.
+            if grid.has_column_menu() {
+                GridColumnMenu { grid, column_index }
+            }
             if show_handle {
                 ColumnResizeHandle { grid, column_index }
             }

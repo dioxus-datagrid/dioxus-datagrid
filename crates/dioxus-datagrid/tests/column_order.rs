@@ -123,10 +123,12 @@ fn aria_colindex_follows_the_new_order() {
 
     // Age is now the first column, so it is colindex 1 — in the header and in
     // the body, or keyboard navigation and screen readers would disagree.
-    let age = html.find("Age").unwrap();
-    let before_age = &html[..age];
+    let age_header = html
+        .split("<div ")
+        .find(|tag| tag.contains(r#"aria-label="Age""#))
+        .unwrap();
     assert!(
-        before_age.rfind(r#"aria-colindex="1""#) > before_age.rfind(r#"aria-colindex="2""#),
+        age_header.contains(r#"aria-colindex="1""#),
         "the Age header should carry colindex 1: {html}"
     );
     assert!(html.contains(r#"aria-colindex="3""#));
