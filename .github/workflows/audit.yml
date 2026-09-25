@@ -1,0 +1,66 @@
+name: Security audit
+
+# A new RustSec advisory arrives from the calendar, not from a commit, so this
+# runs on a schedule rather than on every pull request — an unrelated change
+# should not go red because a dependency was published as vulnerable overnight.
+# It also runs when the manifests change, which is the one moment our own
+# commits can pull a vulnerable dependency in.
+#
+# On the weekly run the action opens an issue per advisory; on a manifest change
+# it annotates the run instead.
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  push:
+    branches: [main]
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+  pull_request:
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+      # Audited against the committed Cargo.lock. That lockfile is this
+      # workspace's, not what a user of the published crates resolves, so a
+      # finding here means "raise the requirement in Cargo.toml", not that
+      # anyone building against dioxus-datagrid is affected.
+      #
+      # The ignored advisories, all checked on 2026-09-26 against this lockfile.
+      # None of them is reachable from `dioxus-datagrid`: they turn up only with
+      # `--all-features --target all`, in the desktop, server and example stacks
+      # below dioxus. Drop an entry after a dioxus bump to see whether it is
+      # gone — that is how this list stays honest.
+      #
+      #   RUSTSEC-2026-0009  time 0.3.45, DoS via stack exhaustion. The fix is
+      #                      time >= 0.3.47, which needs Rust 1.88 and so is
+      #                      held back by our MSRV of 1.85. Reaches us through
+      #                      dioxus-fullstack -> reqwest -> cookie, in the
+      #                      fullstack example only. Debt: remove this entry
+      #                      when the MSRV rises.
+      #   RUSTSEC-2025-0057  fxhash unmaintained, under selectors.
+      #   RUSTSEC-2024-0436  paste unmaintained, under pulp and rav1e.
+      #   RUSTSEC-2024-0370  proc-macro-error unmaintained, under the GTK macros.
+      #   RUSTSEC-2024-0429  glib unsound, the GTK stack of the Linux desktop.
+      #   RUSTSEC-2026-0253  lru unsound, under dioxus-server.
+      #   RUSTSEC-2026-0097  rand 0.7.3 unsound, under phf_generator.
+      - uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Comma-separated, no spaces: the action splits on the comma.
+          ignore: RUSTSEC-2026-0009,RUSTSEC-2025-0057,RUSTSEC-2024-0436,RUSTSEC-2024-0370,RUSTSEC-2024-0429,RUSTSEC-2026-0253,RUSTSEC-2026-0097

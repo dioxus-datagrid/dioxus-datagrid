@@ -930,3 +930,53 @@ passiert und wie sich die Pfeiltasten verhalten.
 - `GridGroupRow` und die Fußzeilen rechneten mit „eine Kopfzeile"; sie fragen jetzt
   `header_rows()`. Mit mehrstufigen Köpfen *und* Gruppierung waren `aria-rowindex` und die
   Fokuszeile vorher um die Gruppenebenen verschoben.
+
+---
+
+## ADR-0031 — `cargo audit` wöchentlich, nicht bei jedem Pull Request
+
+**Kontext.** `PLAN.md` §7 zählt die CI-Prüfungen auf; eine Sicherheitsprüfung der Abhängigkeiten
+ist nicht darunter. Die Frage war, ob sie fehlt und, falls ja, wann sie laufen soll.
+
+**Entscheidung.** Ein eigener Workflow `.github/workflows/audit.yml` mit
+`rustsec/audit-check@v2.0.0`, ausgelöst **wöchentlich** (Montag 06:00 UTC), bei Änderungen an
+einer `Cargo.toml` oder `Cargo.lock`, und von Hand.
+
+- **Nicht bei jedem PR.** Ein neues Advisory entsteht nicht aus einem Commit, sondern aus dem
+  Kalender. Liefe die Prüfung bei jedem Pull Request, ginge irgendwann ein völlig unbeteiligter
+  PR rot, und die Prüfung würde als Rauschen gelesen und abgeschaltet.
+- **Aber bei Änderungen an den Manifesten.** Das ist der eine Moment, in dem ein eigener Commit
+  eine verwundbare Abhängigkeit hereinholen kann. Dort meldet die Aktion am Lauf, statt ein Issue
+  anzulegen; beim Wochenlauf legt sie eines an.
+- **Kein `cargo deny`** — vorerst. Es kann mehr (Lizenzen, Dubletten, verbotene Crates), braucht
+  aber eine gepflegte Konfiguration und macht bei einem Baum aus 684 Paketen zuerst Lärm mit
+  Versionsdubletten, die niemanden stören. Wenn Lizenzprüfung ein Thema wird, ist das der Weg.
+
+**Folgen.** Ein Befund heißt hier „die Anforderung in `Cargo.toml` anheben", nicht „unsere Nutzer
+sind betroffen": geprüft wird das committete `Cargo.lock` dieses Workspace, und wer gegen die
+veröffentlichten Crates baut, löst seine Abhängigkeiten selbst auf. Für eine Bibliothek ist das
+der ehrliche Wert der Prüfung — sie sagt, wann eine Anforderung zu alt geworden ist.
+
+**Erster Lauf, lokal verprobt (2026-09-26, `cargo-audit` 0.22.2, 684 Pakete).** Ein Befund und
+sechs Warnungen — und keines davon liegt im Baum von `dioxus-datagrid`; sie erscheinen erst unter
+`--all-features --target all`, also im Desktop-, Server- und Beispiel-Unterbau von dioxus:
+
+| Advisory | Paket | Woher | Art |
+|---|---|---|---|
+| RUSTSEC-2026-0009 | `time` 0.3.45 | `dioxus-fullstack` → `reqwest` → `cookie` | DoS, mittel |
+| RUSTSEC-2025-0057 | `fxhash` | `selectors` | unmaintained |
+| RUSTSEC-2024-0436 | `paste` | `pulp`, `rav1e` | unmaintained |
+| RUSTSEC-2024-0370 | `proc-macro-error` | `glib-macros`, `gtk3-macros` | unmaintained |
+| RUSTSEC-2024-0429 | `glib` | GTK-Stack des Linux-Desktops | unsound |
+| RUSTSEC-2026-0253 | `lru` | `dioxus-server` | unsound |
+| RUSTSEC-2026-0097 | `rand` 0.7.3 | `phf_generator` | unsound |
+
+Alle sieben stehen in der `ignore`-Liste des Workflows, jede mit ihrem Grund im Kommentar. Sonst
+legte der Wochenlauf sieben Issues an, die niemand schließen kann, und die Prüfung wäre binnen
+eines Monats Rauschen. Was zählt, ist die **achte** Meldung.
+
+**Der `time`-Eintrag ist Schuld, nicht Freispruch.** Die Behebung ist `time >= 0.3.47`, und die
+verlangt Rust 1.88 — über unserem `rust-version = "1.85"`. Cargos MSRV-bewusster Resolver hält
+0.3.45 deshalb fest; ein `cargo update -p time --precise 0.3.47` geht durch, macht aber den
+Workspace mit 1.85 unbaubar und bräche damit ein veröffentlichtes Versprechen für einen Befund,
+der nur das Fullstack-Beispiel betrifft. Steigt die MSRV auf 1.88, fällt der Eintrag weg.

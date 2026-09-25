@@ -103,6 +103,7 @@ with a summary: what was built, where it deviated, what is still open. See
 | | playwright (chromium / webkit) | The end-to-end suite in both browsers |
 | Registry | dx components add | `dx components add` from this checkout compiles |
 | | dx components add (crates.io) | What a user really gets: the component on `main`, built against the **published** crates |
+| Security audit | cargo audit | The RustSec advisories against `Cargo.lock`, weekly and whenever a manifest changes |
 
 That last job is expected to fail after a phase that binds the components to new crate APIs, and
 going green again is what the [release process](Release-Process.md) is for.
