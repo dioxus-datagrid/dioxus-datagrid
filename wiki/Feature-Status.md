@@ -1,7 +1,7 @@
 # Feature status
 
 What the grid does today, area by area, and what is not there yet. The state is the released
-**0.8.0**, which ended Phase 10 with grouping and aggregates.
+**0.9.0**, which ended Phase 11 with the column layout.
 
 The comparison is against the Syncfusion Blazor DataGrid, which is the yardstick the
 [roadmap](Roadmap.md) uses. "Planned" names the phase that will close the gap;
@@ -24,7 +24,7 @@ The comparison is against the Syncfusion Blazor DataGrid, which is the yardstick
 | Filter menu | Per column: two conditions joined by *and* or *or*, operators per kind of value (contains, starts with, equals, between, empty, one of, …), or a list of the distinct values with counts to tick. Remote grids ask the server through `distinct_values`. | — |
 | Search | One box across all visible columns. | — |
 | Paging | Page size, page navigation, `aria-rowcount` across pages. Group headers and footers count as rows, so groups run across page boundaries. | — |
-| Grouping | By one or more columns, outermost first. Expand and collapse one at a time or all at once. Works with paging, with virtualization, and on a server. | Grouping from a column menu — **Phase 11**, when the column menu arrives. The group panel's list is the mouse-free route until then. |
+| Grouping | By one or more columns, outermost first, from the group panel or a column's own menu. Expand and collapse one at a time or all at once. Works with paging, with virtualization, and on a server. | — |
 | Aggregates | Sum, average, min, max, count and your own function, under each group, in a collapsed group's header, and under the whole grid. | — |
 
 ## Showing the data
@@ -33,7 +33,7 @@ The comparison is against the Syncfusion Blazor DataGrid, which is the yardstick
 |---|---|---|
 | Cells | Your own markup per column, or the value formatted by the grid. | — |
 | Formatting | Number (decimals, thousands), currency, percent, date and date-time (`chrono` feature), alignment, wrap or truncate with a tooltip. | — |
-| Columns | Resize by dragging or with `Alt+Arrow`, show and hide through `column_picker`, width and visibility kept in the state. | Order, pinned columns left and right, multi-level headers, a column menu, width from content, column spanning — **Phase 11**. |
+| Columns | Resize by dragging or with `Alt+Arrow`; reorder by dragging a header or with `Alt+Shift+Arrow`; pin to either edge; multi-level headers derived from the columns' own groups; a menu at every header (`data_grid_column_menu`); one cell over several columns. Order, widths, pinning and visibility all kept in the state. | Column virtualization for very wide grids — **Phase 15**. |
 | Rows | Fixed row height, virtualized. | Detail rows, row drag and drop, row spanning — **Phase 12**. Variable heights — **Phase 15**. |
 | Virtualization | Rows of a fixed height: only what is in view is in the DOM, while the scrollbar, the keyboard and `aria-rowcount` cover all of them. 100,000 rows stay fluid, grouped as well. | Column virtualization, loading blocks while scrolling instead of paging, infinite scroll — **Phase 15**. |
 | Localization | Every text the grid writes comes from a `GridLocale`: English by default, German included. Number, currency and date formats per locale. | More shipped languages; one is a table of strings away. |

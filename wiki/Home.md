@@ -10,8 +10,8 @@ against rows in memory or against a server.
 
 | | |
 |---|---|
-| Latest release | **0.8.0** — grouping and aggregates (crates.io, docs.rs) |
-| Next | Phase 11 — column layout: order, pinning, multi-level headers, column menu |
+| Latest release | **0.9.0** — column layout (crates.io, docs.rs) |
+| Next | Phase 12 — rows, selection, clipboard: detail rows, row reordering, a checkbox column, cell and range selection, copy and paste |
 | Long game | [Roadmap to 1.0](Roadmap.md) — parity with the Syncfusion Blazor DataGrid on the features people actually use |
 
 Every phase ends in a release, so you can stop on any version and have something whole.

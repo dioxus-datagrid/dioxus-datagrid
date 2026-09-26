@@ -15,7 +15,7 @@ while it is red, the documented installation is broken for anyone who tries it.
 1. **Finish the phase.** All acceptance criteria met, the three commands green, the end-to-end suite
    green, `scripts/registry-smoke.sh` green.
 2. **Raise the versions.** `crates/datagrid-core/Cargo.toml`, `crates/dioxus-datagrid/Cargo.toml`,
-   the core's dependency on itself, and the `dioxus-datagrid` requirement in all three
+   the core's dependency on itself, and the `dioxus-datagrid` requirement in every
    `registry/*/component.json`.
 3. **Close the changelog.** `[Unreleased]` becomes `[x.y.z] - YYYY-MM-DD`.
 4. **Release commit**, then `cargo publish --dry-run` for both crates.
@@ -39,6 +39,7 @@ never done on someone's behalf.
 
 | Version | Phase |
 |---|---|
+| 0.9.0 | Column layout: order, pinning, multi-level headers, the column menu, cells over several columns |
 | 0.8.0 | Grouping and aggregates: multi-level groups, a group panel, the treegrid |
 | 0.7.0 | Editing: cells, rows, a form dialog, batches, validation |
 | 0.6.0 | Typed filters: operators, filter menu, value lists |
