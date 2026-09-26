@@ -96,10 +96,10 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
             if shift && grid.selection_mode() == SelectionMode::Multi && !grid.focus_is_header() {
                 // Shift+Arrow extends the selection as it moves.
                 grid.move_focus(key);
-                if let Some(target) = grid.focus_data_row() {
-                    if let Some(row_key) = grid.key_at(target) {
-                        grid.extend_select(row_key);
-                    }
+                if let Some(target) = grid.focus_data_row()
+                    && let Some(row_key) = grid.key_at(target)
+                {
+                    grid.extend_select(row_key);
                 }
             } else {
                 grid.move_focus(key);
@@ -117,11 +117,11 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
                     return;
                 }
                 let columns = grid.visible_columns();
-                if let Some(column) = columns.get(focus.col) {
-                    if column.is_sortable() {
-                        grid.toggle_sort(column.id().clone(), shift);
-                        event.prevent_default();
-                    }
+                if let Some(column) = columns.get(focus.col)
+                    && column.is_sortable()
+                {
+                    grid.toggle_sort(column.id().clone(), shift);
+                    event.prevent_default();
                 }
             }
             // On a body cell, Enter or F2 starts editing it, if it can be.
@@ -150,15 +150,15 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
                 if grid.selection_mode() == SelectionMode::None {
                     return;
                 }
-                if let Some(target) = grid.focus_data_row() {
-                    if let Some(row_key) = grid.key_at(target) {
-                        if shift {
-                            grid.extend_select(row_key);
-                        } else {
-                            grid.toggle_select(row_key);
-                        }
-                        event.prevent_default();
+                if let Some(target) = grid.focus_data_row()
+                    && let Some(row_key) = grid.key_at(target)
+                {
+                    if shift {
+                        grid.extend_select(row_key);
+                    } else {
+                        grid.toggle_select(row_key);
                     }
+                    event.prevent_default();
                 }
             }
             _ => {}
@@ -905,10 +905,10 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
             return;
         }
         grid.set_focus(CellFocus::new(focus_row, column_index));
-        if grid.selection_mode() != SelectionMode::None {
-            if let Some(key) = grid.key_at(row_index) {
-                grid.select(key);
-            }
+        if grid.selection_mode() != SelectionMode::None
+            && let Some(key) = grid.key_at(row_index)
+        {
+            grid.select(key);
         }
     };
 

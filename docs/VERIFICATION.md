@@ -16,7 +16,7 @@ Registry-Komponente rendert; der Code liegt im Commit `e13db57`.
 |---|---|
 | Letzte stabile 0.7 | **0.7.10** (2026-07-30) |
 | MSRV von `dioxus` 0.7.10 | 1.83.0 |
-| MSRV dieses Workspace | **1.85** (durch Edition 2024 erzwungen, liegt über 1.83) |
+| MSRV dieses Workspace | **1.88** (Edition 2024 verlangt 1.85, `time` 0.3.47+ dann 1.88 — ADR-0032) |
 | Edition dieses Workspace | 2024 |
 
 Quelle: `curl https://crates.io/api/v1/crates/dioxus/versions`. 0.8.0-alpha.1 existiert bereits,

@@ -50,7 +50,7 @@ fn measurements() -> Vec<Measurement> {
                 id,
                 sensor: format!("sensor-{:03}", seed % 250),
                 value: (seed % 100_000) as f64 / 100.0,
-                ok: seed % 17 != 0,
+                ok: !seed.is_multiple_of(17),
             }
         })
         .collect()

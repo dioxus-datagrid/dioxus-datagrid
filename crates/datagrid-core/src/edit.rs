@@ -304,10 +304,11 @@ impl<T> ColumnSpec<T> {
         } else {
             Some(Value::parse(kind, text).ok_or(EditError::Invalid(kind))?)
         };
-        if let Some(value) = &value {
-            if !self.choices.is_empty() && !self.choices.contains(value) {
-                return Err(EditError::NotAChoice);
-            }
+        if let Some(value) = &value
+            && !self.choices.is_empty()
+            && !self.choices.contains(value)
+        {
+            return Err(EditError::NotAChoice);
         }
         set(row, value)?;
         if let Some(validate) = &self.validate {

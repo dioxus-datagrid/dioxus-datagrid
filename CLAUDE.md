@@ -23,7 +23,7 @@ kompilieren lassen, statt zu raten. Ergebnisse solcher Prüfungen gehören in `d
 
 ## Code
 
-- Edition 2024, MSRV 1.85.
+- Edition 2024, MSRV 1.88.
 - Keine `unwrap`/`expect`/`panic!` in Bibliothekscode — die Workspace-Lints stellen das auf `warn`;
   Tests dürfen per `#![allow(...)]` im Testmodul ausscheren.
 - Alle öffentlichen Items dokumentiert (`missing_docs` ist ein Workspace-Lint).

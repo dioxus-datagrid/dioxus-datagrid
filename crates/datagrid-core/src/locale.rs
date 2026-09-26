@@ -767,7 +767,7 @@ impl GridLocale {
 fn group(digits: &str, separator: char) -> String {
     let mut grouped = String::with_capacity(digits.len() + digits.len() / 3);
     for (position, digit) in digits.chars().enumerate() {
-        if position > 0 && (digits.len() - position) % 3 == 0 {
+        if position > 0 && (digits.len() - position).is_multiple_of(3) {
             grouped.push(separator);
         }
         grouped.push(digit);

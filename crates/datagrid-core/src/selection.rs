@@ -196,10 +196,10 @@ where
     /// referring to rows that disappeared.
     pub fn retain_existing(&mut self, keys: &HashSet<K>) {
         self.selected.retain(|key| keys.contains(key));
-        if let Some(anchor) = &self.anchor {
-            if !keys.contains(anchor) {
-                self.anchor = None;
-            }
+        if let Some(anchor) = &self.anchor
+            && !keys.contains(anchor)
+        {
+            self.anchor = None;
         }
     }
 }

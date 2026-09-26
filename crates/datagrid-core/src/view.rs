@@ -260,17 +260,17 @@ pub fn compute_view<T>(rows: &[T], columns: &[ColumnSpec<T>], state: &GridState)
 
     let mut page_rows = all_rows;
     let mut row_offset = 0;
-    if let Some(page) = state.page {
-        if page.size > 0 {
-            // Clamp rather than fail: the index may be left over from a wider
-            // result set that a filter has since narrowed.
-            let index = page.index.min(page_count.saturating_sub(1));
-            let start = index.saturating_mul(page.size).min(page_rows.len());
-            let end = start.saturating_add(page.size).min(page_rows.len());
-            page_rows.truncate(end);
-            page_rows.drain(..start);
-            row_offset = start;
-        }
+    if let Some(page) = state.page
+        && page.size > 0
+    {
+        // Clamp rather than fail: the index may be left over from a wider
+        // result set that a filter has since narrowed.
+        let index = page.index.min(page_count.saturating_sub(1));
+        let start = index.saturating_mul(page.size).min(page_rows.len());
+        let end = start.saturating_add(page.size).min(page_rows.len());
+        page_rows.truncate(end);
+        page_rows.drain(..start);
+        row_offset = start;
     }
 
     View {
@@ -366,13 +366,13 @@ fn runs_of_equal<'r, 'v>(
     let mut current: Option<CellValue<'v>> = None;
     for (position, &index) in indices.iter().enumerate() {
         let next = value(index);
-        if let Some(previous) = current {
-            if previous.cmp_with(&next, collation) != Ordering::Equal {
-                if let Some(run) = indices.get(start..position) {
-                    runs.push(run);
-                }
-                start = position;
+        if let Some(previous) = current
+            && previous.cmp_with(&next, collation) != Ordering::Equal
+        {
+            if let Some(run) = indices.get(start..position) {
+                runs.push(run);
             }
+            start = position;
         }
         current = Some(next);
     }

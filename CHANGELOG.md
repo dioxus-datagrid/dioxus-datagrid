@@ -30,6 +30,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **The minimum supported Rust version is now 1.88**, up from 1.85. `time` 0.3.47 fixes
+  RUSTSEC-2026-0009 and needs 1.88, and an advisory with a fix available should be fixed rather
+  than waved through; `docs/DECISIONS.md` ADR-0032 has the reasoning. No dependency in the
+  lockfile needs more than 1.88.
 - A cell over several columns, and a group over several column headers, is one stop for the arrow
   keys: `ArrowRight` moves to the cell after it instead of standing still, and a move that lands on
   a covered column lands on the cell covering it. Multi-level headers behaved differently in 0.8.0,

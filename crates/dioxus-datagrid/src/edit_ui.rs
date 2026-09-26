@@ -125,13 +125,14 @@ pub fn GridCellEditor<T: GridRowKey + PartialEq + 'static>(
     let onmounted = use_callback(move |event: MountedEvent| {
         let target = event.data();
         element.set(Some(target.clone()));
-        if let Some((asked, nonce)) = grid.editor_focus() {
-            if Some(&asked) == mounted_column.as_ref() && *handled.peek() != Some(nonce) {
-                handled.set(Some(nonce));
-                spawn(async move {
-                    let _ = target.set_focus(true).await;
-                });
-            }
+        if let Some((asked, nonce)) = grid.editor_focus()
+            && Some(&asked) == mounted_column.as_ref()
+            && *handled.peek() != Some(nonce)
+        {
+            handled.set(Some(nonce));
+            spawn(async move {
+                let _ = target.set_focus(true).await;
+            });
         }
     });
 

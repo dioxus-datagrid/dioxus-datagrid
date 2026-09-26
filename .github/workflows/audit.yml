@@ -41,18 +41,14 @@ jobs:
       # finding here means "raise the requirement in Cargo.toml", not that
       # anyone building against dioxus-datagrid is affected.
       #
-      # The ignored advisories, all checked on 2026-09-26 against this lockfile.
-      # None of them is reachable from `dioxus-datagrid`: they turn up only with
-      # `--all-features --target all`, in the desktop, server and example stacks
-      # below dioxus. Drop an entry after a dioxus bump to see whether it is
-      # gone — that is how this list stays honest.
+      # The ignored advisories are six, all of them `unmaintained` or `unsound`
+      # rather than a vulnerability, all checked on 2026-09-26 against this
+      # lockfile. None is reachable from `dioxus-datagrid`: they turn up only
+      # with `--all-features --target all`, in the desktop, server and example
+      # stacks below dioxus, and none has a fix to move to. Drop an entry after
+      # a dioxus bump to see whether it is gone — that is how this list stays
+      # honest, and a vulnerability never belongs in it.
       #
-      #   RUSTSEC-2026-0009  time 0.3.45, DoS via stack exhaustion. The fix is
-      #                      time >= 0.3.47, which needs Rust 1.88 and so is
-      #                      held back by our MSRV of 1.85. Reaches us through
-      #                      dioxus-fullstack -> reqwest -> cookie, in the
-      #                      fullstack example only. Debt: remove this entry
-      #                      when the MSRV rises.
       #   RUSTSEC-2025-0057  fxhash unmaintained, under selectors.
       #   RUSTSEC-2024-0436  paste unmaintained, under pulp and rav1e.
       #   RUSTSEC-2024-0370  proc-macro-error unmaintained, under the GTK macros.
@@ -63,4 +59,4 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Comma-separated, no spaces: the action splits on the comma.
-          ignore: RUSTSEC-2026-0009,RUSTSEC-2025-0057,RUSTSEC-2024-0436,RUSTSEC-2024-0370,RUSTSEC-2024-0429,RUSTSEC-2026-0253,RUSTSEC-2026-0097
+          ignore: RUSTSEC-2025-0057,RUSTSEC-2024-0436,RUSTSEC-2024-0370,RUSTSEC-2024-0429,RUSTSEC-2026-0253,RUSTSEC-2026-0097

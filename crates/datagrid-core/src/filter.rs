@@ -827,12 +827,11 @@ fn compare(value: &CellValue<'_>, operand: &Value) -> Option<Ordering> {
     let ordering = value.cmp_with(&operand.as_cell(), TextCollation::CaseInsensitive);
     // Text compares ignoring case, but `cmp_with` breaks ties by case to stay
     // a total order; for a filter, `Berlin` equals `berlin`.
-    if kind == ValueKind::Text {
-        if let (CellValue::Text(a), Value::Text(b)) = (value, &operand) {
-            if a.to_lowercase() == b.to_lowercase() {
-                return Some(Ordering::Equal);
-            }
-        }
+    if kind == ValueKind::Text
+        && let (CellValue::Text(a), Value::Text(b)) = (value, &operand)
+        && a.to_lowercase() == b.to_lowercase()
+    {
+        return Some(Ordering::Equal);
     }
     Some(ordering)
 }

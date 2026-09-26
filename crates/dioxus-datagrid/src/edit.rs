@@ -722,10 +722,10 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
         }
         let mut row_error =
             (!errors.is_empty() && session.texts.len() > 1).then(|| locale.edit_check.to_string());
-        if errors.is_empty() {
-            if let Some(validate) = editing.validate_row {
-                row_error = validate.call(draft.clone()).err();
-            }
+        if errors.is_empty()
+            && let Some(validate) = editing.validate_row
+        {
+            row_error = validate.call(draft.clone()).err();
         }
 
         if !errors.is_empty() || row_error.is_some() {
@@ -865,10 +865,9 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
             EditMove::Next | EditMove::Previous => {
                 if let Some((row, column)) =
                     self.next_editable(row_index, column_index, then == EditMove::Next)
+                    && self.start_edit(row, column)
                 {
-                    if self.start_edit(row, column) {
-                        return;
-                    }
+                    return;
                 }
             }
         }

@@ -2,7 +2,7 @@
 
 ## What you need
 
-Rust stable (MSRV **1.85**, edition 2024), the Dioxus CLI (`cargo install dioxus-cli --version 0.7.10 --locked`),
+Rust stable (MSRV **1.88**, edition 2024), the Dioxus CLI (`cargo install dioxus-cli --version 0.7.10 --locked`),
 and Node only if you want to run the end-to-end tests. On Linux the WebView build needs system
 packages — `scripts/install-linux-webview-deps.sh` installs them.
 

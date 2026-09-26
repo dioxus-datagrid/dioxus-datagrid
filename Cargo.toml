@@ -14,7 +14,7 @@ exclude = ["tests/fixtures/consumer-app"]
 
 [workspace.package]
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/dioxus-datagrid/dioxus-datagrid"
 authors = ["Marius Linnartz"]

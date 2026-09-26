@@ -1330,10 +1330,11 @@ impl<T: GridRow> GridHandle<T> {
         let Some(resize) = self.resize.peek().clone() else {
             return;
         };
-        if !resize.moved && client_x != resize.start_x {
-            if let Some(active) = self.resize.write().as_mut() {
-                active.moved = true;
-            }
+        if !resize.moved
+            && client_x != resize.start_x
+            && let Some(active) = self.resize.write().as_mut()
+        {
+            active.moved = true;
         }
         let width = resize.start_width + (client_x - resize.start_x);
         #[allow(clippy::cast_possible_truncation)]

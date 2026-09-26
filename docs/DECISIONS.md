@@ -101,6 +101,8 @@ benutzen kann.
 **Alternative.** *Edition 2021, MSRV 1.83* für maximale Reichweite. Verworfen, weil der Plan
 Edition 2024 vorgibt und der Gewinn an Reichweite gering ist.
 
+**Nachtrag.** Die MSRV steht seit ADR-0032 auf **1.88**; die Entscheidung für Edition 2024 bleibt.
+
 ---
 
 ## ADR-0006 — Filter gelten auch für versteckte Spalten, die Suche nicht
@@ -975,8 +977,45 @@ Alle sieben stehen in der `ignore`-Liste des Workflows, jede mit ihrem Grund im 
 legte der Wochenlauf sieben Issues an, die niemand schließen kann, und die Prüfung wäre binnen
 eines Monats Rauschen. Was zählt, ist die **achte** Meldung.
 
-**Der `time`-Eintrag ist Schuld, nicht Freispruch.** Die Behebung ist `time >= 0.3.47`, und die
-verlangt Rust 1.88 — über unserem `rust-version = "1.85"`. Cargos MSRV-bewusster Resolver hält
-0.3.45 deshalb fest; ein `cargo update -p time --precise 0.3.47` geht durch, macht aber den
-Workspace mit 1.85 unbaubar und bräche damit ein veröffentlichtes Versprechen für einen Befund,
-der nur das Fullstack-Beispiel betrifft. Steigt die MSRV auf 1.88, fällt der Eintrag weg.
+**Der `time`-Befund ist behoben, nicht ignoriert.** Die Behebung ist `time >= 0.3.47`, und die
+verlangt Rust 1.88 — über der damaligen MSRV von 1.85, weshalb Cargos MSRV-bewusster Resolver
+0.3.45 festhielt. Statt den Befund auf die Ignorierliste zu setzen, ist die MSRV gestiegen
+(ADR-0032); die Liste enthält seither nur noch die sechs Warnungen, für die es keine Behebung
+gibt, und keine Verwundbarkeit.
+
+---
+
+## ADR-0032 — MSRV 1.88, um eine Verwundbarkeit tatsächlich zu beheben
+
+**Kontext.** Der erste `cargo audit`-Lauf (ADR-0031) fand RUSTSEC-2026-0009 in `time` 0.3.45.
+Behoben ist das in `time >= 0.3.47`, und die verlangt Rust 1.88. Bei `rust-version = "1.85"` hält
+Cargos MSRV-bewusster Resolver die alte Version fest, und es blieben zwei Wege: den Befund
+ignorieren oder die MSRV anheben.
+
+**Entscheidung.** `rust-version = "1.88"` im Workspace (alle Crates erben es). Die drei Gründe:
+
+1. **Eine Verwundbarkeit gehört nicht auf eine Ignorierliste.** Sonst verliert die Liste genau die
+   Eigenschaft, die sie nützlich macht — dass darin nur steht, was nicht zu beheben ist.
+2. **Die Reichweite kostet fast nichts.** 1.88 erschien am 2025-06-26, also über ein Jahr vor dieser
+   Entscheidung. Wer Dioxus 0.7 und Edition 2024 benutzt, ist ohnehin nicht auf einer Toolchain von
+   vorgestern.
+3. **Der Resolver deckt die Folgen ab.** Nach dem Anheben verlangt kein Paket in der `Cargo.lock`
+   mehr als 1.88 (geprüft über `cargo metadata`: 0 von 434 Paketen mit deklarierter `rust-version`
+   liegen darüber, 10 liegen genau auf 1.88).
+
+**Alternative.** *MSRV bei 1.85 lassen und RUSTSEC-2026-0009 ignorieren.* Verworfen: der Befund
+betrifft zwar nur das Fullstack-Beispiel — `time` liegt nicht im Baum von `dioxus-datagrid` —, aber
+eine ignorierte Verwundbarkeit ist eine, die man beim nächsten Mal auch ignoriert.
+
+**Folgen.**
+
+- Eine MSRV-Anhebung ist für Nutzer eine brechende Änderung im Sinne der Erwartung, auch wenn
+  Cargo sie nur als „Paket verlangt neuere Toolchain" meldet. Sie geht deshalb mit dem
+  **Minor-Release 0.9.0** hinaus und steht im Changelog unter *Changed*.
+- CI prüft die MSRV nicht: die Workflows benutzen `dtolnay/rust-toolchain@stable`. Die Zusage ist
+  damit deklariert, aber unbewacht — ein Job mit fest eingestellter Toolchain wäre der Beweis.
+- **Clippy schreibt jetzt mehr vor.** Mehrere Lints sind an die MSRV gekoppelt: mit 1.88 sind
+  `let`-Ketten stabil, also verlangt `collapsible_if` sie, und `is_multiple_of` ersetzt `% n == 0`.
+  Bei `-D warnings` in CI ist das keine Empfehlung, sondern Pflicht — zehn Dateien wurden
+  entsprechend umgeschrieben, mechanisch und bedeutungsgleich. Es ist derselbe Grund, aus dem der
+  Sprung nicht in zwei Commits passt: Code mit `let`-Ketten baut mit 1.85 nicht.
