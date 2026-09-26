@@ -1012,8 +1012,11 @@ eine ignorierte Verwundbarkeit ist eine, die man beim nächsten Mal auch ignorie
 - Eine MSRV-Anhebung ist für Nutzer eine brechende Änderung im Sinne der Erwartung, auch wenn
   Cargo sie nur als „Paket verlangt neuere Toolchain" meldet. Sie geht deshalb mit dem
   **Minor-Release 0.9.0** hinaus und steht im Changelog unter *Changed*.
-- CI prüft die MSRV nicht: die Workflows benutzen `dtolnay/rust-toolchain@stable`. Die Zusage ist
-  damit deklariert, aber unbewacht — ein Job mit fest eingestellter Toolchain wäre der Beweis.
+- **Ein CI-Job bewacht die Zusage**, sonst wäre sie nur behauptet: `MSRV (1.88)` in `main.yml`
+  prüft mit `dtolnay/rust-toolchain@1.88.0` die beiden Bibliotheks-Crates mit allen Features. Nur
+  die zwei — die Beispiele und das Playground ziehen den Desktop- und Server-Unterbau herein, dessen
+  Minimum nicht unseres ist. Steigt die MSRV wieder, sind es zwei Stellen: `Cargo.toml` und dieser
+  Job.
 - **Clippy schreibt jetzt mehr vor.** Mehrere Lints sind an die MSRV gekoppelt: mit 1.88 sind
   `let`-Ketten stabil, also verlangt `collapsible_if` sie, und `is_multiple_of` ersetzt `% n == 0`.
   Bei `-D warnings` in CI ist das keine Empfehlung, sondern Pflicht — zehn Dateien wurden

@@ -22,6 +22,13 @@ Registry-Komponente rendert; der Code liegt im Commit `e13db57`.
 Quelle: `curl https://crates.io/api/v1/crates/dioxus/versions`. 0.8.0-alpha.1 existiert bereits,
 ist aber Alpha — der Workspace pinnt bewusst auf `dioxus = "0.7.10"`.
 
+**MSRV gegen einen echten Compiler geprüft (2026-09-26).** `rustup toolchain install 1.88.0`, dann
+`RUSTFLAGS="-D warnings" cargo +1.88.0 check -p datagrid-core -p dioxus-datagrid --all-features`
+→ `Finished`, Exit 0, mit `rustc 1.88.0 (6b00bc388 2025-06-23)`. Genau das tut der CI-Job
+`MSRV (1.88)`. Zwei Dinge deckt er bewusst nicht ab: den `wasm32`-Ziel-Build (die MSRV-Frage sind
+Compiler-Features, nicht Ziele — dafür gibt es den eigenen `wasm`-Job) und `cargo test` (die
+Dev-Dependencies gehören nicht zur Zusage, ein Nutzer baut sie nicht).
+
 Der Workspace kompiliert leer: `cargo check --workspace` → `Finished`.
 `cargo fmt --all --check` und `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 sind ohne Befund.

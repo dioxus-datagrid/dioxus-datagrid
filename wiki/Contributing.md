@@ -99,11 +99,12 @@ with a summary: what was built, where it deviated, what is still open. See
 | | feature combinations | Default, each feature alone, all features |
 | | build (ubuntu / macos / windows) | The examples build on all three |
 | | web-sys guard | `dioxus-datagrid` has no `web-sys` in its dependency tree |
+| | MSRV (1.88) | The two library crates build on the oldest Rust we promise |
 | E2E | playground matches registry | No drift between the component and its playground copy |
 | | playwright (chromium / webkit) | The end-to-end suite in both browsers |
 | Registry | dx components add | `dx components add` from this checkout compiles |
 | | dx components add (crates.io) | What a user really gets: the component on `main`, built against the **published** crates |
 | Security audit | cargo audit | The RustSec advisories against `Cargo.lock`, weekly and whenever a manifest changes |
 
-That last job is expected to fail after a phase that binds the components to new crate APIs, and
-going green again is what the [release process](Release-Process.md) is for.
+The `dx components add (crates.io)` job is expected to fail after a phase that binds the components
+to new crate APIs, and going green again is what the [release process](Release-Process.md) is for.

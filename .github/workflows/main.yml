@@ -71,6 +71,20 @@ jobs:
       - run: cargo check -p dioxus-datagrid --features datagrid-core/chrono
       - run: cargo check -p dioxus-datagrid --features datagrid-core/serde
 
+  # The MSRV is a published promise (`rust-version` in Cargo.toml), and only a
+  # pinned toolchain can keep it. The two library crates are what the promise
+  # covers: the examples and the playground pull in the desktop and server
+  # stacks, whose own minimum is not ours to make. --all-features, because the
+  # promise has to hold with `serde` and `chrono` on as well.
+  msrv:
+    name: MSRV (1.88)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check -p datagrid-core -p dioxus-datagrid --all-features
+
   platform-build:
     name: build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
