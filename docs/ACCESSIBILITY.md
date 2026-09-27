@@ -92,6 +92,7 @@ Kopfzeile davor (`GridHandle::header_rows`). Damit stimmt die Fokus-Koordinate d
 | `Shift+Space` | Auswahl vom Anker bis hierher erweitern |
 | `Shift+↑` / `Shift+↓` | Fokus bewegen **und** die Auswahl mitziehen (nur bei `Multi`) |
 | `Shift`+Pfeil (bei Zellauswahl `Range`) | das Rechteck vom Anker aus wachsen lassen — dann **nicht** die Zeilenauswahl |
+| `Ctrl+C` / `Cmd+C` | die Auswahl als tabgetrennten Text in die Zwischenablage |
 
 Auf macOS gilt `Cmd` gleichwertig zu `Ctrl` für `Home`/`End`.
 
@@ -298,6 +299,23 @@ anbieten (`CellSelectionMode::{None, Single, Range}`).
   Sortieren, Filtern oder Blättern lässt es deshalb stehen, wo es ist — was hervorgehoben ist, ist
   ausgewählt, und das bleibt wahr. Zeilenauswahl dagegen hängt am Schlüssel und übersteht all das.
 
+## Kopieren
+
+`Ctrl+C` (auf macOS `Cmd+C`) legt die Auswahl als tabgetrennten Text ab — das Format, das
+Tabellenkalkulationen als Block von Zellen lesen.
+
+- **Was kopiert wird, in dieser Reihenfolge:** das ausgewählte Rechteck aus Zellen; sonst die
+  ausgewählten Zeilen mit allen sichtbaren Spalten, in der Reihenfolge, in der sie **stehen**;
+  sonst die fokussierte Zelle. Auf einer Kopfzeile passiert nichts.
+- **Kopiert wird, was zu sehen ist:** der Wert der Spalte, formatiert durch die Sprache des Gitters
+  — „1.234,50 €" auf Deutsch, „€1,234.50" auf Englisch. Eine Spalte ohne Wert, die nur mit `cell`
+  etwas zeichnet, kopiert eine leere Zelle: gerendertes Markup ist kein Text.
+- **Spaltenüberschriften sind nicht dabei.** Ein Einfügen in ein Blatt, das schon Überschriften hat,
+  bekäme sonst eine Zeile geschenkt.
+- **Keine Berechtigungsfrage.** Schlägt der moderne Weg fehl, nimmt das Gitter den alten; gelingt
+  auch der nicht, passiert nichts. Ein Gitter, das nach Rechten fragt, um eine Zeile zu kopieren,
+  wäre schlimmer als ein gelegentlich stilles Nein (ADR-0033).
+
 ## Zellen über mehrere Spalten
 
 Eine Spalte kann pro Zeile sagen, über wie viele Spalten ihre Zelle läuft (`Column::span`).
@@ -367,6 +385,11 @@ vergessen.
   `ArrowUp`/`ArrowDown` zwischen Gruppe und Spalte, eine Gruppe als ein Stopp, ein Tab-Stopp, axe.
   Markup in `crates/dioxus-datagrid/tests/header_groups.rs`, Aufteilung im Kern in
   `crates/datagrid-core/tests/header.rs`.
+- **Kopieren:** `tests/e2e/copy.spec.ts` — Rechteck, einzelne Zelle, ausgewählte Zeilen, fokussierte
+  Zelle, Kopf kopiert nichts, und der alte Weg trägt, wenn der moderne abgelehnt wird. Beobachtet
+  wird, was das Gitter der Zwischenablage übergibt; sie zurückzulesen ist überall verboten
+  (VERIFICATION §15). Textbildung in `crates/dioxus-datagrid/tests/copy.rs`, das Format in
+  `crates/datagrid-core/tests/tsv.rs`.
 - **Zellauswahl:** `tests/e2e/cell-selection.spec.ts` — Klick, `Shift`+Klick, `Shift`+Pfeil in alle
   Richtungen, Pfeil ohne `Shift` beginnt neu, `Single` bleibt bei einer Zelle, Kopf nicht
   auswählbar, Zeilen- und Zellauswahl nebeneinander, axe mit Rechteck. Markup in

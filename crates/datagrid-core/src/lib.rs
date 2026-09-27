@@ -74,6 +74,7 @@ mod selection;
 mod sort;
 mod span;
 mod state;
+mod tsv;
 mod value;
 mod view;
 mod virtualize;
@@ -103,6 +104,7 @@ pub use selection::{CellRange, CellSelectionMode, Selection, SelectionMode};
 pub use sort::{SortDirection, SortState, SortValue, TextCollation};
 pub use span::RowSpans;
 pub use state::{GridState, PageState};
+pub use tsv::{to_tsv, tsv_field};
 pub use value::CellValue;
 pub use view::{DistinctValues, View, ViewRow, compute_view, distinct_values};
 pub use virtualize::{

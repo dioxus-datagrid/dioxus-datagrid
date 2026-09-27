@@ -72,6 +72,7 @@
 
 mod column;
 mod column_menu;
+mod copy;
 mod edit;
 mod edit_ui;
 mod filter_menu;

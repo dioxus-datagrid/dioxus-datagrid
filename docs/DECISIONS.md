@@ -1118,3 +1118,22 @@ ein Rechteck hängt, und wer `Shift`+Pfeil bekommt.
 - Das Rechteck ist **nicht** Teil von `GridState`: es überlebt kein Neuladen, wie die Zeilenauswahl
   auch nicht. Mehrere Rechtecke (Strg-Klick) gibt es bewusst noch nicht; sie kommen, wenn ein
   Anwendungsfall sie verlangt, und würden aus `Option<CellRange>` ein `Vec` machen.
+
+**Nachtrag zu ADR-0033 (Kopieren gebaut, 2026-09-27).** Drei Festlegungen, die beim Bauen fällig
+wurden:
+
+- **Was `Ctrl+C` bedeutet, in dieser Reihenfolge:** das ausgewählte Rechteck; sonst die ausgewählten
+  Zeilen mit allen sichtbaren Spalten; sonst die fokussierte Zelle. Ein Rechteck ist die genauere
+  Aussage des Nutzers und schlägt deshalb die Zeilenauswahl; die fokussierte Zelle ist der Rest, der
+  ohne jede Auswahl noch sinnvoll ist. Zeilen werden in **Ansichtsreihenfolge** kopiert, nicht in
+  der Reihenfolge des Anklickens — kopiert wird ein Block, kein Verlauf.
+- **Kopiert wird der formatierte Wert**, nicht die Rohzahl: „1.234,50 €". Was man sieht, klebt man
+  ein. Eine Spalte ohne Wert, die nur mit `cell` etwas zeichnet, kopiert leer — ein gerendertes
+  `Element` ist Markup, und daraus Text zu raten wäre schlechter als eine leere Zelle. Ein
+  `Column::copy_as` könnte das später gezielt öffnen.
+- **Ohne Kopfzeile.** Eine Überschriftenzeile ins Blatt zu kippen, das schon eine hat, ist der
+  häufigere Ärger; wer sie will, kann sie aus `copy_text` selbst bauen.
+
+Dazu ein Fund aus dem Property-Test des Formats: eine erste Zeile aus lauter leeren Zellen schluckte
+den Zeilenumbruch danach, weil der Erzeuger „ist schon etwas geschrieben?" statt „ist das die erste
+Zeile?" fragte. Aus einem 2×1-Block wurde ein 1×1-Block.

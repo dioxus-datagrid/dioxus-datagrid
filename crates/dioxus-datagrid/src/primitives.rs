@@ -122,6 +122,16 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
             return;
         }
 
+        // Copy, before the single-character keys below: `c` with a modifier is
+        // not the `c` that types into a cell. `Cmd` on macOS, `Ctrl` elsewhere.
+        if (data.modifiers().ctrl() || data.modifiers().meta())
+            && data.key() == Key::Character("c".into())
+        {
+            grid.copy_selection();
+            event.prevent_default();
+            return;
+        }
+
         let focus = grid.focus();
         match data.key() {
             // On a header, both Enter and Space sort. Shift makes it additive so

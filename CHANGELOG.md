@@ -14,6 +14,12 @@ All notable changes to this project are documented here. The format follows
   moving end, so the same rectangle grows and shrinks; every data cell carries `aria-selected` and
   `data-cell-selected`. `GridHandle` gains `cell_selection_mode`, `cell_range`, `is_cell_selected`,
   `selected_cell_count`, `select_cell`, `extend_cell_selection` and `clear_cell_selection`.
+- Copying. `Ctrl+C` (`Cmd+C` on macOS) puts the selection on the clipboard as tab-separated text: the
+  selected rectangle, else the selected rows with every visible column, else the focused cell. Cells
+  are copied as the grid shows them, formatted by its locale, and a cell holding a tab, a line break
+  or a quotation mark is quoted so a spreadsheet reads the block back unchanged. `to_tsv` and
+  `tsv_field` in `datagrid-core` build the text; `GridHandle::copy_text`, `copy_selection`,
+  `cell_text` and `can_copy` are the grid's side of it.
 
 ### Changed
 
