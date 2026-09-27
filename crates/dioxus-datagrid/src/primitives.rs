@@ -55,6 +55,10 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
     children: Element,
 ) -> Element {
     let mut grid = grid;
+    // What the clipboard holds reaches a page as a paste event, which the
+    // document hears rather than the grid: one listener per grid, for as long as
+    // the grid is there (`docs/DECISIONS.md` ADR-0033).
+    crate::paste::use_paste_listener(grid);
     // `aria-rowcount` spans every page, not just the rendered one, and counts
     // the header rows — that is the whole point of the attribute when the grid
     // is paged.

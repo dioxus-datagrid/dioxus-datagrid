@@ -415,7 +415,7 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
         self.edit_config.read().as_ref().map(|editing| editing.mode)
     }
 
-    fn editing(&self) -> Option<Editing<T>> {
+    pub(crate) fn editing(&self) -> Option<Editing<T>> {
         *self.edit_config.peek()
     }
 
@@ -470,7 +470,7 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
         Some(read(edits.current(&row.key()).unwrap_or(row)))
     }
 
-    fn row_at(&self, row_index: usize) -> Option<T> {
+    pub(crate) fn row_at(&self, row_index: usize) -> Option<T> {
         self.with_row(row_index, T::clone)
     }
 
@@ -760,11 +760,11 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
             return;
         }
 
-        let mut grid = *self;
         if session.creating {
             let Some(on_create) = editing.on_create else {
                 return;
             };
+            let mut grid = *self;
             self.edit_status.set(EditStatus::Saving);
             on_create.call(Create {
                 row: draft,
@@ -773,20 +773,33 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
             return;
         }
 
-        if draft == session.original {
+        self.save_row(editing, session.original.clone(), draft);
+    }
+
+    /// Saves one changed row, wherever the change came from: a committed edit,
+    /// or a pasted block. Recorded in the batch in [`EditMode::Batch`], handed
+    /// to [`Editing::on_save`] otherwise. A row that did not change is not
+    /// saved.
+    pub(crate) fn save_row(&mut self, editing: &Editing<T>, original: T, draft: T) {
+        if editing.mode == EditMode::Batch {
+            self.edit_rows.write().changes.update(original, draft);
+            return;
+        }
+        if draft == original {
             return;
         }
         let Some(on_save) = editing.on_save else {
             return;
         };
-        let key = session.key.clone();
+        let key = original.key();
+        let mut grid = *self;
         self.edit_rows.write().pending.push(Pending {
             row: draft.clone(),
             confirmed: false,
         });
         self.edit_status.set(EditStatus::Saving);
         on_save.call(Save {
-            original: session.original.clone(),
+            original,
             row: draft,
             done: Completion::new(move |result| grid.finish_save(result, Some(key))),
         });

@@ -183,6 +183,10 @@ pub struct GridLocale {
     pub edit_saved: Cow<'static, str>,
     /// After a save failed, with `{error}`.
     pub edit_save_failed: Cow<'static, str>,
+    /// Shown when rows of a pasted block could not be used, with `{count}`.
+    pub paste_refused: Cow<'static, str>,
+    /// Shown when one row of a pasted block could not be used.
+    pub paste_refused_one: Cow<'static, str>,
     /// Accessible name of a column header's options menu, for `{column}`.
     pub column_menu: Cow<'static, str>,
     /// Sorts the column from low to high.
@@ -321,6 +325,8 @@ impl GridLocale {
             edit_saving: Cow::Borrowed("Saving…"),
             edit_saved: Cow::Borrowed("Saved"),
             edit_save_failed: Cow::Borrowed("Could not save: {error}"),
+            paste_refused: Cow::Borrowed("Could not paste {count} rows"),
+            paste_refused_one: Cow::Borrowed("Could not paste one row"),
             column_menu: Cow::Borrowed("Column options for {column}"),
             sort_ascending: Cow::Borrowed("Sort ascending"),
             sort_descending: Cow::Borrowed("Sort descending"),
@@ -427,6 +433,8 @@ impl GridLocale {
             edit_saving: Cow::Borrowed("Wird gespeichert …"),
             edit_saved: Cow::Borrowed("Gespeichert"),
             edit_save_failed: Cow::Borrowed("Speichern fehlgeschlagen: {error}"),
+            paste_refused: Cow::Borrowed("{count} Zeilen konnten nicht eingefügt werden"),
+            paste_refused_one: Cow::Borrowed("Eine Zeile konnte nicht eingefügt werden"),
             column_menu: Cow::Borrowed("Spaltenoptionen für {column}"),
             sort_ascending: Cow::Borrowed("Aufsteigend sortieren"),
             sort_descending: Cow::Borrowed("Absteigend sortieren"),
@@ -527,6 +535,16 @@ impl GridLocale {
     #[must_use]
     pub fn edit_save_failed(&self, error: &str) -> String {
         fill(&self.edit_save_failed, &[("error", error)])
+    }
+
+    /// "Could not paste 3 rows", or "Could not paste one row".
+    #[must_use]
+    pub fn paste_refused(&self, count: usize) -> String {
+        if count == 1 {
+            self.paste_refused_one.clone().into_owned()
+        } else {
+            fill(&self.paste_refused, &[("count", &self.integer(count))])
+        }
     }
 
     /// "Stop grouping by City".

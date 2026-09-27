@@ -79,6 +79,7 @@ mod filter_menu;
 mod grid;
 mod group;
 mod group_ui;
+mod paste;
 pub mod primitives;
 mod remote;
 mod timer;
@@ -93,6 +94,7 @@ pub use grid::{
     COLUMN_RESIZE_STEP, DEFAULT_DEBOUNCE, GridHandle, GridOptions, IntoReadSignal, Layout, use_grid,
 };
 pub use group::GroupKeyPress;
+pub use paste::PasteReport;
 pub use remote::use_grid_remote;
 
 // Re-exported so callers need only one dependency for the common path. The

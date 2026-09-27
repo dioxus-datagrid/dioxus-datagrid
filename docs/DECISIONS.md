@@ -1137,3 +1137,42 @@ wurden:
 Dazu ein Fund aus dem Property-Test des Formats: eine erste Zeile aus lauter leeren Zellen schluckte
 den Zeilenumbruch danach, weil der Erzeuger „ist schon etwas geschrieben?" statt „ist das die erste
 Zeile?" fragte. Aus einem 2×1-Block wurde ein 1×1-Block.
+
+**Nachtrag zu ADR-0033 (Einfügen gebaut, 2026-09-27).** Was beim Bauen zu entscheiden war:
+
+- **Wo der Block landet:** an der oberen linken **Ecke** des ausgewählten Rechtecks, sonst an der
+  fokussierten Zelle; von dort nach rechts und unten. Eine einzelne eingefügte Zelle füllt dagegen
+  das ganze Rechteck — so macht es jede Tabellenkalkulation, und ein Nutzer, der drei Zellen markiert
+  und einen Wert einfügt, meint genau das.
+- **Was hängen bleibt, fällt weg.** Kein Einfügen legt Zeilen an und keines legt Spalten an. Eine
+  Zeile wäre eine Zeile ohne Schlüssel — `new_row` gehört der Anwendung, und ein Einfügen ist kein
+  Anlass, sie hinter ihrem Rücken aufzurufen.
+- **Eine nicht bearbeitbare Spalte hält ihren Platz.** Sie behält ihren Wert, verschluckt aber die
+  Zelle, die über ihr lag. *Alternative:* sie überspringen und die restlichen Werte nachrücken
+  lassen. Verworfen — dann landet die Abteilung im Alter, sobald irgendwo dazwischen eine Spalte
+  nicht editierbar ist. Ausrichtung schlägt Vollständigkeit.
+- **Eine Zeile ganz oder nicht.** Wird ein Wert abgelehnt — Zahl unlesbar, Prüfung der Spalte oder
+  der Anwendung dagegen —, bleibt die **ganze** Zeile, wie sie war. Ein halb eingefügter Datensatz
+  ist schlimmer als ein nicht eingefügter, und ein `validate_row` kann sonst nichts Sinnvolles
+  prüfen. Gezählt wird in `PasteReport::refused`, und das Gitter sagt es über
+  `GridLocale::paste_refused` in seiner Statuszeile.
+- **Gespeichert wird zeilenweise, über denselben Weg wie eine bestätigte Bearbeitung.**
+  `save_row` — aus `commit_edit` herausgezogen — heißt: im Stapelmodus in die Änderungen, sonst ein
+  `on_save` pro Zeile. Kein neuer Weg für dieselbe Sache.
+- **Der eingefügte Block bleibt ausgewählt.** Auch der abgelehnte: dort ist nachzusehen.
+- **Der Listener sitzt am Dokument, gefiltert in JS.** Ein Einfügen mit Fokus auf einer Gitterzelle
+  zielt nicht auf etwas, worauf das Gitter selbst hören könnte. Was Text annimmt — `input`,
+  `textarea`, `select`, `contenteditable` — behält sein eigenes Einfügen; deshalb prüft das Skript
+  das Ziel, nicht Rust. Ein Gitter, ein Listener, beendet über den Kanal, wenn das Gitter geht.
+
+**Offen, und ehrlich offen:** dass ein **echtes** `Ctrl+V` das Gitter erreicht, ist nicht gemessen.
+Die Automatisierung kann es nicht — über das Debug-Protokoll geschickte Tasten fügen nicht ein, nicht
+einmal in ein gewöhnliches `input` (`docs/VERIFICATION.md` §15, Nachtrag). Alles ab dem Listener ist
+geprüft, in Playwright wie im echten Browser. Die Frage dahinter ist, ob WebKit ein `paste` überhaupt
+ausliefert, wenn der Fokus auf nichts Bearbeitbarem liegt; Chromium tut es (daran hängen die
+Einfügen-Funktionen der Zeichen-Apps). Falls eine Prüfung von Hand zeigt, dass WebKit es nicht tut,
+ist der bekannte Ausweg ein verstecktes `textarea`, das bei `Ctrl+V` kurz den Fokus bekommt — Aufwand
+und Fokus-Turnen, die erst eine Messung rechtfertigt.
+
+Der Spike (`playground/src/clipboard_spike.rs`) bleibt deshalb noch stehen: seine Paste-Probe ist
+genau das Werkzeug für diese Prüfung von Hand. Er geht heraus, sobald sie gelaufen ist.

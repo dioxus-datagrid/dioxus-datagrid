@@ -93,6 +93,7 @@ Kopfzeile davor (`GridHandle::header_rows`). Damit stimmt die Fokus-Koordinate d
 | `Shift+↑` / `Shift+↓` | Fokus bewegen **und** die Auswahl mitziehen (nur bei `Multi`) |
 | `Shift`+Pfeil (bei Zellauswahl `Range`) | das Rechteck vom Anker aus wachsen lassen — dann **nicht** die Zeilenauswahl |
 | `Ctrl+C` / `Cmd+C` | die Auswahl als tabgetrennten Text in die Zwischenablage |
+| `Ctrl+V` / `Cmd+V` | tabgetrennten Text in bearbeitbare Zellen einfügen, ab der Ecke der Auswahl |
 
 Auf macOS gilt `Cmd` gleichwertig zu `Ctrl` für `Home`/`End`.
 
@@ -316,6 +317,29 @@ Tabellenkalkulationen als Block von Zellen lesen.
   auch der nicht, passiert nichts. Ein Gitter, das nach Rechten fragt, um eine Zeile zu kopieren,
   wäre schlimmer als ein gelegentlich stilles Nein (ADR-0033).
 
+## Einfügen
+
+`Ctrl+V` (auf macOS `Cmd+V`) schreibt tabgetrennten Text in bearbeitbare Zellen — die Gegenrichtung
+zum Kopieren, mit denselben Regeln für das Format.
+
+- **Wo es landet:** an der oberen linken Ecke des ausgewählten Rechtecks, sonst an der fokussierten
+  Zelle; von dort nach rechts und unten. Eine einzelne eingefügte Zelle füllt das ganze ausgewählte
+  Rechteck, wie in einer Tabellenkalkulation.
+- **Es wächst nichts.** Was über die letzte Spalte oder die letzte Zeile hinausragt, fällt weg; ein
+  Einfügen legt keine Zeilen an.
+- **Eine Spalte, die nicht bearbeitet werden kann, behält ihren Wert** — hält aber ihren Platz, damit
+  der Rest der Zeile unter den Spalten bleibt, aus denen er kopiert wurde.
+- **Eine Zeile ganz oder nicht.** Lehnt eine Spalte oder die Anwendung einen Wert ab, bleibt die
+  ganze Zeile, wie sie war; die Statuszeile sagt, wie viele Zeilen das betraf, und der eingefügte
+  Block bleibt markiert, damit man nachsehen kann.
+- **Ein offener Editor behält sein eigenes Einfügen.** In einem Eingabefeld fügt der Browser ein, wie
+  er es überall tut; das Gitter hält sich heraus.
+- **Auf einer Kopfzeile passiert nichts**, und in einem Gitter ohne Bearbeitung passiert nichts.
+
+Einfügen kann nur aus dem echten `paste`-Ereignis kommen: die Zwischenablage zu *lesen* ist überall
+verboten (ADR-0033, VERIFICATION §15). Ein Knopf „Einfügen" ist deshalb nicht möglich, und es gibt
+ihn bewusst nicht.
+
 ## Zellen über mehrere Spalten
 
 Eine Spalte kann pro Zeile sagen, über wie viele Spalten ihre Zelle läuft (`Column::span`).
@@ -390,6 +414,12 @@ vergessen.
   wird, was das Gitter der Zwischenablage übergibt; sie zurückzulesen ist überall verboten
   (VERIFICATION §15). Textbildung in `crates/dioxus-datagrid/tests/copy.rs`, das Format in
   `crates/datagrid-core/tests/tsv.rs`.
+- **Einfügen:** `tests/e2e/paste.spec.ts` — Block ab der fokussierten Zelle, eine Zelle füllt das
+  Rechteck, der eingefügte Block bleibt markiert, ein abgelehnter Wert lässt seine Zeile stehen,
+  Überhang fällt weg, keine neuen Zeilen, offener Editor, Gitter ohne Bearbeitung, Stapelmodus, Kopf.
+  Die Tests verschicken das `paste`-Ereignis selbst; ein echtes `Ctrl+V` ist nicht synthetisierbar
+  (VERIFICATION §15). Die Regeln in `crates/dioxus-datagrid/tests/paste.rs`, das Zurücklesen des
+  Formats in `crates/datagrid-core/tests/tsv.rs`.
 - **Zellauswahl:** `tests/e2e/cell-selection.spec.ts` — Klick, `Shift`+Klick, `Shift`+Pfeil in alle
   Richtungen, Pfeil ohne `Shift` beginnt neu, `Single` bleibt bei einer Zelle, Kopf nicht
   auswählbar, Zeilen- und Zellauswahl nebeneinander, axe mit Rechteck. Markup in

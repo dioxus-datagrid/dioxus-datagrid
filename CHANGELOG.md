@@ -20,9 +20,20 @@ All notable changes to this project are documented here. The format follows
   or a quotation mark is quoted so a spreadsheet reads the block back unchanged. `to_tsv` and
   `tsv_field` in `datagrid-core` build the text; `GridHandle::copy_text`, `copy_selection`,
   `cell_text` and `can_copy` are the grid's side of it.
+- Pasting. `Ctrl+V` (`Cmd+V` on macOS) writes tab-separated text into editable cells, starting at the
+  corner of the selected rectangle or at the focused cell; a single pasted cell fills the whole
+  rectangle. Nothing grows the grid — what hangs over the last column or row is dropped — a column
+  that cannot be edited keeps its value but holds its place in the block, and a row whose value is
+  refused stays as it was, counted in `PasteReport::refused` and reported in the status line. Each
+  written row is saved the way a committed edit is. `from_tsv` in `datagrid-core` reads the text,
+  `GridHandle::paste_text` writes it; the clipboard cannot be read on demand, so pasting arrives from
+  the real `paste` event (see `docs/DECISIONS.md` ADR-0033).
 
 ### Changed
 
+- `GridLocale` has two new fields, `paste_refused` and `paste_refused_one`, for the message a partly
+  refused paste shows. Code that builds a `GridLocale` from `..Default::default()` or
+  `GridLocale::german()` is unaffected.
 - `GridOptions` has a new public field, `cell_selection`. With `CellSelectionMode::Range` set,
   `Shift`+arrow grows the cell rectangle instead of extending the row selection; `Space` still
   selects rows. Without it nothing changes.

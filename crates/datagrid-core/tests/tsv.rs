@@ -2,7 +2,7 @@
 
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
-use datagrid_core::{to_tsv, tsv_field};
+use datagrid_core::{from_tsv, to_tsv, tsv_field};
 use proptest::prelude::*;
 
 /// Reads tab-separated text back into rows of cells, the way a spreadsheet
@@ -121,5 +121,78 @@ proptest! {
 
         let text = to_tsv(&block);
         prop_assert_eq!(parse(&text), block);
+    }
+}
+
+#[test]
+fn reading_takes_the_line_endings_a_spreadsheet_writes() {
+    // Excel writes CRLF, Google Sheets a bare LF; both mean a new row.
+    assert_eq!(from_tsv("a\tb\r\nc\td"), [["a", "b"], ["c", "d"]]);
+    assert_eq!(from_tsv("a\tb\nc\td"), [["a", "b"], ["c", "d"]]);
+}
+
+#[test]
+fn a_trailing_line_break_closes_the_last_row_rather_than_opening_one() {
+    assert_eq!(from_tsv("a\r\nb\r\n"), [["a"], ["b"]]);
+    assert_eq!(from_tsv("a\n"), [["a"]]);
+    // A second break does mean an empty row: something followed the first one.
+    assert_eq!(from_tsv("a\r\n\r\n"), [["a"], [""]]);
+}
+
+#[test]
+fn reading_keeps_what_a_quoted_field_holds() {
+    assert_eq!(from_tsv("\"a\tb\"\tc"), [["a\tb", "c"]]);
+    assert_eq!(
+        from_tsv("\"line one\r\nline two\""),
+        [["line one\r\nline two"]]
+    );
+    assert_eq!(from_tsv("\"say \"\"hi\"\"\""), [[r#"say "hi""#]]);
+}
+
+#[test]
+fn a_quotation_mark_inside_a_field_is_just_a_character() {
+    // Not what a spreadsheet writes, but what people type: only a field that
+    // starts with a quotation mark is a quoted one.
+    assert_eq!(from_tsv("5\" pipe\tnext"), [["5\" pipe", "next"]]);
+}
+
+#[test]
+fn rows_may_be_ragged_and_empty_cells_stay() {
+    assert_eq!(from_tsv("a\tb\tc\r\nd"), [vec!["a", "b", "c"], vec!["d"]]);
+    assert_eq!(from_tsv("\t\t"), [["", "", ""]]);
+}
+
+#[test]
+fn nothing_is_read_from_nothing() {
+    assert!(from_tsv("").is_empty());
+}
+
+proptest! {
+    /// The reader gets back the block the writer was given, for any block of
+    /// equally long rows — which is what a grid produces.
+    #[test]
+    fn the_reader_and_the_writer_agree(
+        rows in 1usize..4,
+        columns in 1usize..4,
+        cells in prop::collection::vec("[a-z\t\n\"]{0,6}", 9),
+    ) {
+        let block: Vec<Vec<String>> = (0..rows)
+            .map(|row| {
+                (0..columns)
+                    .map(|column| cells[(row * columns + column) % cells.len()].clone())
+                    .collect()
+            })
+            .collect();
+
+        // The format has one ambiguity, and this is it: a last row of a single
+        // empty cell writes exactly what a trailing line break leaves behind, so
+        // the reader drops it. Everything else survives.
+        prop_assume!(
+            !block
+                .last()
+                .is_some_and(|row| row.len() == 1 && row.first().is_some_and(String::is_empty))
+        );
+
+        prop_assert_eq!(from_tsv(&to_tsv(&block)), block);
     }
 }

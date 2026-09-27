@@ -496,3 +496,21 @@ Ausliefern von Phase 12 an einem Desktop-Build nachzusehen, nicht zu vermuten.
 
 Spike und Spike-Spec bleiben, solange an Kopieren und Einfügen gebaut wird, und gehen danach
 wieder heraus — wie der Phase-0-Spike in Phase 3.
+
+**Nachtrag (Einfügen gebaut, 2026-09-27).** Zwei Messungen und eine Lücke.
+
+*Gemessen, im echten Chromium des Browser-Pane:* der Listener wird im laufenden Dev-Build
+installiert, ein `paste`-Ereignis mit eigenem `DataTransfer` bringt den Text über den Eval-Kanal nach
+Rust, zwei Zeilen wurden geschrieben, gespeichert („Saved") und der eingefügte Block blieb markiert.
+Dieselbe Strecke läuft in Playwright-Chromium und -WebKit (`tests/e2e/paste.spec.ts`, 10 Tests).
+
+*Gemessen, und es ist eine Absage:* ein über das Debug-Protokoll geschicktes `Ctrl+V` löst **kein**
+`paste`-Ereignis aus — auch dann nicht, wenn der Fokus in einem gewöhnlichen `<input>` liegt und die
+Seite ein eigenes `document.addEventListener("paste", …)` mitbringt. Der Eintrag blieb leer, das Feld
+leer. Das ist keine Eigenschaft des Gitters, sondern der Werkzeuge: die Zwischenablage des Systems
+liegt nicht in ihrer Hand.
+
+*Damit offen:* dass ein echtes `Ctrl+V` ein `paste` an eine Seite ausliefert, deren Fokus auf einer
+Gitterzelle (also auf nichts Bearbeitbarem) liegt. Für Chromium ist das der Weg, über den
+Zeichen-Apps eingefügte Bilder bekommen; WebKit ist an dieser Stelle strenger. **Von Hand
+nachzusehen** — in Safari und in einem Desktop-Build, zusammen mit dem oben schon offenen Punkt.

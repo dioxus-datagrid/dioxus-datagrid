@@ -79,3 +79,81 @@ where
     }
     text
 }
+
+/// Reads tab-separated text back into rows of cells, the way a spreadsheet
+/// writes it to the clipboard.
+///
+/// Rows end at a line break — `\r\n` as Excel writes it, a bare `\n` as Google
+/// Sheets and most editors do — and a single trailing break ends the last row
+/// rather than starting an empty one. A field is quoted only when it starts with
+/// a quotation mark; then a tab or a line break inside it belongs to the field
+/// and `""` is one quotation mark. Rows may be ragged: what the text says is
+/// what comes back.
+///
+/// Empty text is no rows at all, which is why this is not quite the inverse of
+/// [`to_tsv`]: a block of one empty cell writes as empty text.
+///
+/// ```
+/// use datagrid_core::from_tsv;
+///
+/// assert_eq!(from_tsv("Zoe\tBerlin\r\nAdam\tKiel"), [["Zoe", "Berlin"], ["Adam", "Kiel"]]);
+/// assert_eq!(from_tsv("\"a\tb\"\tc"), [["a\tb", "c"]]);
+/// assert!(from_tsv("").is_empty());
+/// ```
+#[must_use]
+pub fn from_tsv(text: &str) -> Vec<Vec<String>> {
+    if text.is_empty() {
+        return Vec::new();
+    }
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    let mut row: Vec<String> = Vec::new();
+    let mut cell = String::new();
+    // Whether the field being read is a quoted one, and whether nothing has
+    // been read into it yet — a quotation mark only opens a field at its start.
+    let mut quoted = false;
+    let mut fresh = true;
+    let mut characters = text.chars().peekable();
+
+    while let Some(character) = characters.next() {
+        match character {
+            '"' if quoted && characters.peek() == Some(&'"') => {
+                characters.next();
+                cell.push('"');
+            }
+            '"' if quoted => quoted = false,
+            '"' if fresh => {
+                quoted = true;
+                fresh = false;
+            }
+            '\t' if !quoted => {
+                row.push(std::mem::take(&mut cell));
+                fresh = true;
+            }
+            '\r' | '\n' if !quoted => {
+                if character == '\r' && characters.peek() == Some(&'\n') {
+                    characters.next();
+                }
+                row.push(std::mem::take(&mut cell));
+                rows.push(std::mem::take(&mut row));
+                fresh = true;
+            }
+            other => {
+                cell.push(other);
+                fresh = false;
+            }
+        }
+    }
+    row.push(cell);
+    rows.push(row);
+
+    // The text ended with a line break: that break closed the last row, it did
+    // not open an empty one.
+    if rows.len() > 1
+        && rows
+            .last()
+            .is_some_and(|row| row.len() == 1 && row.first().is_some_and(String::is_empty))
+    {
+        rows.pop();
+    }
+    rows
+}

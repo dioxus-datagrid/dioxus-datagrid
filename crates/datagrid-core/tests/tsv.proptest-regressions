@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 2fda65b191a81906189ff79e066c489851296883bf294986d0ac4f53a8693480 # shrinks to block = [[""], [""]]
+cc 541ea8cc225ca18a0945801ce6dc3bee58fd8d6e36cc4e39d6ea72a091fac567 # shrinks to rows = 2, columns = 1, cells = ["", "", "", "", "", "", "", "", ""]

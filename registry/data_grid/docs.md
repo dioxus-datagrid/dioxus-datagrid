@@ -257,7 +257,10 @@ row, `Space` selects and `Shift+Space` or `Shift+Arrow` extends the selection. W
 `cell_selection` set, `Shift+Arrow` grows a rectangle of cells instead and `Space`
 stays the row's. `Ctrl+C` copies the selection — the rectangle, else the selected
 rows, else the focused cell — as tab-separated text, formatted as the grid shows
-it.
+it. `Ctrl+V` pastes such text into editable cells, starting at the corner of the
+selection or at the focused cell; one pasted cell fills the whole selected
+rectangle, nothing grows the grid, and a row whose value is refused stays as it
+was.
 On a group header, `ArrowRight` expands, `ArrowLeft` collapses, and `Enter` or
 `Space` toggle. On a header, `Alt+ArrowLeft`/`Alt+ArrowRight` resize the column
 and `Alt+Shift+ArrowLeft`/`Alt+Shift+ArrowRight` move it. A cell over several
