@@ -424,3 +424,23 @@ zu klären.
 
 **Offen für Dioxus.** Ein Bugreport mit dem Capture-Mitschnitt oben wäre der nächste Schritt.
 Für uns ist der Weg über eine Stelle ohnehin der bessere: eine Messung statt einer pro Zelle.
+
+**Nachtrag 2026-09-27: der offensichtliche Verdacht ist unschuldig.** In die Quelle geschaut, statt
+weiter von außen zu raten:
+
+- `dioxus-core-types/src/bubbles.rs` führt `"resize" => false`. `createListener` nimmt damit den
+  Nicht-Bubbling-Zweig und hängt den Handler **an das jeweilige Element**, nicht an die Wurzel.
+- `createResizeObserver` beobachtet **jedes** übergebene Element; der eine gemeinsame
+  `ResizeObserver` verschickt sein CustomEvent an `entry.target`.
+- Dieser Code ist auf `main` von DioxusLabs/dioxus heute zeichengleich mit 0.7.10.
+
+Es ist also nicht „ein Observer pro App", und die Ursache unseres Befunds ist damit weiterhin
+unidentifiziert — am wahrscheinlichsten auf der Rust-Seite, beim Zurückrouten des synthetischen
+Events an den Handler des Ziels. Eine Suche in den Issues von DioxusLabs/dioxus findet **keinen**
+Report zu `onresize`-Abdeckung; offen und für uns einschlägig ist dagegen
+[#2293](https://github.com/DioxusLabs/dioxus/issues/2293) „Incorrect values returned by
+`MountedData::get_client_rect()`" (seit 2024-04-11) — genau die API, auf der unsere Messung steht.
+
+**Zurückgestellt.** Ein Fix bräuchte eine Minimalreproduktion und Debugging in einem
+dioxus-Checkout, und er landete auf `main` = 0.8-Alpha, die wir nicht benutzen. Wir sind nicht
+blockiert; der Ausflug wird fällig, wenn Dioxus 0.8 stabil wird (§11).
