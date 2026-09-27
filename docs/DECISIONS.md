@@ -1022,3 +1022,49 @@ eine ignorierte Verwundbarkeit ist eine, die man beim nächsten Mal auch ignorie
   Bei `-D warnings` in CI ist das keine Empfehlung, sondern Pflicht — zehn Dateien wurden
   entsprechend umgeschrieben, mechanisch und bedeutungsgleich. Es ist derselbe Grund, aus dem der
   Sprung nicht in zwei Commits passt: Code mit `let`-Ketten baut mit 1.85 nicht.
+
+---
+
+## ADR-0033 — Zwischenablage: schreiben mit Rückfallweg, einfügen nur aus dem `paste`-Ereignis
+
+**Kontext.** `docs/ROADMAP.md` Phase 12 verlangt „Kopieren als TSV, das Excel versteht; Einfügen in
+bearbeitbare Zellen" und schreibt vor, den Zugriff zuerst per Spike zu prüfen. Der Spike liegt vor
+(`docs/VERIFICATION.md` §15).
+
+**Entscheidung.**
+
+1. **Über `document::eval`, nicht über Events.** `dioxus-html`s `ClipboardData` ist leer — `onpaste`
+   nennt den Inhalt nicht. Eine eigene API hat Dioxus nicht, `web-sys` ist uns verboten (A2). Damit
+   ist `document::eval` der einzige plattformneutrale Weg, und die Grenze bleibt gewahrt:
+   `dioxus-datagrid` bekommt kein `web-sys`, nur JavaScript als Text.
+
+2. **Die Nutzlast reist über den Kanal, nie im Quelltext.** `eval.send(tsv)` und `await
+   dioxus.recv()` statt `format!` in den Skripttext. TSV enthält Tabulatoren, Zeilenumbrüche und
+   Anführungszeichen; eine Interpolation wäre eine Injektionsstelle in fremde Daten — genau wovor
+   die Dioxus-Dokumentation zu `eval` warnt.
+
+3. **Schreiben: `writeText`, bei Ablehnung `execCommand("copy")`.** `writeText` ist der moderne Weg
+   und im echten Chromium wie in WebKit erlaubt; das kopflose Chromium der CI verweigert es ohne
+   erteilte Berechtigung, und dort trägt `execCommand`. Beide Wege statt einer Berechtigungsbitte:
+   ein Gitter soll nicht nach Rechten fragen, um eine Zeile zu kopieren.
+
+4. **Einfügen kommt aus dem `paste`-Ereignis, nicht aus `readText`.** `readText` wurde in jeder
+   geprüften Umgebung verweigert, auch mit gültiger Benutzeraktion. Ein Eval installiert stattdessen
+   einen `paste`-Listener und schickt `event.clipboardData.getData("text/plain")` per `dioxus.send`
+   zurück; Rust empfängt in einer Schleife. Folge für die API: Einfügen ist **kein** Aufruf, den die
+   App auslösen kann, sondern ein Ereignis, auf das das Gitter reagiert — `on_paste` gibt es, ein
+   `paste_now()` nicht.
+
+5. **Ein Listener pro Gitter, im Handle.** Der Kanal lebt, solange das Skript wartet (ein nie
+   erfülltes Promise), also gehört er in einen Hook des Gitters und nicht in jede Zelle. Das ist
+   dieselbe Lehre wie bei der Breitenmessung in Phase 11: eine Stelle, nicht eine pro Zelle.
+
+**Folgen.**
+
+- Ein E2E-Test für das Einfügen muss ein `ClipboardEvent` mit eigenem `DataTransfer` verschicken;
+  ein echtes `Ctrl+V` ist nicht synthetisierbar. Das ist eine Einschränkung der Prüfung, keine des
+  Produkts, und gehört als Kommentar in den Test.
+- Desktop und Mobile sind ungeprüft: derselbe Weg, anderes WebView. Vor dem Ausliefern von Phase 12
+  an einem Desktop-Build nachzusehen.
+- Der Spike (`playground/src/clipboard_spike.rs`, `tests/e2e/clipboard-spike.spec.ts`) bleibt,
+  solange gebaut wird, und wird danach entfernt.

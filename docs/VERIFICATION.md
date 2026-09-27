@@ -444,3 +444,55 @@ Report zu `onresize`-Abdeckung; offen und für uns einschlägig ist dagegen
 **Zurückgestellt.** Ein Fix bräuchte eine Minimalreproduktion und Debugging in einem
 dioxus-Checkout, und er landete auf `main` = 0.8-Alpha, die wir nicht benutzen. Wir sind nicht
 blockiert; der Ausflug wird fällig, wenn Dioxus 0.8 stabil wird (§11).
+
+## 15. Phase 12: Was die Zwischenablage durchlässt
+
+Geprüft am 2026-09-27. Spike: `playground/src/clipboard_spike.rs`, hinter dem Schalter
+`toggle-clipboard-spike`; getrieben von Hand im Browser-Pane (echtes Chromium) und per
+`tests/e2e/clipboard-spike.spec.ts` in Playwright-Chromium und -WebKit. Nutzlast in jedem
+Schreibversuch: zwei TSV-Zeilen mit Tabulator, Zeilenumbruch, Anführungszeichen und Backslash.
+
+**Vorab aus der Quelle, nicht aus dem Versuch.** `dioxus-html`s `ClipboardData` ist eine **leere**
+Struktur (`SerializedClipboardData {}`): `onpaste` sagt *dass* eingefügt wurde, nie *was*. Dioxus
+hat keine Zwischenablage-API. Der Weg über `document::eval` ist damit nicht eine Option unter
+mehreren, sondern der einzige plattformneutrale. `Eval` ist `Copy` und bietet `send`, `recv` und
+`join`; die JS-Seite spricht `dioxus.send(…)` und `await dioxus.recv()`.
+
+| Probe | Chromium (Browser-Pane) | Chromium (Playwright) | WebKit (Playwright) |
+|---|---|---|---|
+| `navigator.clipboard.writeText` aus dem Eval | **ok** | verweigert (`Write permission denied`) | **ok** |
+| `textarea` + `execCommand("copy")` | **ok** | **ok** | **ok** |
+| `navigator.clipboard.readText` | verweigert (`permission=denied`) | verweigert (`permission=prompt`) | verweigert |
+| `paste`-Ereignis → `dioxus.send` → `eval.recv` | **ok** | **ok** | **ok** |
+
+Vier Ergebnisse, die die Bauform von Phase 12 festlegen:
+
+1. **Die Benutzeraktion übersteht den Eval.** In allen drei Umgebungen meldete das eingebettete
+   Skript `navigator.userActivation.isActive === true`, obwohl der Eval erst über einen Kanal zur
+   JS-Seite gereicht wird. Kopieren darf also aus einem gewöhnlichen Dioxus-Handler ausgelöst
+   werden; ein „Kopieren"-Knopf braucht keine Sonderbehandlung.
+2. **Schreiben braucht zwei Wege.** `writeText` ist im echten Chromium und in WebKit erlaubt, im
+   kopflosen Playwright-Chromium ohne erteilte Berechtigung nicht — dort ist `execCommand` der
+   einzige Weg, und der funktionierte überall. Also: `writeText` versuchen, bei Ablehnung auf
+   `execCommand` zurückfallen. Das hält auch die E2E-Tests frei von Berechtigungsspielen.
+3. **Lesen ist kein Weg.** `readText` wurde in *jeder* Umgebung verweigert, auch mit gültiger
+   Benutzeraktion; in WebKit gibt es nicht einmal `permissions.query({name:"clipboard-read"})`.
+   Einfügen kann deshalb nur aus dem **echten `paste`-Ereignis** kommen.
+4. **Und genau das trägt.** Ein Eval installiert einen `paste`-Listener, liest
+   `event.clipboardData.getData("text/plain")` und schickt den Text per `dioxus.send` zurück; Rust
+   empfängt in einer Schleife per `eval.recv::<String>()`. Tabulator und Zeilenumbruch kamen
+   unverfälscht an (`"a\tb\nc\td"`, 7 Zeichen). Der Kanal bleibt offen, weil das Skript auf einem
+   nie erfüllten Promise wartet — er lieferte erst „listening", später den eingefügten Text.
+
+**Fürs Testen gelernt:** Ein echtes `Ctrl+V` lässt sich nicht synthetisieren — weder im Browser-Pane
+noch in Playwright; die Automatisierung bekommt die Zwischenablage des Systems nicht in die Hand.
+Ein E2E-Test für das Einfügen muss ein `ClipboardEvent` mit eigenem `DataTransfer` verschicken.
+(Firefox lässt sich auf dieser Maschine gar nicht starten, `spawn UNKNOWN`; die CI fährt ohnehin
+nur Chromium und WebKit.)
+
+**Offen:** Desktop und Mobile. Derselbe `document::eval`-Weg, aber das WebView ist ein anderes —
+WKWebView auf macOS/iOS ist bei Schreibzugriffen ohne Benutzeraktion streng. Das ist vor dem
+Ausliefern von Phase 12 an einem Desktop-Build nachzusehen, nicht zu vermuten.
+
+Spike und Spike-Spec bleiben, solange an Kopieren und Einfügen gebaut wird, und gehen danach
+wieder heraus — wie der Phase-0-Spike in Phase 3.
