@@ -17,8 +17,8 @@ use components::data_grid_editor::DataGridEditor;
 use components::data_grid_group_panel::DataGridGroupPanel;
 use dioxus::prelude::*;
 use dioxus_datagrid::{
-    Aggregate, CellFormat, Column, ColumnId, ColumnWidth, Create, Delete, EditMode, GridLocale,
-    GridRow, GridState, Pinned, Save, SaveBatch, SelectionMode,
+    Aggregate, CellFormat, CellSelectionMode, Column, ColumnId, ColumnWidth, Create, Delete,
+    EditMode, GridLocale, GridRow, GridState, Pinned, Save, SaveBatch, SelectionMode,
 };
 
 const STYLE: Asset = asset!("/assets/playground.css");
@@ -366,6 +366,7 @@ fn App() -> Element {
     let cols = use_memo(move || columns(german(), totals(), pinned(), header_groups(), spanning()));
 
     let mut selection = use_signal(|| SelectionMode::Multi);
+    let mut cell_selection = use_signal(|| CellSelectionMode::None);
     let mut paged = use_signal(|| true);
     let mut virtualized = use_signal(|| false);
     let mut overscan = use_signal(|| 20_usize);
@@ -459,6 +460,27 @@ fn App() -> Element {
                                 // changes and reports that through
                                 // on_selection_change, so nothing to reset here.
                                 onchange: move |_| selection.set(mode),
+                            }
+                            "{label}"
+                        }
+                    }
+                }
+
+                fieldset {
+                    legend { "Cell selection" }
+                    for (label , mode) in [
+                        ("None", CellSelectionMode::None),
+                        ("Single", CellSelectionMode::Single),
+                        ("Range", CellSelectionMode::Range),
+                    ]
+                    {
+                        label { key: "{label}",
+                            input {
+                                r#type: "radio",
+                                name: "cell-selection",
+                                "data-testid": "cell-selection-{label.to_lowercase()}",
+                                checked: cell_selection() == mode,
+                                onchange: move |_| cell_selection.set(mode),
                             }
                             "{label}"
                         }
@@ -663,6 +685,7 @@ fn App() -> Element {
                     overscan: overscan(),
                     height: virtualized().then(|| "480px".to_owned()),
                     selection: selection(),
+                    cell_selection: cell_selection(),
                     column_filters: true,
                     filter_menu: true,
                     search_placeholder: if german() { "Alle Spalten durchsuchen" } else { "Search all columns" },

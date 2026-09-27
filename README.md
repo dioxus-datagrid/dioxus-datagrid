@@ -290,7 +290,9 @@ footers and row ranges the page shows; `examples/fullstack` does exactly that.
 
 The grid is a single tab stop with a roving tabindex. Arrow keys move between cells, `Home`/`End`
 within a row, `Ctrl+Home`/`Ctrl+End` to the corners. `Enter` on a header sorts, `Shift+Enter` adds
-a sort column. `Space` selects a row, `Shift+Space` and `Shift+Arrow` extend the selection.
+a sort column. `Space` selects a row, `Shift+Space` and `Shift+Arrow` extend the selection. With
+cell selection on, `Shift+Arrow` grows a rectangle of cells instead, and `Shift`+click reaches from
+the anchor to the cell clicked.
 `aria-rowcount` and `aria-rowindex` stay correct across pages. On a header, `Alt+ArrowLeft` and
 `Alt+ArrowRight` resize the column. A cell over several columns, and a group over several column
 headers, is one stop: the arrows move to the cell after it, never into the columns it covers.

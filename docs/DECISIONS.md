@@ -1068,3 +1068,53 @@ bearbeitbare Zellen" und schreibt vor, den Zugriff zuerst per Spike zu prüfen. 
   an einem Desktop-Build nachzusehen.
 - Der Spike (`playground/src/clipboard_spike.rs`, `tests/e2e/clipboard-spike.spec.ts`) bleibt,
   solange gebaut wird, und wird danach entfernt.
+
+---
+
+## ADR-0034 — Zellauswahl neben der Zeilenauswahl, als Ort statt als Inhalt
+
+**Kontext.** `docs/ROADMAP.md` Phase 12 nennt „Zellauswahl und rechteckige Bereiche (`Shift+Pfeil`
+im Zellmodus)". Drei Fragen waren offen: wie sie sich zur bestehenden Zeilenauswahl verhält, woran
+ein Rechteck hängt, und wer `Shift`+Pfeil bekommt.
+
+**Entscheidung.**
+
+1. **Zwei Auswahlen, nicht ein Modus mit Varianten.** `CellSelectionMode::{None, Single, Range}`
+   steht **neben** `SelectionMode`, nicht darin. Ein Gitter kann Zeilen auswählen, Zellen, beides
+   oder keines. Die Alternative — `SelectionMode` um `Cell` erweitern — hätte `selection_mode()`
+   zweideutig gemacht: jede Stelle, die heute „darf ich Zeilen auswählen?" fragt, hätte etwas
+   anderes bedeutet.
+
+2. **Ein Rechteck ist ein Ort, kein Inhalt.** `CellRange` hält zwei `CellFocus`, also
+   Ansichtskoordinaten. Zeilenauswahl hängt am Schlüssel und übersteht Sortieren, Filtern und
+   Blättern; ein Rechteck kann das nicht — es hat keinen Schlüssel. Also gilt für es dieselbe Regel
+   wie für den Fokus: es wird an die Größe des Gitters **geklemmt**, nicht gelöscht. Was
+   hervorgehoben ist, ist ausgewählt; das bleibt nach einer Sortierung wahr, auch wenn andere Daten
+   darunterliegen. *Alternative:* bei jeder Ansichtsänderung löschen. Verworfen — es wäre eine
+   zweite Regel für dasselbe Problem, und „mein Kopieren-Bereich ist weg" ist die unfreundlichere
+   Überraschung.
+
+3. **Der Anker gehört zum Rechteck.** `CellRange { anchor, focus }` statt zweier Ecken „oben links /
+   unten rechts": nur so lassen `Shift`+Pfeil und `Shift`+Klick *dasselbe* Rechteck wachsen und
+   schrumpfen. `top_left`/`bottom_right` sortieren beim Lesen, nicht beim Speichern.
+
+4. **Bei `Range` gewinnen die Zellen `Shift`+Pfeil.** Die Taste erweitert dann das Rechteck und
+   nicht die Zeilenauswahl; `Space` bleibt der Zeile. Ein Gitter, das Rechtecke auswählt, wird als
+   Tabellenblatt gelesen, und dort ist `Shift`+Pfeil die Bereichstaste. Bei `Single` — das nur eine
+   Zelle verspricht — bleibt `Shift`+Pfeil bei den Zeilen, und die Zellauswahl folgt dem Fokus.
+
+5. **Kopfzeilen sind nicht auswählbar.** `select_cell` und `extend_cell_selection` lehnen eine
+   Kopfzeile ab, statt in den Körper zu verschieben. Ein Kopf ist nichts, was man kopieren würde,
+   und eine stillschweigende Verschiebung wäre eine erfundene Absicht.
+
+**Folgen.**
+
+- Jede Datenzelle trägt `aria-selected`, sobald Zellauswahl eingeschaltet ist — und nichts, solange
+  sie aus ist. `aria-multiselectable` gilt, sobald *eine* der beiden Auswahlen mehr als einen
+  Eintrag zulässt.
+- Eine Zelle über mehrere Spalten zählt als **eine** Zelle: sie gilt als ausgewählt, wenn das
+  Rechteck irgendeine der Spalten erreicht, die sie verdeckt.
+- `GridOptions` hat ein neues öffentliches Feld (`cell_selection`), `data_grid` eine neue Prop.
+- Das Rechteck ist **nicht** Teil von `GridState`: es überlebt kein Neuladen, wie die Zeilenauswahl
+  auch nicht. Mehrere Rechtecke (Strg-Klick) gibt es bewusst noch nicht; sie kommen, wenn ein
+  Anwendungsfall sie verlangt, und würden aus `Option<CellRange>` ein `Vec` machen.

@@ -3,10 +3,10 @@
 use crate::Column;
 use crate::edit::{EditRows, EditStatus, EditTarget, Editing, Session};
 use datagrid_core::{
-    CellFocus, ColumnFilter, ColumnId, ColumnSpec, ColumnWidth, DEFAULT_REMOTE_PAGE_SIZE,
-    DistinctValues, GridLocale, GridQuery, GridRow, GridState, GroupSpan, NavKey, Pinned, RowSpans,
-    Selection, SelectionMode, SortDirection, ValueKind, View, ViewRow, compute_view,
-    distinct_values, group_header_rows, group_levels, navigate, reveal_scroll_top,
+    CellFocus, CellRange, CellSelectionMode, ColumnFilter, ColumnId, ColumnSpec, ColumnWidth,
+    DEFAULT_REMOTE_PAGE_SIZE, DistinctValues, GridLocale, GridQuery, GridRow, GridState, GroupSpan,
+    NavKey, Pinned, RowSpans, Selection, SelectionMode, SortDirection, ValueKind, View, ViewRow,
+    compute_view, distinct_values, group_header_rows, group_levels, navigate, reveal_scroll_top,
     rows_per_viewport, visible_range,
 };
 use dioxus::html::ScrollBehavior;
@@ -57,6 +57,8 @@ pub struct GridOptions {
     pub page_size: Option<usize>,
     /// Whether and how rows can be selected.
     pub selection: SelectionMode,
+    /// Whether and how cells can be selected, independent of rows.
+    pub cell_selection: CellSelectionMode,
     /// State to start from — a persisted [`GridState`], for instance.
     ///
     /// Takes precedence over [`page_size`](GridOptions::page_size).
@@ -88,6 +90,17 @@ impl GridOptions {
     #[must_use]
     pub fn selection(mut self, mode: SelectionMode) -> Self {
         self.selection = mode;
+        self
+    }
+
+    /// Sets how cells can be selected, which is separate from how rows can.
+    ///
+    /// [`CellSelectionMode::Range`] lets `Shift` with the arrow keys, and a
+    /// shift-click, grow a rectangle; [`Single`](CellSelectionMode::Single) keeps
+    /// the selection on the focused cell.
+    #[must_use]
+    pub fn cell_selection(mut self, mode: CellSelectionMode) -> Self {
+        self.cell_selection = mode;
         self
     }
 
@@ -197,6 +210,10 @@ pub struct GridHandle<T: GridRow + 'static> {
     /// the handle. As a plain field, cells rendered before the change would keep
     /// click handlers that still select in the old mode.
     mode: Signal<SelectionMode>,
+    /// How cells may be selected, and the one rectangle selected right now.
+    /// A signal for the same reason as `mode`.
+    cell_mode: Signal<CellSelectionMode>,
+    cell_range: Signal<Option<CellRange>>,
     /// Set while a focus move is waiting for its cell to take DOM focus. A cell
     /// that mounts later — because the move scrolled it into the rendered range —
     /// still claims focus, but a cell that merely remounts during ordinary
@@ -377,6 +394,8 @@ pub(crate) struct GridBase<T: GridRow + 'static> {
     focus: Signal<CellFocus>,
     focus_nonce: Signal<u64>,
     mode: Signal<SelectionMode>,
+    cell_mode: Signal<CellSelectionMode>,
+    cell_range: Signal<Option<CellRange>>,
     focus_pending: Signal<bool>,
     focus_within: Signal<bool>,
     root_focus_is_internal: Signal<bool>,
@@ -417,10 +436,13 @@ where
     T: GridRow + PartialEq + 'static,
 {
     let requested_mode = options.selection;
+    let requested_cell_mode = options.cell_selection;
     let requested_page_size = options.page_size;
     let requested_locale = options.locale.clone();
 
     let mut mode = use_signal(|| requested_mode);
+    let mut cell_mode = use_signal(|| requested_cell_mode);
+    let mut cell_range = use_signal(|| None::<CellRange>);
     let mut page_size = use_signal(|| requested_page_size);
     let mut state = use_signal(|| options.into_state());
     let mut selection = use_signal(Selection::new);
@@ -435,6 +457,12 @@ where
         // A multi-row selection is not valid in single or no-selection mode, and
         // silently keeping part of it would be arbitrary.
         selection.write().clear();
+    }
+    if *cell_mode.peek() != requested_cell_mode {
+        cell_mode.set(requested_cell_mode);
+        // A rectangle is not valid in single-cell or no-cell mode, and keeping a
+        // corner of it would be arbitrary.
+        cell_range.set(None);
     }
     if *page_size.peek() != requested_page_size {
         page_size.set(requested_page_size);
@@ -462,6 +490,8 @@ where
         }),
         focus_nonce: use_signal(|| 0_u64),
         mode,
+        cell_mode,
+        cell_range,
         focus_pending: use_signal(|| false),
         focus_within: use_signal(|| false),
         root_focus_is_internal: use_signal(|| false),
@@ -537,6 +567,8 @@ impl<T: GridRow + PartialEq> GridBase<T> {
             focus: self.focus,
             focus_nonce: self.focus_nonce,
             mode: self.mode,
+            cell_mode: self.cell_mode,
+            cell_range: self.cell_range,
             focus_pending: self.focus_pending,
             focus_within: self.focus_within,
             root_focus_is_internal: self.root_focus_is_internal,
@@ -1417,6 +1449,84 @@ impl<T: GridRow> GridHandle<T> {
     /// data on the server has changed. Does nothing for a local grid.
     pub fn reload(&mut self) {
         *self.reload_nonce.write() += 1;
+    }
+
+    // -- cell selection ------------------------------------------------------
+
+    /// How cells can be selected, which is separate from how rows can.
+    #[must_use]
+    pub fn cell_selection_mode(&self) -> CellSelectionMode {
+        *self.cell_mode.read()
+    }
+
+    /// The selected rectangle of cells, pulled inside the grid as it stands.
+    ///
+    /// `None` when nothing is selected or cell selection is off. The corners are
+    /// view coordinates, so a rectangle made before a filter narrowed the grid is
+    /// clamped rather than dropped — the same treatment the focus gets.
+    #[must_use]
+    pub fn cell_range(&self) -> Option<CellRange> {
+        if !self.cell_selection_mode().is_enabled() {
+            return None;
+        }
+        let rows = self.focusable_row_count();
+        let cols = self.visible_column_count();
+        Some((*self.cell_range.read())?.clamped(rows, cols))
+    }
+
+    /// Whether a cell is inside the selected rectangle.
+    ///
+    /// Takes focus coordinates, in which the header rows come first — the same
+    /// the focus uses.
+    #[must_use]
+    pub fn is_cell_selected(&self, at: CellFocus) -> bool {
+        self.cell_range().is_some_and(|range| range.contains(at))
+    }
+
+    /// How many cells are selected.
+    #[must_use]
+    pub fn selected_cell_count(&self) -> usize {
+        self.cell_range().map_or(0, |range| range.cell_count())
+    }
+
+    /// Selects one cell, dropping whatever was selected before.
+    ///
+    /// A no-op while cell selection is off, and on a header row: a header is not
+    /// a cell anyone can copy.
+    pub fn select_cell(&mut self, at: CellFocus) {
+        if !self.cell_selection_mode().is_enabled() || at.row < self.header_rows() {
+            return;
+        }
+        self.cell_range.set(Some(CellRange::single(at)));
+    }
+
+    /// Grows or shrinks the selected rectangle so that its moving end sits at
+    /// `at`, keeping the anchor where it is.
+    ///
+    /// Starts a rectangle at `at` when nothing is selected yet. In
+    /// [`CellSelectionMode::Single`] this selects that one cell instead: the mode
+    /// promises one cell, and a `Shift` that quietly made two would break it.
+    pub fn extend_cell_selection(&mut self, at: CellFocus) {
+        let mode = self.cell_selection_mode();
+        if !mode.is_enabled() || at.row < self.header_rows() {
+            return;
+        }
+        if !mode.is_range() {
+            self.select_cell(at);
+            return;
+        }
+        let extended = match *self.cell_range.peek() {
+            Some(range) => range.extended_to(at),
+            None => CellRange::single(at),
+        };
+        self.cell_range.set(Some(extended));
+    }
+
+    /// Drops the cell selection.
+    pub fn clear_cell_selection(&mut self) {
+        if self.cell_range.peek().is_some() {
+            self.cell_range.set(None);
+        }
     }
 
     // -- selection -----------------------------------------------------------

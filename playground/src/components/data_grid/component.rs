@@ -14,7 +14,7 @@ use dioxus_datagrid::primitives::{
     GridSearch, VirtualGridBody,
 };
 use dioxus_datagrid::{
-    Column, GridLocale, GridOptions, GridRow, GridState, SelectionMode, use_grid,
+    CellSelectionMode, Column, GridLocale, GridOptions, GridRow, GridState, SelectionMode, use_grid,
 };
 
 const THEME: Asset = asset!("/assets/dx-components-theme.css");
@@ -33,6 +33,10 @@ pub struct DataGridProps<T: GridRow + PartialEq + 'static> {
     /// Whether and how rows can be selected.
     #[props(default)]
     pub selection: SelectionMode,
+    /// Whether and how cells can be selected, separately from rows:
+    /// [`CellSelectionMode::Range`] allows a rectangle.
+    #[props(default)]
+    pub cell_selection: CellSelectionMode,
     /// Whether to show the search box above the grid.
     #[props(default = true)]
     pub searchable: bool,
@@ -113,7 +117,9 @@ pub struct DataGridProps<T: GridRow + PartialEq + 'static> {
 /// ```
 #[component]
 pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> Element {
-    let mut options = GridOptions::default().selection(props.selection);
+    let mut options = GridOptions::default()
+        .selection(props.selection)
+        .cell_selection(props.cell_selection);
     options.page_size = props.page_size;
     options.initial_state = props.initial_state.clone();
     options.locale = props.locale.clone();

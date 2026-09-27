@@ -99,7 +99,7 @@ pub use navigate::{CellFocus, NavKey, navigate};
 pub use remote::{
     DEFAULT_REMOTE_PAGE_SIZE, DataSource, GridQuery, Page, RequestId, RequestTracker,
 };
-pub use selection::{Selection, SelectionMode};
+pub use selection::{CellRange, CellSelectionMode, Selection, SelectionMode};
 pub use sort::{SortDirection, SortState, SortValue, TextCollation};
 pub use span::RowSpans;
 pub use state::{GridState, PageState};

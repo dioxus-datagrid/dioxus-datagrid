@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the crates follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Cell selection, separate from row selection: `GridOptions::cell_selection(CellSelectionMode::Range)`
+  — or the `cell_selection` prop on `data_grid` — lets a click, `Shift`+click and `Shift` with the
+  arrow keys grow a rectangle of cells. `CellRange` in `datagrid-core` holds it as an anchor and a
+  moving end, so the same rectangle grows and shrinks; every data cell carries `aria-selected` and
+  `data-cell-selected`. `GridHandle` gains `cell_selection_mode`, `cell_range`, `is_cell_selected`,
+  `selected_cell_count`, `select_cell`, `extend_cell_selection` and `clear_cell_selection`.
+
+### Changed
+
+- `GridOptions` has a new public field, `cell_selection`. With `CellSelectionMode::Range` set,
+  `Shift`+arrow grows the cell rectangle instead of extending the row selection; `Space` still
+  selects rows. Without it nothing changes.
+
 ## [0.9.0] - 2026-09-27
 
 ### Added

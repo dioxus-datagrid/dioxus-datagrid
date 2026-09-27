@@ -99,8 +99,9 @@ pub use remote::use_grid_remote;
 // [`primitives`] to avoid the collision.
 pub use datagrid_core::{
     Aggregate, AggregateKind, AggregateValue, CellAlign, CellFocus, CellFormat, CellOverflow,
-    CellValue, Changes, ColumnFilter, ColumnId, ColumnWidth, Condition, DEFAULT_MIN_COLUMN_WIDTH,
-    DEFAULT_REMOTE_PAGE_SIZE, DataSource, DistinctValues, EditError, FilterOp, FromValue,
-    GridLocale, GridQuery, GridRow, GridState, Group, GroupKey, NavKey, Page, Pinned,
-    SelectionMode, SortDirection, SortValue, TextCollation, Value, ValueKind, View, ViewRow,
+    CellRange, CellSelectionMode, CellValue, Changes, ColumnFilter, ColumnId, ColumnWidth,
+    Condition, DEFAULT_MIN_COLUMN_WIDTH, DEFAULT_REMOTE_PAGE_SIZE, DataSource, DistinctValues,
+    EditError, FilterOp, FromValue, GridLocale, GridQuery, GridRow, GridState, Group, GroupKey,
+    NavKey, Page, Pinned, SelectionMode, SortDirection, SortValue, TextCollation, Value, ValueKind,
+    View, ViewRow,
 };

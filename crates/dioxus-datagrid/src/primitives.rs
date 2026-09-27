@@ -93,16 +93,30 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
         }
 
         if let Some(key) = nav_key(&data) {
-            if shift && grid.selection_mode() == SelectionMode::Multi && !grid.focus_is_header() {
-                // Shift+Arrow extends the selection as it moves.
-                grid.move_focus(key);
-                if let Some(target) = grid.focus_data_row()
-                    && let Some(row_key) = grid.key_at(target)
-                {
-                    grid.extend_select(row_key);
+            let cells = grid.cell_selection_mode();
+            grid.move_focus(key);
+            let in_body = !grid.focus_is_header();
+
+            // The cell selection follows the focus: `Shift` grows the rectangle
+            // from its anchor, anything else starts over at the cell reached.
+            if cells.is_enabled() && in_body {
+                if shift && cells.is_range() {
+                    grid.extend_cell_selection(grid.focus());
+                } else {
+                    grid.select_cell(grid.focus());
                 }
-            } else {
-                grid.move_focus(key);
+            }
+
+            // Rows get `Shift+Arrow` only where the cells did not take it: a
+            // grid that selects rectangles is one its user reads as a sheet.
+            if shift
+                && !cells.is_range()
+                && grid.selection_mode() == SelectionMode::Multi
+                && in_body
+                && let Some(target) = grid.focus_data_row()
+                && let Some(row_key) = grid.key_at(target)
+            {
+                grid.extend_select(row_key);
             }
             event.prevent_default();
             return;
@@ -198,7 +212,9 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
             role,
             aria_rowcount: "{row_count}",
             aria_colcount: "{column_count}",
-            aria_multiselectable: matches!(grid.selection_mode(), SelectionMode::Multi).then_some("true"),
+            aria_multiselectable: (matches!(grid.selection_mode(), SelectionMode::Multi)
+                || grid.cell_selection_mode().is_range())
+                .then_some("true"),
             tabindex: root_tabindex,
             onmounted: move |event| grid.set_root(event.data()),
             onscroll: move |event| {
@@ -898,13 +914,26 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
     // Only worth saying in a grid that edits at all.
     let read_only = !editable && grid.edit_mode().is_some();
     let changed = grid.is_cell_changed(row_index, column_index);
+    let cells = grid.cell_selection_mode();
+    // The whole cell counts as selected, whichever of the columns it covers the
+    // rectangle reaches: a cell over several columns is one cell.
+    let cell_selected = cells.is_enabled()
+        && (column_index..column_index + span)
+            .any(|column| grid.is_cell_selected(CellFocus::new(focus_row, column)));
 
-    let onclick = move |_| {
+    let onclick = move |event: Event<MouseData>| {
         // A click into the editor is for the editor, which has focus already.
         if editing {
             return;
         }
-        grid.set_focus(CellFocus::new(focus_row, column_index));
+        let at = CellFocus::new(focus_row, column_index);
+        grid.set_focus(at);
+        // Shift-click reaches from the anchor to here, as in a sheet.
+        if event.modifiers().shift() {
+            grid.extend_cell_selection(at);
+        } else {
+            grid.select_cell(at);
+        }
         if grid.selection_mode() != SelectionMode::None
             && let Some(key) = grid.key_at(row_index)
         {
@@ -927,12 +956,16 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
             role: "gridcell",
             aria_colindex: "{column_index + 1}",
             aria_colspan: (span > 1).then(|| span.to_string()),
+            aria_selected: cells
+                .is_enabled()
+                .then_some(if cell_selected { "true" } else { "false" }),
             aria_readonly: read_only.then_some("true"),
             tabindex: if focused { "0" } else { "-1" },
             "data-align": align,
             "data-overflow": overflow,
             "data-editing": editing.then_some("true"),
             "data-changed": changed.then_some("true"),
+            "data-cell-selected": cell_selected.then_some("true"),
             "data-pinned": pin.as_str(),
             style: (!style.is_empty()).then_some(style),
             title: tooltip,

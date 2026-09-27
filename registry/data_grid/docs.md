@@ -253,7 +253,9 @@ changes that per column.
 The grid is one tab stop. Inside it, arrow keys move between cells, `Home`/`End`
 jump within a row and `Ctrl+Home`/`Ctrl+End` to the corners. On a header,
 `Enter` sorts and `Shift+Enter` adds that column to a multi-column sort. On a
-row, `Space` selects and `Shift+Space` or `Shift+Arrow` extends the selection.
+row, `Space` selects and `Shift+Space` or `Shift+Arrow` extends the selection. With
+`cell_selection` set, `Shift+Arrow` grows a rectangle of cells instead and `Space`
+stays the row's.
 On a group header, `ArrowRight` expands, `ArrowLeft` collapses, and `Enter` or
 `Space` toggle. On a header, `Alt+ArrowLeft`/`Alt+ArrowRight` resize the column
 and `Alt+Shift+ArrowLeft`/`Alt+Shift+ArrowRight` move it. A cell over several

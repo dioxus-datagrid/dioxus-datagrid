@@ -627,3 +627,17 @@
   border-top: 1px solid var(--primary-color-6);
   border-bottom: none;
 }
+
+/* A selected cell, in a grid that selects cells. The rectangle is drawn cell by
+ * cell: a border around the block would need to know where its edges are, which
+ * is the renderer's business, not the stylesheet's. */
+.dg [role="gridcell"][data-cell-selected] {
+  background: var(--primary-color-4);
+  box-shadow: inset 0 0 0 1px var(--focused-border-color);
+}
+
+.dg [role="gridcell"][data-cell-selected][data-pinned] {
+  /* Pinned cells sit above their scrolling neighbours, so the tint has to be
+   * opaque there or the rows behind it show through. */
+  background: var(--primary-color-3);
+}

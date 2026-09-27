@@ -91,6 +91,7 @@ Kopfzeile davor (`GridHandle::header_rows`). Damit stimmt die Fokus-Koordinate d
 | `Space` (auf Datenzeile) | Zeilenauswahl umschalten |
 | `Shift+Space` | Auswahl vom Anker bis hierher erweitern |
 | `Shift+↑` / `Shift+↓` | Fokus bewegen **und** die Auswahl mitziehen (nur bei `Multi`) |
+| `Shift`+Pfeil (bei Zellauswahl `Range`) | das Rechteck vom Anker aus wachsen lassen — dann **nicht** die Zeilenauswahl |
 
 Auf macOS gilt `Cmd` gleichwertig zu `Ctrl` für `Home`/`End`.
 
@@ -276,6 +277,27 @@ es `role="grid"`.
   zur nächsten Spalte derselben Gruppe. Der Tab-Stopp liegt anfangs auf den Spaltenköpfen, nicht
   auf einer Gruppe: eine Gruppe ist eine Beschriftung, kein Bedienelement.
 
+## Zellauswahl
+
+Zellen und Zeilen werden getrennt ausgewählt; ein Gitter kann beides, eines oder keines von beidem
+anbieten (`CellSelectionMode::{None, Single, Range}`).
+
+- **Jede Datenzelle sagt, wo sie steht:** `aria-selected="true"` oder `"false"`, solange Zellauswahl
+  eingeschaltet ist — und gar nichts, solange sie aus ist. Zusätzlich `data-cell-selected` fürs
+  Styling. Das Gitter meldet `aria-multiselectable="true"`, sobald **eine** der beiden Auswahlen
+  mehr als einen Eintrag zulässt.
+- **Das Rechteck hat einen Anker.** `Shift`+Pfeil und `Shift`+Klick lassen dasselbe Rechteck von
+  diesem Anker aus wachsen und schrumpfen, statt ein neues zu beginnen. Ein Pfeil **ohne** `Shift`
+  fängt an der erreichten Zelle neu an.
+- **Wo Zellen und Zeilen dieselbe Taste wollen, gewinnen die Zellen.** Bei `Range` erweitert
+  `Shift`+Pfeil das Rechteck und nicht die Zeilenauswahl; `Space` bleibt der Zeile. Ein Gitter, das
+  Rechtecke auswählt, wird als Tabellenblatt gelesen.
+- **Kopfzeilen sind nicht auswählbar.** Ein Kopf ist keine Zelle, die man kopieren würde; eine
+  Auswahl dorthin wird abgelehnt, nicht in den Körper verschoben.
+- **Das Rechteck ist ein Ort, kein Inhalt.** Beide Ecken sind Ansichtskoordinaten wie der Fokus.
+  Sortieren, Filtern oder Blättern lässt es deshalb stehen, wo es ist — was hervorgehoben ist, ist
+  ausgewählt, und das bleibt wahr. Zeilenauswahl dagegen hängt am Schlüssel und übersteht all das.
+
 ## Zellen über mehrere Spalten
 
 Eine Spalte kann pro Zeile sagen, über wie viele Spalten ihre Zelle läuft (`Column::span`).
@@ -345,6 +367,11 @@ vergessen.
   `ArrowUp`/`ArrowDown` zwischen Gruppe und Spalte, eine Gruppe als ein Stopp, ein Tab-Stopp, axe.
   Markup in `crates/dioxus-datagrid/tests/header_groups.rs`, Aufteilung im Kern in
   `crates/datagrid-core/tests/header.rs`.
+- **Zellauswahl:** `tests/e2e/cell-selection.spec.ts` — Klick, `Shift`+Klick, `Shift`+Pfeil in alle
+  Richtungen, Pfeil ohne `Shift` beginnt neu, `Single` bleibt bei einer Zelle, Kopf nicht
+  auswählbar, Zeilen- und Zellauswahl nebeneinander, axe mit Rechteck. Markup in
+  `crates/dioxus-datagrid/tests/cell_selection.rs`, das Rechteck selbst in
+  `crates/datagrid-core/tests/cell_range.rs`.
 - **Zellen über mehrere Spalten:** `tests/e2e/column-span.spec.ts` — `aria-colspan` und die
   fortlaufenden `aria-colindex`, Breite der Zelle gegen die Spalten darüber, Pfeiltasten über und
   auf eine breite Zelle, `Home`/`End`, ein Tab-Stopp, axe. Markup in
