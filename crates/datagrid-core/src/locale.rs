@@ -81,6 +81,10 @@ pub struct GridLocale {
     pub row_count: Cow<'static, str>,
     /// How many rows are selected, with `{count}`.
     pub selected_count: Cow<'static, str>,
+    /// Name of a checkbox column's header checkbox.
+    pub select_all: Cow<'static, str>,
+    /// Name of a checkbox column's checkbox in a row.
+    pub select_row: Cow<'static, str>,
     /// Accessible name of the button that opens a column's filter menu, with `{column}`.
     pub filter_menu: Cow<'static, str>,
     /// Tab of the filter menu with conditions.
@@ -274,6 +278,8 @@ impl GridLocale {
             row_count_one: Cow::Borrowed("1 row"),
             row_count: Cow::Borrowed("{count} rows"),
             selected_count: Cow::Borrowed("{count} selected"),
+            select_all: Cow::Borrowed("Select all rows"),
+            select_row: Cow::Borrowed("Select row"),
             filter_menu: Cow::Borrowed("Filter options for {column}"),
             filter_by_condition: Cow::Borrowed("Condition"),
             filter_by_values: Cow::Borrowed("Values"),
@@ -382,6 +388,8 @@ impl GridLocale {
             row_count_one: Cow::Borrowed("1 Zeile"),
             row_count: Cow::Borrowed("{count} Zeilen"),
             selected_count: Cow::Borrowed("{count} ausgewählt"),
+            select_all: Cow::Borrowed("Alle Zeilen auswählen"),
+            select_row: Cow::Borrowed("Zeile auswählen"),
             filter_menu: Cow::Borrowed("Filteroptionen für {column}"),
             filter_by_condition: Cow::Borrowed("Bedingung"),
             filter_by_values: Cow::Borrowed("Werte"),

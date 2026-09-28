@@ -94,6 +94,7 @@ Kopfzeile davor (`GridHandle::header_rows`). Damit stimmt die Fokus-Koordinate d
 | `Shift`+Pfeil (bei Zellauswahl `Range`) | das Rechteck vom Anker aus wachsen lassen — dann **nicht** die Zeilenauswahl |
 | `Ctrl+C` / `Cmd+C` | die Auswahl als tabgetrennten Text in die Zwischenablage |
 | `Ctrl+V` / `Cmd+V` | tabgetrennten Text in bearbeitbare Zellen einfügen, ab der Ecke der Auswahl |
+| `Space` (auf der Kopfzelle einer Checkbox-Spalte) | alle Zeilen der Seite auswählen oder freigeben |
 
 Auf macOS gilt `Cmd` gleichwertig zu `Ctrl` für `Home`/`End`.
 
@@ -317,6 +318,29 @@ Tabellenkalkulationen als Block von Zellen lesen.
   auch der nicht, passiert nichts. Ein Gitter, das nach Rechten fragt, um eine Zeile zu kopieren,
   wäre schlimmer als ein gelegentlich stilles Nein (ADR-0033).
 
+## Checkbox-Spalte
+
+Eine Spalte mit `.checkbox()` zeigt in jeder Zeile eine Checkbox und darüber eine, die alle
+umschaltet. Gezeichnet werden sie vom Gitter, weil nur das Gitter weiß, was ausgewählt ist.
+
+- **Keine zusätzlichen Tab-Stopps.** Beide Boxen tragen `tabindex="-1"`; das Gitter bleibt ein
+  Stopp. Die Zelle um eine Box trägt die Tastatur: `Space` auf einer Zeile schaltet sie um, `Space`
+  auf der Kopfzelle alle. Die Kopfzelle sortiert dann nicht — es gibt nichts zu sortieren.
+- **Jede Box hat einen Namen:** „Zeile auswählen" beziehungsweise „Alle Zeilen auswählen", aus der
+  Sprache des Gitters. Eine Kopfzelle ohne eigene Beschriftung leiht sich den Namen ihrer Box, damit
+  kein Spaltenkopf namenlos bleibt.
+- **Der dritte Zustand ist echt.** Sind einige, aber nicht alle Zeilen ausgewählt, steht die
+  Kopf-Checkbox auf `indeterminate` — die Eigenschaft, die HTML-AAM als „mixed" weitergibt, nicht
+  ein Attribut, das Browser ignorieren würden (ADR-0035, VERIFICATION §16). Zum Gestalten trägt sie
+  zusätzlich `data-select-all="none|partial|all"`.
+- **„Alle" heißt: alle, die zu sehen sind** — bei Blättern die aktuelle Seite. Eine Auswahl auf
+  einer anderen Seite bleibt unberührt und wird nicht mitgezählt.
+- **Ein Klick schaltet um**, `Shift`+Klick reicht vom Anker bis hierher. Wo Zeilen gar nicht
+  ausgewählt werden können, zeichnet die Spalte keine Boxen; bei `Single` gibt es keine
+  Kopf-Checkbox.
+- **Der Zeilenzustand steht ohnehin an der Zeile.** `aria-selected` am `role="row"` bleibt die
+  maßgebliche Aussage; die Box ist das Bedienelement dazu.
+
 ## Einfügen
 
 `Ctrl+V` (auf macOS `Cmd+V`) schreibt tabgetrennten Text in bearbeitbare Zellen — die Gegenrichtung
@@ -414,6 +438,12 @@ vergessen.
   wird, was das Gitter der Zwischenablage übergibt; sie zurückzulesen ist überall verboten
   (VERIFICATION §15). Textbildung in `crates/dioxus-datagrid/tests/copy.rs`, das Format in
   `crates/datagrid-core/tests/tsv.rs`.
+- **Checkbox-Spalte:** `tests/e2e/checkbox.spec.ts` — Klick schaltet um, `Shift`+Klick reicht,
+  Kopf-Checkbox in allen drei Zuständen (der dritte als DOM-Eigenschaft geprüft), `Space` auf Kopf-
+  und Zeilenzelle, Blättern lässt die andere Seite in Ruhe, `Single` ohne Kopf-Checkbox, `None` ohne
+  Boxen, Kopieren ohne die Spalte, axe. Markup in `crates/dioxus-datagrid/tests/checkbox.rs`, die
+  Spalte selbst in `crates/datagrid-core/tests/checkbox.rs`, der Anteil der Auswahl in
+  `crates/datagrid-core/tests/selection.rs`.
 - **Einfügen:** `tests/e2e/paste.spec.ts` — Block ab der fokussierten Zelle, eine Zelle füllt das
   Rechteck, der eingefügte Block bleibt markiert, ein abgelehnter Wert lässt seine Zeile stehen,
   Überhang fällt weg, keine neuen Zeilen, offener Editor, Gitter ohne Bearbeitung, Stapelmodus, Kopf.

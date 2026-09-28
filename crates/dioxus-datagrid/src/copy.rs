@@ -92,12 +92,23 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
         }
 
         if self.selected_count() > 0 {
+            // Every column that holds data. A checkbox column is chrome: it
+            // would paste an empty first field into the sheet.
+            let visible = self.visible_columns();
+            let data_columns: Vec<usize> = (0..columns)
+                .filter(|index| {
+                    !visible
+                        .get(*index)
+                        .is_some_and(|column| column.spec().is_checkbox())
+                })
+                .collect();
             // In the order the rows are shown, not the order they were picked.
             let block: Vec<Vec<String>> = (0..self.view().read().len())
                 .filter(|row| self.key_at(*row).is_some_and(|key| self.is_selected(&key)))
                 .map(|row| {
-                    (0..columns)
-                        .map(|column| self.cell_text(row, column))
+                    data_columns
+                        .iter()
+                        .map(|column| self.cell_text(row, *column))
                         .collect()
                 })
                 .collect();

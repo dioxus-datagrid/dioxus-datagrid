@@ -244,6 +244,14 @@ A column only does what you give it a closure for:
 - `.span(|row| ...)` — how many columns this column's cell covers in that row.
   The columns it covers render no cell of their own; the wide cell carries
   `aria-colspan` and never leaves its pinned block.
+- `.checkbox()` — a checkbox in every row that selects it, and a "select all"
+  above them. The grid draws them, so the column needs no closure at all; it
+  comes narrow, centred and out of sorting, grouping and resizing. The header's
+  box covers the rows on show — with paging, the current page — and shows the
+  third state when only some of them are selected. Neither box is a tab stop:
+  `Space` on a row toggles it, `Space` on the header cell toggles them all. Put
+  the column first, or wherever you want it; `.pin(Pinned::Start)` holds it at
+  the edge.
 
 Sorting text is case-insensitive by default; `.collation(TextCollation::CaseSensitive)`
 changes that per column.
@@ -253,7 +261,9 @@ changes that per column.
 The grid is one tab stop. Inside it, arrow keys move between cells, `Home`/`End`
 jump within a row and `Ctrl+Home`/`Ctrl+End` to the corners. On a header,
 `Enter` sorts and `Shift+Enter` adds that column to a multi-column sort. On a
-row, `Space` selects and `Shift+Space` or `Shift+Arrow` extends the selection. With
+row, `Space` selects and `Shift+Space` or `Shift+Arrow` extends the selection. On
+a checkbox column's header, `Space` selects every row on show, or lets them all
+go. With
 `cell_selection` set, `Shift+Arrow` grows a rectangle of cells instead and `Space`
 stays the row's. `Ctrl+C` copies the selection — the rectangle, else the selected
 rows, else the focused cell — as tab-separated text, formatted as the grid shows

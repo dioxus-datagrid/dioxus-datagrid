@@ -18,6 +18,7 @@ pub use crate::group_ui::{
     AggregateSource, GridAggregateCell, GridFooter, GridGroupFooterRow, GridGroupPanel,
     GridGroupRow,
 };
+pub use crate::select_ui::{GridSelectAll, GridSelectCheckbox};
 use crate::{COLUMN_RESIZE_STEP, GridHandle};
 use datagrid_core::{
     CellFocus, GridRow as GridRowKey, GroupSpan, NavKey, Pinned, SelectionMode, SortDirection,
@@ -145,9 +146,14 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
                     return;
                 }
                 let columns = grid.visible_columns();
-                if let Some(column) = columns.get(focus.col)
-                    && column.is_sortable()
-                {
+                let Some(column) = columns.get(focus.col) else {
+                    return;
+                };
+                // Above a checkbox column, both keys mean its box, not a sort.
+                if column.spec().is_checkbox() {
+                    grid.toggle_select_all();
+                    event.prevent_default();
+                } else if column.is_sortable() {
                     grid.toggle_sort(column.id().clone(), shift);
                     event.prevent_default();
                 }
@@ -452,6 +458,9 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
 
     let id = column.id().clone();
     let sortable = column.is_sortable();
+    // A checkbox column's header holds the "select all" instead of a label, and
+    // offers neither sorting nor a column menu: there is nothing to sort by.
+    let checkbox = column.spec().is_checkbox();
     let direction = grid.sort_direction(&id);
     let priority = grid.sort_priority(&id);
 
@@ -575,7 +584,16 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
     let onclick = move |event: MouseEvent| {
         // The click that ends a resize drag lands here when the pointer is
         // released over the header; it is not a request to sort.
-        if grid.take_resize_click() || !sortable {
+        if grid.take_resize_click() {
+            return;
+        }
+        if checkbox {
+            // The whole header cell is the target, not only the box in it.
+            grid.set_focus(CellFocus::new(leaf_row, column_index));
+            grid.toggle_select_all();
+            return;
+        }
+        if !sortable {
             return;
         }
         grid.set_focus(CellFocus::new(leaf_row, column_index));
@@ -586,8 +604,9 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
         div {
             role: "columnheader",
             // Named explicitly, so that a menu button or any other control
-            // inside the cell does not end up in the column's name.
-            aria_label: column.label(),
+            // inside the cell does not end up in the column's name. A checkbox
+            // column usually has no label, so it borrows the box's.
+            aria_label: if checkbox && column.label().is_empty() { grid.locale().read().select_all.to_string() } else { column.label().to_owned() },
             aria_colindex: "{column_index + 1}",
             aria_sort,
             tabindex: if focused { "0" } else { "-1" },
@@ -620,10 +639,14 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
             onclick,
             onkeydown,
             ..attributes,
-            {column.render_header()}
+            if checkbox {
+                GridSelectAll { grid }
+            } else {
+                {column.render_header()}
+            }
             // Rendered only where a column menu add-on is mounted, so the core
             // component need not know that one exists.
-            if grid.has_column_menu() {
+            if grid.has_column_menu() && !checkbox {
                 GridColumnMenu { grid, column_index }
             }
             if show_handle {
@@ -901,9 +924,18 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
         && grid
             .edit_target()
             .is_some_and(|target| target.edits_cell(row_index, column.id()));
+    // A checkbox column shows what is selected, not what the row holds.
+    let checkbox = column.spec().is_checkbox();
 
     // The row as the grid shows it: with unsaved and in-flight edits.
-    let (content, tooltip) = if editing {
+    let (content, tooltip) = if checkbox {
+        (
+            rsx! {
+                GridSelectCheckbox { grid, row_index, column_index }
+            },
+            None,
+        )
+    } else if editing {
         (
             rsx! {
                 GridCellEditor { grid, column_index }
@@ -942,6 +974,23 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
         }
         let at = CellFocus::new(focus_row, column_index);
         grid.set_focus(at);
+
+        // A checkbox cell is about its row, not about a rectangle of values:
+        // a click toggles the row rather than adding it, and starts no
+        // selection of cells that would copy as an empty column.
+        if checkbox {
+            if grid.selection_mode() != SelectionMode::None
+                && let Some(key) = grid.key_at(row_index)
+            {
+                if event.modifiers().shift() {
+                    grid.extend_select(key);
+                } else {
+                    grid.toggle_select(key);
+                }
+            }
+            return;
+        }
+
         // Shift-click reaches from the anchor to here, as in a sheet.
         if event.modifiers().shift() {
             grid.extend_cell_selection(at);

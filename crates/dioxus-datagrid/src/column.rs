@@ -319,6 +319,23 @@ impl<T> Column<T> {
         self
     }
 
+    /// Makes the column a column of checkboxes that select rows, with a "select
+    /// all" in its header. See [`ColumnSpec::checkbox`].
+    ///
+    /// The grid draws the boxes, so the column needs neither a value nor a cell
+    /// renderer — and a label only if the header should have one besides the box.
+    ///
+    /// ```
+    /// # use dioxus_datagrid::Column;
+    /// # struct User;
+    /// let select = Column::<User>::new("select", "").checkbox();
+    /// ```
+    #[must_use]
+    pub fn checkbox(mut self) -> Self {
+        self.spec = self.spec.checkbox();
+        self
+    }
+
     /// Holds the column at an edge while the grid scrolls sideways. Pinned
     /// columns are laid out as a block at that edge, whatever the column order.
     #[must_use]

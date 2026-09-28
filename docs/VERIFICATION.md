@@ -514,3 +514,25 @@ liegt nicht in ihrer Hand.
 Gitterzelle (also auf nichts Bearbeitbarem) liegt. Für Chromium ist das der Weg, über den
 Zeichen-Apps eingefügte Bilder bekommen; WebKit ist an dieser Stelle strenger. **Von Hand
 nachzusehen** — in Safari und in einem Desktop-Build, zusammen mit dem oben schon offenen Punkt.
+
+## 16. Phase 12: Dioxus setzt `indeterminate` nicht
+
+Geprüft am 2026-09-28 an der Quelle, nicht am Versuch:
+`dioxus-interpreter-js-0.7.10/src/ts/set_attribute.ts` schreibt genau diese Namen als
+DOM-**Eigenschaft**: `value`, `initial_value`, `checked`, `initial_checked`, `selected`,
+`initial_selected`, `dangerous_inner_html`, `style`, `multiple`. Alles andere geht durch
+`setAttribute`. `indeterminate` ist nicht dabei — und HTML hat dafür auch kein Attribut, nur die
+Eigenschaft. Ein `indeterminate: "true"` im RSX landet also als Attribut im Markup, das kein Browser
+liest.
+
+Damit ist der dritte Zustand einer „alle auswählen"-Checkbox nur über die Eigenschaft zu haben. Der
+Weg dorthin ist derselbe wie bei der Zwischenablage: ein `document::eval`, das die Box über eine
+erzeugte `id` findet und `box.indeterminate` setzt (ADR-0035).
+
+**Gemessen:** im Browser-Pane (echtes Chromium) zeigt die Kopf-Checkbox bei einer von zwölf
+ausgewählten Zeilen den Strich, und `document.querySelector('[data-select-all]').indeterminate`
+meldet `true`. In Playwright prüft `tests/e2e/checkbox.spec.ts` dieselbe Eigenschaft in Chromium und
+WebKit — none → `false`, partial → `true`, all → `false` bei gesetztem `checked`.
+
+**Nebenbefund:** `aria-checked="mixed"` auf einer nativen Checkbox wäre kein Ersatz. HTML-AAM leitet
+den Zustand aus den Eigenschaften ab; das Attribut würde ignoriert. Deshalb trägt die Box es nicht.

@@ -5,9 +5,9 @@ use crate::edit::{EditRows, EditStatus, EditTarget, Editing, Session};
 use datagrid_core::{
     CellFocus, CellRange, CellSelectionMode, ColumnFilter, ColumnId, ColumnSpec, ColumnWidth,
     DEFAULT_REMOTE_PAGE_SIZE, DistinctValues, GridLocale, GridQuery, GridRow, GridState, GroupSpan,
-    NavKey, Pinned, RowSpans, Selection, SelectionMode, SortDirection, ValueKind, View, ViewRow,
-    compute_view, distinct_values, group_header_rows, group_levels, navigate, reveal_scroll_top,
-    rows_per_viewport, visible_range,
+    NavKey, Pinned, RowSpans, Selection, SelectionExtent, SelectionMode, SortDirection, ValueKind,
+    View, ViewRow, compute_view, distinct_values, group_header_rows, group_levels, navigate,
+    reveal_scroll_top, rows_per_viewport, visible_range,
 };
 use dioxus::html::ScrollBehavior;
 use dioxus::html::geometry::PixelsVector2D;
@@ -1577,6 +1577,41 @@ impl<T: GridRow> GridHandle<T> {
     /// Clears the selection.
     pub fn clear_selection(&mut self) {
         self.selection.write().clear();
+    }
+
+    /// How much of what the grid is showing is selected: what a checkbox
+    /// column's header checkbox shows.
+    ///
+    /// Only the rows on show count. With paging that is the current page, and
+    /// rows selected on another page are neither counted here nor touched by
+    /// [`toggle_select_all`](Self::toggle_select_all) — a checkbox that claims to
+    /// hold rows the user cannot see would be worse than one that speaks only
+    /// about the page in front of them.
+    #[must_use]
+    pub fn visible_selection(&self) -> SelectionExtent {
+        let keys = self.visible_keys();
+        self.selection.read().extent(&keys)
+    }
+
+    /// Selects every row on show, or deselects them if they all are already.
+    ///
+    /// Does nothing unless rows can be selected in
+    /// [`SelectionMode::Multi`]: "all of them" is not something a single
+    /// selection can hold.
+    pub fn toggle_select_all(&mut self) {
+        if self.selection_mode() != SelectionMode::Multi {
+            return;
+        }
+        let keys = self.visible_keys();
+        let all = self.selection.peek().extent(&keys).is_all();
+        let mut selection = self.selection.write();
+        for key in keys {
+            if all {
+                selection.deselect(&key);
+            } else {
+                selection.select(key, SelectionMode::Multi);
+            }
+        }
     }
 
     /// The keys of the rows on the current page, in display order.

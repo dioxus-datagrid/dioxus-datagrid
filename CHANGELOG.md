@@ -20,6 +20,14 @@ All notable changes to this project are documented here. The format follows
   or a quotation mark is quoted so a spreadsheet reads the block back unchanged. `to_tsv` and
   `tsv_field` in `datagrid-core` build the text; `GridHandle::copy_text`, `copy_selection`,
   `cell_text` and `can_copy` are the grid's side of it.
+- A checkbox column: `Column::new("select", "").checkbox()` shows a checkbox in every row that
+  selects it and a "select all" in its header, drawn by the grid because only the grid knows what is
+  selected. The header's box covers the rows on show — with paging, the current page — and shows the
+  third state, a real `indeterminate`, when only some of them are selected. Neither box is a tab
+  stop: `Space` on a row toggles it, `Space` on the header cell toggles them all, and a click
+  toggles rather than adds. `SelectionExtent` in `datagrid-core` names the three states;
+  `GridHandle::visible_selection` and `toggle_select_all` are the grid's side of it. Copying leaves
+  the column out — it is a control, not a value.
 - Pasting. `Ctrl+V` (`Cmd+V` on macOS) writes tab-separated text into editable cells, starting at the
   corner of the selected rectangle or at the focused cell; a single pasted cell fills the whole
   rectangle. Nothing grows the grid — what hangs over the last column or row is dropped — a column
@@ -31,9 +39,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- `GridLocale` has two new fields, `paste_refused` and `paste_refused_one`, for the message a partly
-  refused paste shows. Code that builds a `GridLocale` from `..Default::default()` or
-  `GridLocale::german()` is unaffected.
+- `GridLocale` has four new fields: `paste_refused` and `paste_refused_one` for the message a partly
+  refused paste shows, and `select_all` and `select_row` for the names of a checkbox column's boxes.
+  `ColumnSpec` has a new public field, `checkbox`. Code that builds either from
+  `..Default::default()`, `GridLocale::german()` or `ColumnSpec::new` is unaffected.
 - `GridOptions` has a new public field, `cell_selection`. With `CellSelectionMode::Range` set,
   `Shift`+arrow grows the cell rectangle instead of extending the row selection; `Space` still
   selects rows. Without it nothing changes.

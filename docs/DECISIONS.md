@@ -1176,3 +1176,71 @@ und Fokus-Turnen, die erst eine Messung rechtfertigt.
 
 Der Spike (`playground/src/clipboard_spike.rs`) bleibt deshalb noch stehen: seine Paste-Probe ist
 genau das Werkzeug für diese Prüfung von Hand. Er geht heraus, sobald sie gelaufen ist.
+
+---
+
+## ADR-0035 — Checkbox-Spalte: eine Spalte wie jede andere, gezeichnet vom Gitter
+
+**Kontext.** `docs/ROADMAP.md` Phase 12 verlangt eine „Checkbox-Spalte mit ‚alle auswählen'
+(dreistufig)". Drei Fragen: woher die Spalte kommt, was „alle" heißt, und wie der dritte Zustand
+überhaupt darstellbar ist.
+
+**Entscheidung.**
+
+1. **Die Anwendung erklärt die Spalte, das Gitter zeichnet sie.**
+   `Column::new("select", "").checkbox()` — eine gewöhnliche Spalte mit einem Schalter, kein
+   Sonderweg am Spaltenmodell vorbei. *Alternative:* eine Option am Gitter
+   (`GridOptions::checkbox_column(true)`), die eine synthetische Spalte voranstellt. Verworfen: sie
+   müsste durch alles hindurch, was Spalten zählt — `aria-colindex`, Layoutbreiten, Fokusspalten,
+   Fixieren, Umsortieren, Ausblenden, Spannen, Kopieren. Als echte Spalte trägt sie all das
+   umsonst. Die Anwendung kann sie darum auch fixieren, umsortieren oder ausblenden.
+   Gezeichnet wird sie trotzdem vom Gitter, denn nur das Gitter weiß, was ausgewählt ist; ein
+   `cell`-Renderer bekommt die Zeile, nicht den Zustand.
+
+2. **Die Spalte bringt mit, was sie sein will:** schmal, zentriert, nicht sortierbar, nicht
+   gruppierbar, nicht in der Breite zu ziehen. Alles davon lässt sich danach überschreiben — der
+   Schalter ist ein Vorschlag, keine Mauer.
+
+3. **„Alle" heißt: alle, die zu sehen sind.** Die Kopf-Checkbox deckt die Zeilen der aktuellen
+   Seite; eine Auswahl auf einer anderen Seite wird weder mitgezählt noch angefasst. *Alternative:*
+   alle gefilterten Zeilen über alle Seiten. Verworfen — eine Checkbox, die behauptet, Zeilen zu
+   halten, die niemand sieht, ist schlimmer als eine, die nur über die Seite vor einem spricht. Bei
+   einem entfernten Gitter wäre sie zudem eine Behauptung über Daten, die gar nicht da sind.
+
+4. **Der dritte Zustand ist eine DOM-Eigenschaft, also wird er als solche gesetzt.** HTML hat kein
+   `indeterminate`-Attribut, und Dioxus' Interpreter schreibt nur `value`, `checked`, `selected`
+   und ihre `initial_`-Formen als Eigenschaften (`docs/VERIFICATION.md` §16). Die Kopf-Checkbox
+   trägt deshalb eine erzeugte `id`, und ein `document::eval` setzt `box.indeterminate` nach jeder
+   Änderung — derselbe Weg wie bei der Zwischenablage (ADR-0033), aus demselben Grund: es gibt
+   keinen anderen, der plattformneutral bleibt.
+   *Alternative 1:* `aria-checked="mixed"` auf der nativen Checkbox. Verworfen — HTML-AAM leitet den
+   Zustand einer nativen Checkbox aus ihren Eigenschaften ab; das Attribut wäre Markup, das
+   Browser ignorieren, also eine Zusicherung, die nichts zusichert.
+   *Alternative 2:* ein `div role="checkbox"` mit echtem `aria-checked="mixed"`. Verworfen — ohne
+   CSS wäre es unsichtbar, und die Primitiven sollen ohne Stylesheet benutzbar bleiben. Die
+   Filtermenüs benutzen native Checkboxen; zwei Bauformen für dieselbe Sache wären eine dritte
+   Antwort auf eine beantwortete Frage.
+
+5. **Keine zusätzlichen Tab-Stopps.** Beide Checkboxen tragen `tabindex="-1"`. Das Gitter ist ein
+   Stopp; die Zelle um eine Box herum trägt die Tastatur — `Space` auf einer Zeile schaltet sie um,
+   `Space` auf der Kopfzelle alle. Ein Klick auf die Box selbst wird dort behandelt und nicht
+   weitergereicht, damit die Zelle ihn nicht ein zweites Mal auslegt.
+
+6. **Ein Klick auf eine Checkbox-Zelle schaltet um, statt hinzuzufügen.** Sonst fügt ein Klick auf
+   eine Zelle im `Multi`-Modus nur hinzu; in einer Checkbox-Spalte wäre das falsch herum. `Shift`
+   reicht wie überall vom Anker bis hierher. Eine Zellauswahl beginnt sie nicht: ein Rechteck, das
+   in der Auswahlspalte anfängt, kopierte eine leere Spalte.
+
+7. **Kopiert wird sie nicht.** Beim Kopieren ausgewählter Zeilen bleibt eine Checkbox-Spalte
+   draußen — sie ist Bedienelement, kein Wert, und würde als leeres erstes Feld in der Tabelle
+   landen.
+
+**Folgen.**
+
+- `ColumnSpec` hat ein neues öffentliches Feld (`checkbox`), `GridLocale` zwei neue Texte
+  (`select_all`, `select_row`), `GridHandle` zwei neue Methoden (`visible_selection`,
+  `toggle_select_all`), und der Kern eine neue Aufzählung `SelectionExtent`.
+- Eine Kopfzelle ohne eigene Beschriftung leiht sich den Namen ihrer Box, damit kein Spaltenkopf
+  ohne Namen dasteht.
+- Gruppenzeilen bekommen keine Checkbox. „Eine Gruppe auswählen" ist eine eigene Entscheidung und
+  kommt, wenn ein Anwendungsfall sie verlangt.

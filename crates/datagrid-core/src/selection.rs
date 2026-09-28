@@ -197,6 +197,23 @@ where
         self.anchor = None;
     }
 
+    /// How much of `keys` is selected: nothing, some of it, or all of it.
+    ///
+    /// What a "select all" checkbox shows. Only the keys given count, so a grid
+    /// that hands it one page asks about that page and nothing else. An empty
+    /// set counts as [`SelectionExtent::None`]: there is nothing selected in it.
+    #[must_use]
+    pub fn extent(&self, keys: &[K]) -> SelectionExtent {
+        let selected = keys.iter().filter(|key| self.contains(key)).count();
+        if selected == 0 {
+            SelectionExtent::None
+        } else if selected == keys.len() {
+            SelectionExtent::All
+        } else {
+            SelectionExtent::Partial
+        }
+    }
+
     /// Drops selected keys that are no longer present in `keys`.
     ///
     /// Useful when the underlying data changed and selection should not keep
@@ -208,6 +225,44 @@ where
         {
             self.anchor = None;
         }
+    }
+}
+
+/// How much of a set of rows is selected: what a "select all" checkbox shows,
+/// and what a click on it should do.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SelectionExtent {
+    /// None of the rows are selected.
+    #[default]
+    None,
+    /// Some of them, but not all.
+    Partial,
+    /// Every one of them.
+    All,
+}
+
+impl SelectionExtent {
+    /// `"none"`, `"partial"` or `"all"`, for a data attribute.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Partial => "partial",
+            Self::All => "all",
+        }
+    }
+
+    /// Whether every row is selected — what a checkbox shows as ticked.
+    #[must_use]
+    pub const fn is_all(self) -> bool {
+        matches!(self, Self::All)
+    }
+
+    /// Whether some but not all are — the third state, which a checkbox shows
+    /// as mixed.
+    #[must_use]
+    pub const fn is_partial(self) -> bool {
+        matches!(self, Self::Partial)
     }
 }
 

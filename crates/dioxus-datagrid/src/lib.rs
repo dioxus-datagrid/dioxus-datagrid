@@ -82,6 +82,7 @@ mod group_ui;
 mod paste;
 pub mod primitives;
 mod remote;
+mod select_ui;
 mod timer;
 
 pub use column::{CellRenderer, Column, EditorRenderer, HeaderRenderer};

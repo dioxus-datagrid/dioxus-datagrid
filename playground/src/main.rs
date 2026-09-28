@@ -164,6 +164,7 @@ fn columns(
     pinned: bool,
     header_groups: bool,
     spanning: bool,
+    checkbox: bool,
 ) -> Vec<Column<Employee>> {
     let label = |id| label(id, german);
     // Every column can be edited, once a `DataGridEditor` says how; without
@@ -236,6 +237,15 @@ fn columns(
             .format(CellFormat::Date)
             .editable(|row: &mut Employee, since: NaiveDate| row.since = since),
     ];
+    // The selection column comes first, before anything groups, pins or
+    // reorders the rest.
+    let columns: Vec<Column<Employee>> = if checkbox {
+        std::iter::once(Column::new("select", "").checkbox())
+            .chain(columns)
+            .collect()
+    } else {
+        columns
+    };
     let columns: Vec<Column<Employee>> = if header_groups {
         columns
             .into_iter()
@@ -363,7 +373,17 @@ fn App() -> Element {
     let mut column_menu = use_signal(|| false);
     let mut spanning = use_signal(|| false);
     let mut clipboard_spike = use_signal(|| false);
-    let cols = use_memo(move || columns(german(), totals(), pinned(), header_groups(), spanning()));
+    let mut checkbox_column = use_signal(|| false);
+    let cols = use_memo(move || {
+        columns(
+            german(),
+            totals(),
+            pinned(),
+            header_groups(),
+            spanning(),
+            checkbox_column(),
+        )
+    });
 
     let mut selection = use_signal(|| SelectionMode::Multi);
     let mut cell_selection = use_signal(|| CellSelectionMode::None);
@@ -574,6 +594,16 @@ fn App() -> Element {
                         onchange: move |event| header_groups.set(event.checked()),
                     }
                     "Column groups"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
+                        "data-testid": "toggle-checkbox-column",
+                        checked: checkbox_column(),
+                        onchange: move |event| checkbox_column.set(event.checked()),
+                    }
+                    "Checkbox column"
                 }
 
                 label { class: "toggle",

@@ -215,6 +215,9 @@ pub struct ColumnSpec<T> {
     /// How many columns this column's cell covers, row by row; see
     /// [`ColumnSpec::span`].
     pub span: Option<SpanFn<T>>,
+    /// Whether the column holds checkboxes that select rows; see
+    /// [`ColumnSpec::checkbox`].
+    pub checkbox: bool,
 }
 
 impl<T> ColumnSpec<T> {
@@ -243,7 +246,44 @@ impl<T> ColumnSpec<T> {
             pinned: Pinned::None,
             group_path: Vec::new(),
             span: None,
+            checkbox: false,
         }
+    }
+
+    /// Makes the column a column of checkboxes that select rows, with a
+    /// "select all" in its header.
+    ///
+    /// The column shows no value of its own — the grid draws the checkbox, since
+    /// only the grid knows what is selected. It also sets what such a column
+    /// wants to be: narrow, centred, and out of sorting, grouping and resizing.
+    /// Any of that can be overridden afterwards.
+    ///
+    /// The header's checkbox covers the rows **on show**: with paging, the
+    /// current page. A grid that does not select rows draws no checkboxes at
+    /// all, and one that selects a single row draws no "select all".
+    ///
+    /// ```
+    /// # use datagrid_core::ColumnSpec;
+    /// # struct User;
+    /// let select = ColumnSpec::<User>::new("select").checkbox();
+    /// assert!(select.is_checkbox());
+    /// ```
+    #[must_use]
+    pub fn checkbox(mut self) -> Self {
+        self.checkbox = true;
+        self.sortable = false;
+        self.groupable = false;
+        self.resizable = false;
+        // Wide enough for a checkbox and the cell padding around it.
+        self.width = ColumnWidth::Px(44.0);
+        self.align = Some(CellAlign::Center);
+        self
+    }
+
+    /// Whether the column holds checkboxes that select rows.
+    #[must_use]
+    pub const fn is_checkbox(&self) -> bool {
+        self.checkbox
     }
 
     /// Sets how this column reads its typed value from a row.
@@ -670,6 +710,7 @@ impl<T> Clone for ColumnSpec<T> {
             pinned: self.pinned,
             group_path: self.group_path.clone(),
             span: self.span.clone(),
+            checkbox: self.checkbox,
         }
     }
 }
@@ -696,6 +737,7 @@ impl<T> fmt::Debug for ColumnSpec<T> {
             .field("pinned", &self.pinned)
             .field("group_path", &self.group_path)
             .field("spans", &self.span.is_some())
+            .field("checkbox", &self.checkbox)
             .finish()
     }
 }
@@ -733,6 +775,7 @@ impl<T> PartialEq for ColumnSpec<T> {
             && self.choices == other.choices
             && self.aggregates == other.aggregates
             && self.groupable == other.groupable
+            && self.checkbox == other.checkbox
             && self.pinned == other.pinned
             && self.group_path == other.group_path
             && same_closure(self.span.as_ref(), other.span.as_ref())

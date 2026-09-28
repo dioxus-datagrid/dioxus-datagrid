@@ -141,6 +141,16 @@
   text-align: center;
 }
 
+/* A checkbox column. The box is the whole content of the cell, so it sits in
+   the middle of the line rather than on it, and takes no margin of its own on
+   top of the cell's padding. */
+.dg [role="gridcell"] > input[type="checkbox"],
+.dg [role="columnheader"] > input[type="checkbox"] {
+  margin: 0;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
 .dg [role="gridcell"][data-overflow="wrap"] {
   overflow-wrap: anywhere;
   white-space: normal;

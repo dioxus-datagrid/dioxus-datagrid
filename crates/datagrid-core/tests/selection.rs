@@ -2,7 +2,7 @@
 
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
-use datagrid_core::{Selection, SelectionMode};
+use datagrid_core::{Selection, SelectionExtent, SelectionMode};
 use std::collections::HashSet;
 
 /// The selected keys, sorted so assertions do not depend on hash order.
@@ -204,4 +204,52 @@ fn keys_can_be_any_hashable_type() {
 
     assert_eq!(selection.len(), 3);
     assert!(selection.contains(&"b".to_owned()));
+}
+
+#[test]
+fn the_extent_of_a_set_of_rows_is_none_some_or_all() {
+    let mut selection = Selection::new();
+    let page = [1, 2, 3];
+
+    assert_eq!(selection.extent(&page), SelectionExtent::None);
+    selection.select(2, SelectionMode::Multi);
+    assert_eq!(selection.extent(&page), SelectionExtent::Partial);
+    selection.select(1, SelectionMode::Multi);
+    selection.select(3, SelectionMode::Multi);
+    assert_eq!(selection.extent(&page), SelectionExtent::All);
+    assert!(selection.extent(&page).is_all());
+}
+
+#[test]
+fn the_extent_counts_only_the_rows_it_is_asked_about() {
+    let mut selection = Selection::new();
+    selection.select(9, SelectionMode::Multi);
+
+    // A row selected on another page says nothing about this one.
+    assert_eq!(selection.extent(&[1, 2]), SelectionExtent::None);
+    // And a page whose rows are all selected is all selected, however much
+    // else is.
+    selection.select(1, SelectionMode::Multi);
+    assert_eq!(selection.extent(&[1]), SelectionExtent::All);
+}
+
+#[test]
+fn no_rows_are_not_all_selected() {
+    let selection: Selection<u32> = [1, 2].into_iter().collect();
+    let none: [u32; 0] = [];
+
+    // An empty page is not "all selected": there is nothing in it to select,
+    // and a checkbox showing a tick would be lying about the rows it covers.
+    assert_eq!(selection.extent(&none), SelectionExtent::None);
+    assert!(!selection.extent(&none).is_all());
+}
+
+#[test]
+fn the_extent_says_which_state_a_checkbox_shows() {
+    assert_eq!(SelectionExtent::None.as_str(), "none");
+    assert_eq!(SelectionExtent::Partial.as_str(), "partial");
+    assert_eq!(SelectionExtent::All.as_str(), "all");
+    assert!(SelectionExtent::Partial.is_partial());
+    assert!(!SelectionExtent::All.is_partial());
+    assert_eq!(SelectionExtent::default(), SelectionExtent::None);
 }
