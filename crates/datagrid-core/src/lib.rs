@@ -70,6 +70,7 @@ mod header;
 mod locale;
 mod navigate;
 mod remote;
+mod row_order;
 mod selection;
 mod sort;
 mod span;
@@ -100,6 +101,7 @@ pub use navigate::{CellFocus, NavKey, navigate};
 pub use remote::{
     DEFAULT_REMOTE_PAGE_SIZE, DataSource, GridQuery, Page, RequestId, RequestTracker,
 };
+pub use row_order::move_row;
 pub use selection::{CellRange, CellSelectionMode, Selection, SelectionExtent, SelectionMode};
 pub use sort::{SortDirection, SortState, SortValue, TextCollation};
 pub use span::RowSpans;

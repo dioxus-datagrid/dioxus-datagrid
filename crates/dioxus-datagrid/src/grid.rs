@@ -3,6 +3,7 @@
 use crate::Column;
 use crate::detail::DetailRows;
 use crate::edit::{EditRows, EditStatus, EditTarget, Editing, Session};
+use crate::row_drag::{RowDrag, RowMove};
 use datagrid_core::{
     CellFocus, CellRange, CellSelectionMode, ColumnFilter, ColumnId, ColumnSpec, ColumnWidth,
     DEFAULT_REMOTE_PAGE_SIZE, DistinctValues, GridLocale, GridQuery, GridRow, GridState, GroupSpan,
@@ -270,6 +271,10 @@ pub struct GridHandle<T: GridRow + 'static> {
     /// What a row's detail renders, and which rows have one; `None` where the
     /// grid has no detail rows at all.
     pub(crate) detail_config: Signal<Option<DetailRows<T>>>,
+    /// What a moved row does; `None` where rows cannot be reordered.
+    pub(crate) row_move: Signal<Option<Callback<RowMove<T>>>>,
+    /// The row being dragged into another place, if one is.
+    pub(crate) row_drag: Signal<Option<RowDrag>>,
     /// The rows whose detail is open, by key, so that sorting, filtering and
     /// paging leave them open. Not part of [`GridState`]: like the selection, it
     /// does not survive a reload.
@@ -442,6 +447,8 @@ pub(crate) struct GridBase<T: GridRow + 'static> {
     distinct: CopyValue<Option<DistinctSource>>,
     remote: bool,
     detail_config: Signal<Option<DetailRows<T>>>,
+    row_move: Signal<Option<Callback<RowMove<T>>>>,
+    row_drag: Signal<Option<RowDrag>>,
     expanded_details: Signal<HashSet<T::Key>>,
     id_base: u64,
     edit_config: Signal<Option<Editing<T>>>,
@@ -541,6 +548,8 @@ where
         distinct: use_hook(move || CopyValue::new(distinct)),
         remote,
         detail_config: use_signal(|| None::<DetailRows<T>>),
+        row_move: use_signal(|| None::<Callback<RowMove<T>>>),
+        row_drag: use_signal(|| None::<RowDrag>),
         expanded_details: use_signal(HashSet::<T::Key>::new),
         // A counter rather than a random number: ids only have to differ from
         // the other grids on the page, and a stable one keeps a server-rendered
@@ -625,6 +634,8 @@ impl<T: GridRow + PartialEq> GridBase<T> {
             view,
             remote: self.remote,
             detail_config: self.detail_config,
+            row_move: self.row_move,
+            row_drag: self.row_drag,
             expanded_details: self.expanded_details,
             id_base: self.id_base,
             edit_config: self.edit_config,

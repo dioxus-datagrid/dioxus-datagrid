@@ -91,6 +91,10 @@ pub struct GridLocale {
     pub collapse_row: Cow<'static, str>,
     /// Name of an expander column's header, which holds no control of its own.
     pub detail_column: Cow<'static, str>,
+    /// Name of the handle that drags a row into another place.
+    pub drag_row: Cow<'static, str>,
+    /// Name of a drag handle column's header.
+    pub reorder_column: Cow<'static, str>,
     /// Accessible name of the button that opens a column's filter menu, with `{column}`.
     pub filter_menu: Cow<'static, str>,
     /// Tab of the filter menu with conditions.
@@ -289,6 +293,8 @@ impl GridLocale {
             expand_row: Cow::Borrowed("Show details"),
             collapse_row: Cow::Borrowed("Hide details"),
             detail_column: Cow::Borrowed("Details"),
+            drag_row: Cow::Borrowed("Move row"),
+            reorder_column: Cow::Borrowed("Order"),
             filter_menu: Cow::Borrowed("Filter options for {column}"),
             filter_by_condition: Cow::Borrowed("Condition"),
             filter_by_values: Cow::Borrowed("Values"),
@@ -402,6 +408,8 @@ impl GridLocale {
             expand_row: Cow::Borrowed("Details anzeigen"),
             collapse_row: Cow::Borrowed("Details ausblenden"),
             detail_column: Cow::Borrowed("Details"),
+            drag_row: Cow::Borrowed("Zeile verschieben"),
+            reorder_column: Cow::Borrowed("Reihenfolge"),
             filter_menu: Cow::Borrowed("Filteroptionen für {column}"),
             filter_by_condition: Cow::Borrowed("Bedingung"),
             filter_by_values: Cow::Borrowed("Werte"),

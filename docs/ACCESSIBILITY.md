@@ -96,6 +96,8 @@ Kopfzeile davor (`GridHandle::header_rows`). Damit stimmt die Fokus-Koordinate d
 | `Ctrl+V` / `Cmd+V` | tabgetrennten Text in bearbeitbare Zellen einfügen, ab der Ecke der Auswahl |
 | `Space` (auf der Kopfzelle einer Checkbox-Spalte) | alle Zeilen der Seite auswählen oder freigeben |
 | `Enter` (auf einer Zelle der Expander-Spalte) | die Detailzeile dieser Zeile öffnen oder schließen |
+| `Alt+Shift+↑` / `Alt+Shift+↓` (auf einer Datenzeile) | die Zeile eine Zeile nach oben oder unten schieben |
+| `Escape` (während eines Ziehens) | das Ziehen abbrechen, die Zeile bleibt, wo sie war |
 
 Auf macOS gilt `Cmd` gleichwertig zu `Ctrl` für `Home`/`End`.
 
@@ -319,6 +321,29 @@ Tabellenkalkulationen als Block von Zellen lesen.
   auch der nicht, passiert nichts. Ein Gitter, das nach Rechten fragt, um eine Zeile zu kopieren,
   wäre schlimmer als ein gelegentlich stilles Nein (ADR-0033).
 
+## Zeilen umsortieren
+
+Eine Spalte mit `.drag_handle()` gibt jeder Zeile einen Griff, mit dem sie an eine andere Stelle
+gezogen wird. Was das mit den Daten macht, entscheidet die Anwendung: das Gitter meldet nur, welche
+Zeile wohin ging.
+
+- **Die Tastatur kann dasselbe.** `Alt+Shift+↑` und `Alt+Shift+↓` auf irgendeiner Zelle der Zeile
+  schieben sie eine Zeile weiter — dieselben Tasten, die auf einem Spaltenkopf die Spalte bewegen.
+  Der Griff nennt sie über `aria-keyshortcuts`, und der Fokus geht mit der Zeile mit, damit ein
+  zweiter Druck dieselbe Zeile weiterbewegt.
+- **Der Griff ist kein Tab-Stopp** (`tabindex="-1"`), wie die Checkbox und der Detail-Knopf auch.
+- **Gezählt wird in sichtbaren Zeilen.** Mit einem Filter tauscht eine Zeile mit der Zeile über ihr
+  auf dem Schirm; am Rand einer Seite hört es auf.
+- **Nur wo die Reihenfolge auf dem Schirm die der Daten ist.** Ist sortiert oder gruppiert, gibt es
+  keine Griffe, und die Tastatur bewegt nichts.
+- **Während des Ziehens** trägt die gezogene Zeile `data-dragging`, die Zeile unter dem Zeiger
+  `data-drop="before"` oder `"after"` — die Linie, die zeigt, wo sie landen würde. `Escape` bricht
+  ab; ein Loslassen außerhalb des Gitters ebenso.
+- **Eine Berührung zieht nicht.** Ein Touch-Zeiger wird an dem Element festgehalten, auf dem er
+  aufsetzt; die Zeilen darunter hören nichts davon. Statt einer Geste, die nichts bewirkt, scrollt
+  eine Berührung auf dem Griff die Seite — und die Tastatur bleibt der Weg, der überall funktioniert
+  (ADR-0037).
+
 ## Detailzeilen
 
 Eine Zeile kann eine zweite unter sich öffnen, die beliebigen Inhalt trägt — auch ein eigenes
@@ -464,6 +489,12 @@ vergessen.
   wird, was das Gitter der Zwischenablage übergibt; sie zurückzulesen ist überall verboten
   (VERIFICATION §15). Textbildung in `crates/dioxus-datagrid/tests/copy.rs`, das Format in
   `crates/datagrid-core/tests/tsv.rs`.
+- **Zeilen umsortieren:** `tests/e2e/row-drag.spec.ts` — ziehen nach unten und nach oben, Loslassen
+  am Ausgangspunkt, `Escape` mittendrin, `Alt+Shift`+Pfeil mit mitgehendem Fokus, Ende der Seite,
+  gesperrt bei Sortierung, ein Ziehen wählt nichts aus, axe. Gezogen wird mit echten Zeigerschritten,
+  in Chromium **und** WebKit (VERIFICATION §17). Markup und Meldungen in
+  `crates/dioxus-datagrid/tests/row_drag.rs`, der Zug selbst in
+  `crates/datagrid-core/tests/row_order.rs`.
 - **Detailzeilen:** `tests/e2e/detail-rows.spec.ts` — öffnen und schließen, die Detailzeile steht
   unter ihrer Zeile und trägt die nächste Zeilennummer, der Knopf zeigt auf sie, eine Zeile ohne
   Detail hat keinen Knopf, `Enter` auf der Zelle, die Pfeile gehen über sie hinweg, der Inhalt ist

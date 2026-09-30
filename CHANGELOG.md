@@ -20,6 +20,16 @@ All notable changes to this project are documented here. The format follows
   or a quotation mark is quoted so a spreadsheet reads the block back unchanged. `to_tsv` and
   `tsv_field` in `datagrid-core` build the text; `GridHandle::copy_text`, `copy_selection`,
   `cell_text` and `can_copy` are the grid's side of it.
+- Row reordering. A column declared with `Column::new("order", "").drag_handle()` gives every row a
+  handle that drags it into another place, and `Alt+Shift+ArrowUp` / `Alt+Shift+ArrowDown` do the
+  same from the keyboard; `Escape` calls off a drag. The grid reports the move and the application
+  makes it: `RowMove { row, from, to }` carries indices into the rows the grid was given, `to` is
+  where the row ends up, and `RowMove::apply` — or `move_row` in `datagrid-core` — does it to a
+  `Vec`. `GridHandle::set_row_move`, `can_reorder_rows`, `move_row_by` and the drag's own
+  `start_row_drag`, `drag_row_over`, `finish_row_drag` and `cancel_row_drag` are the grid's side of
+  it. Built from pointer events rather than HTML drag and drop, so it works in WebKit; a touch
+  scrolls the page instead of dragging (see `docs/DECISIONS.md` ADR-0037). Not offered while the
+  grid is sorted or grouped, where the order on screen is not the rows' own.
 - Detail rows. A column declared with `Column::new("expand", "").expander()` gives every row a
   button that opens a detail row under it, holding whatever `GridHandle::set_detail_rows` renders
   for that row — a nested grid included. The detail row is a row of the view: it has its own
@@ -48,11 +58,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- `GridLocale` has seven new fields: `paste_refused` and `paste_refused_one` for the message a
+- `GridLocale` has nine new fields: `paste_refused` and `paste_refused_one` for the message a
   partly refused paste shows, `select_all` and `select_row` for the names of a checkbox column's
-  boxes, and `expand_row`, `collapse_row` and `detail_column` for a detail row's button and its
-  column. `ColumnSpec` has two new public fields, `checkbox` and `expander`, and `ViewRow` a new
-  variant, `Detail`. Code that builds a locale or a column from `..Default::default()`,
+  boxes, `expand_row`, `collapse_row` and `detail_column` for a detail row's button and its column,
+  and `drag_row` and `reorder_column` for a drag handle and its column. `ColumnSpec` has three new
+  public fields, `checkbox`, `expander` and `drag_handle`, and `ViewRow` a new variant, `Detail`.
+  Code that builds a locale or a column from `..Default::default()`,
   `GridLocale::german()` or `ColumnSpec::new` is unaffected; a `match` on `ViewRow` needs an arm for
   the new variant, which the enum being `#[non_exhaustive]` already asked for.
 - `GridOptions` has a new public field, `cell_selection`. With `CellSelectionMode::Range` set,

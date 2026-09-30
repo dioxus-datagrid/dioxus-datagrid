@@ -83,6 +83,7 @@ mod group_ui;
 mod paste;
 pub mod primitives;
 mod remote;
+mod row_drag;
 mod select_ui;
 mod timer;
 
@@ -99,6 +100,7 @@ pub use grid::{
 pub use group::GroupKeyPress;
 pub use paste::PasteReport;
 pub use remote::use_grid_remote;
+pub use row_drag::{DropSide, RowMove};
 
 // Re-exported so callers need only one dependency for the common path. The
 // `GridRow` trait deliberately keeps its name here; the row *component* lives in

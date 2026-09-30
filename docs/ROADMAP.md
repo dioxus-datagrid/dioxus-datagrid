@@ -196,7 +196,9 @@ im Treegrid-Muster; 100.000 Zeilen gruppiert und virtualisiert flüssig.
   `aria-expanded` und `aria-controls`. **Zur Freigabe von 0.10.0 gehört eine Registry-Komponente
   `data_grid_detail`** — sie bindet `set_detail_rows` und darf nach ADR-0019 erst nach der
   Veröffentlichung der Crates gepusht werden (ADR-0036).
-- Zeilen per Drag umsortieren (Callback, die Daten gehören der App).
+- Zeilen per Drag umsortieren (Callback, die Daten gehören der App). **Zur Freigabe von 0.10.0
+  gehört auch hierfür eine Registry-Komponente** (`data_grid_reorder`), aus demselben Grund wie bei
+  den Detailzeilen (ADR-0019, ADR-0037).
 - Checkbox-Spalte mit „alle auswählen" (dreistufig).
 - Zellauswahl und rechteckige Bereiche (`Shift+Pfeil` im Zellmodus).
 - Kopieren als TSV, das Excel versteht; Einfügen in bearbeitbare Zellen. Zugriff auf die

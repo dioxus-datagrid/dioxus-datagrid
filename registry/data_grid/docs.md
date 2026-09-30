@@ -244,6 +244,18 @@ A column only does what you give it a closure for:
 - `.span(|row| ...)` — how many columns this column's cell covers in that row.
   The columns it covers render no cell of their own; the wide cell carries
   `aria-colspan` and never leaves its pinned block.
+- `.drag_handle()` — a handle in every row that drags it into another place.
+  The grid reports the move rather than doing it, through `set_row_move` on the
+  grid handle, which a child component reaches through the context:
+  ```rust,ignore
+  grid.set_row_move(Callback::new(move |moved: RowMove<Task>| {
+      tasks.with_mut(|tasks| moved.apply(tasks));
+  }));
+  ```
+  `Alt+Shift+ArrowUp` and `Alt+Shift+ArrowDown` do the same from the keyboard,
+  and `Escape` calls off a drag. Only offered where the order on screen is the
+  rows' own: a sorted or grouped grid draws no handles. A touch does not drag —
+  it scrolls the page, and the keyboard is the way.
 - `.expander()` — a button in every row that opens a detail row under it,
   holding whatever you render for that row, a nested grid included. What it
   shows comes from `set_detail_rows` on the grid handle, which a child component
@@ -281,7 +293,8 @@ jump within a row and `Ctrl+Home`/`Ctrl+End` to the corners. On a header,
 row, `Space` selects and `Shift+Space` or `Shift+Arrow` extends the selection. On
 a checkbox column's header, `Space` selects every row on show, or lets them all
 go; on a cell of an expander column, `Enter` opens and closes the row's detail.
-With
+`Alt+Shift+ArrowUp` and `Alt+Shift+ArrowDown` move the focused row where rows
+can be reordered. With
 `cell_selection` set, `Shift+Arrow` grows a rectangle of cells instead and `Space`
 stays the row's. `Ctrl+C` copies the selection — the rectangle, else the selected
 rows, else the focused cell — as tab-separated text, formatted as the grid shows

@@ -354,6 +354,24 @@ impl<T> Column<T> {
         self
     }
 
+    /// Makes the column hold the handles that drag rows into another order. See
+    /// [`ColumnSpec::drag_handle`] and
+    /// [`GridHandle::set_row_move`](crate::GridHandle::set_row_move).
+    ///
+    /// The grid draws the handles, and only where rows may be reordered: a
+    /// sorted or grouped grid shows an order that is not the rows' own.
+    ///
+    /// ```
+    /// # use dioxus_datagrid::Column;
+    /// # struct Task;
+    /// let order = Column::<Task>::new("order", "").drag_handle();
+    /// ```
+    #[must_use]
+    pub fn drag_handle(mut self) -> Self {
+        self.spec = self.spec.drag_handle();
+        self
+    }
+
     /// Holds the column at an edge while the grid scrolls sideways. Pinned
     /// columns are laid out as a block at that edge, whatever the column order.
     #[must_use]

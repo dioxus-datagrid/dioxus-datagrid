@@ -19,6 +19,7 @@ pub use crate::group_ui::{
     AggregateSource, GridAggregateCell, GridFooter, GridGroupFooterRow, GridGroupPanel,
     GridGroupRow,
 };
+pub use crate::row_drag::GridRowHandle;
 pub use crate::select_ui::{GridSelectAll, GridSelectCheckbox};
 use crate::{COLUMN_RESIZE_STEP, GridHandle};
 use datagrid_core::{
@@ -81,6 +82,31 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
         }
         let data = event.data();
         let shift = data.modifiers().shift();
+
+        // A drag in progress is called off, before anything else reads the key.
+        if data.key() == Key::Escape && grid.dragged_row().is_some() {
+            grid.cancel_row_drag();
+            event.prevent_default();
+            return;
+        }
+
+        // Alt+Shift and an arrow move the focused row, the way the same keys
+        // move a column on a header. Checked before navigation, which would
+        // otherwise take the arrow for a move of the focus.
+        if data.modifiers().alt() && shift {
+            let step = match data.key() {
+                Key::ArrowUp => -1,
+                Key::ArrowDown => 1,
+                _ => 0,
+            };
+            if step != 0
+                && let Some(row) = grid.focus_data_row()
+                && grid.move_row_by(row, step)
+            {
+                event.prevent_default();
+                return;
+            }
+        }
 
         // On a group's header, the arrows across expand and collapse it.
         let plain = !shift && !data.modifiers().ctrl() && !data.modifiers().alt();
@@ -265,19 +291,26 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
             // Column resizing: a ColumnResizeHandle starts the drag, the root
             // follows it, because the pointer leaves a narrow handle at once.
             onpointermove: move |event| {
-                if grid.resizing_column().is_none() {
-                    return;
-                }
-                // Released outside the grid, where the pointerup never reached us.
+                // Released outside the grid, where the pointerup never reached
+                // us: a drag that ends unseen ends where it began.
                 if event.data().held_buttons().is_empty() {
                     grid.end_column_resize();
+                    grid.cancel_row_drag();
                     return;
                 }
-                grid.update_column_resize(event.data().client_coordinates().x);
+                if grid.resizing_column().is_some() {
+                    grid.update_column_resize(event.data().client_coordinates().x);
+                }
             },
             onpointerdown: move |_| grid.forget_resize_click(),
-            onpointerup: move |_| grid.end_column_resize(),
-            onpointercancel: move |_| grid.end_column_resize(),
+            onpointerup: move |_| {
+                grid.end_column_resize();
+                grid.finish_row_drag();
+            },
+            onpointercancel: move |_| {
+                grid.end_column_resize();
+                grid.cancel_row_drag();
+            },
             onfocusin: move |_| grid.set_focus_within(true),
             onfocusout: move |_| grid.set_focus_within(false),
             onfocus: move |_| {
@@ -469,9 +502,10 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
     let sortable = column.is_sortable();
     // A checkbox column's header holds the "select all" instead of a label, and
     // offers neither sorting nor a column menu: there is nothing to sort by.
-    // An expander column's header holds nothing at all.
+    // An expander or drag handle column's header holds nothing at all.
     let checkbox = column.spec().is_checkbox();
     let expander = column.spec().is_expander();
+    let drag_handle = column.spec().is_drag_handle();
     let direction = grid.sort_direction(&id);
     let priority = grid.sort_priority(&id);
 
@@ -618,10 +652,11 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
             // inside the cell does not end up in the column's name. A checkbox
             // or expander column usually has no label of its own, and a column
             // header with no name is a cell a reader cannot place.
-            aria_label: match (column.label(), checkbox, expander) {
-                ("", true, _) => grid.locale().read().select_all.to_string(),
-                ("", _, true) => grid.locale().read().detail_column.to_string(),
-                (label, _, _) => label.to_owned(),
+            aria_label: match (column.label(), checkbox, expander, drag_handle) {
+                ("", true, _, _) => grid.locale().read().select_all.to_string(),
+                ("", _, true, _) => grid.locale().read().detail_column.to_string(),
+                ("", _, _, true) => grid.locale().read().reorder_column.to_string(),
+                (label, _, _, _) => label.to_owned(),
             },
             aria_colindex: "{column_index + 1}",
             aria_sort,
@@ -659,9 +694,11 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
                 GridSelectAll { grid }
             } else if expander && column.label().is_empty() {
                 // A column header with no text at all is one a sighted reader
-                // cannot place either, so an unnamed expander column shows
+                // cannot place either, so an unnamed column of controls shows
                 // what it is.
                 span { "data-detail-column": "", "{grid.locale().read().detail_column}" }
+            } else if drag_handle && column.label().is_empty() {
+                span { "data-reorder-column": "", "{grid.locale().read().reorder_column}" }
             } else {
                 {column.render_header()}
             }
@@ -888,6 +925,13 @@ pub fn GridRow<T: GridRowKey + PartialEq + 'static>(
     // what "expanded" means here.
     let expandable = grid.can_expand_details() && grid.row_has_detail(row_index);
     let expanded = expandable && grid.is_detail_expanded(row_index);
+    // While a row is dragged, the row under the pointer shows where it would
+    // land — above it or below it, whichever side it is coming from.
+    let dragging = grid.dragged_row() == Some(row_index);
+    let drop_side = grid
+        .row_drop_target()
+        .filter(|(target, _)| *target == row_index)
+        .map(|(_, side)| side.as_str());
     let editing = grid
         .edit_target()
         .is_some_and(|target| !target.form && target.row_index == Some(row_index));
@@ -903,6 +947,11 @@ pub fn GridRow<T: GridRowKey + PartialEq + 'static>(
             // where a row's children are rows of its own; in a grid it belongs
             // on the button that does the expanding (ADR-0036).
             "data-expanded": expandable.then(|| expanded.to_string()),
+            "data-dragging": dragging.then_some("true"),
+            "data-drop": drop_side,
+            // The pointer is not captured, so the row under it says so itself;
+            // this is the same stand-in a column resize uses (ADR-0018).
+            onpointermove: move |_| grid.drag_row_over(row_index),
             "data-editing": editing.then_some("true"),
             "data-deleted": grid.is_row_deleted(row_index).then_some("true"),
             "data-saving": grid.is_row_saving(row_index).then_some("true"),
@@ -962,9 +1011,17 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
     // open — neither shows what the row holds.
     let checkbox = column.spec().is_checkbox();
     let expander = column.spec().is_expander();
+    let drag_handle = column.spec().is_drag_handle();
 
     // The row as the grid shows it: with unsaved and in-flight edits.
-    let (content, tooltip) = if checkbox {
+    let (content, tooltip) = if drag_handle {
+        (
+            rsx! {
+                GridRowHandle { grid, row_index }
+            },
+            None,
+        )
+    } else if checkbox {
         (
             rsx! {
                 GridSelectCheckbox { grid, row_index, column_index }
@@ -1017,6 +1074,12 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
         }
         let at = CellFocus::new(focus_row, column_index);
         grid.set_focus(at);
+
+        // A handle cell is for dragging, and a click on one is a drag that
+        // went nowhere: it selects nothing and starts no rectangle.
+        if drag_handle {
+            return;
+        }
 
         // An expander cell is about the row's detail, and about nothing else:
         // the whole cell opens it, not only the button in it.

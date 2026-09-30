@@ -221,6 +221,9 @@ pub struct ColumnSpec<T> {
     /// Whether the column holds the buttons that open a row's detail; see
     /// [`ColumnSpec::expander`].
     pub expander: bool,
+    /// Whether the column holds the handles that drag rows into another order;
+    /// see [`ColumnSpec::drag_handle`].
+    pub drag_handle: bool,
 }
 
 impl<T> ColumnSpec<T> {
@@ -251,6 +254,7 @@ impl<T> ColumnSpec<T> {
             span: None,
             checkbox: false,
             expander: false,
+            drag_handle: false,
         }
     }
 
@@ -272,14 +276,9 @@ impl<T> ColumnSpec<T> {
     #[must_use]
     pub fn expander(mut self) -> Self {
         self.expander = true;
-        self.sortable = false;
-        self.groupable = false;
-        self.resizable = false;
         // Wide enough for the button, and for the short word its header shows
         // when the column has no label of its own.
-        self.width = ColumnWidth::Px(88.0);
-        self.align = Some(CellAlign::Center);
-        self
+        self.control_column(88.0)
     }
 
     /// Whether the column holds the buttons that open a row's detail.
@@ -309,13 +308,46 @@ impl<T> ColumnSpec<T> {
     #[must_use]
     pub fn checkbox(mut self) -> Self {
         self.checkbox = true;
+        // Wide enough for a checkbox and the cell padding around it.
+        self.control_column(44.0)
+    }
+
+    /// What every column of controls wants to be: narrow, centred, and out of
+    /// sorting, grouping and resizing. There is nothing in it to sort by.
+    fn control_column(mut self, width: f32) -> Self {
         self.sortable = false;
         self.groupable = false;
         self.resizable = false;
-        // Wide enough for a checkbox and the cell padding around it.
-        self.width = ColumnWidth::Px(44.0);
+        self.width = ColumnWidth::Px(width);
         self.align = Some(CellAlign::Center);
         self
+    }
+
+    /// Makes the column hold the handles that drag rows into another order.
+    ///
+    /// The grid draws the handles, and only where rows may be reordered at all:
+    /// `GridHandle::set_row_move` in `dioxus-datagrid` says what a move does,
+    /// and a sorted or grouped grid shows the rows in an order that is not the
+    /// data's, so it offers none.
+    ///
+    /// ```
+    /// # use datagrid_core::ColumnSpec;
+    /// # struct Task;
+    /// let handle = ColumnSpec::<Task>::new("order").drag_handle();
+    /// assert!(handle.is_drag_handle());
+    /// ```
+    #[must_use]
+    pub fn drag_handle(mut self) -> Self {
+        self.drag_handle = true;
+        // Wide enough for the grip, and for the word its header shows when the
+        // column has no label of its own.
+        self.control_column(88.0)
+    }
+
+    /// Whether the column holds the handles that drag rows into another order.
+    #[must_use]
+    pub const fn is_drag_handle(&self) -> bool {
+        self.drag_handle
     }
 
     /// Whether the column holds checkboxes that select rows.
@@ -750,6 +782,7 @@ impl<T> Clone for ColumnSpec<T> {
             span: self.span.clone(),
             checkbox: self.checkbox,
             expander: self.expander,
+            drag_handle: self.drag_handle,
         }
     }
 }
@@ -778,6 +811,7 @@ impl<T> fmt::Debug for ColumnSpec<T> {
             .field("spans", &self.span.is_some())
             .field("checkbox", &self.checkbox)
             .field("expander", &self.expander)
+            .field("drag_handle", &self.drag_handle)
             .finish()
     }
 }
@@ -817,6 +851,7 @@ impl<T> PartialEq for ColumnSpec<T> {
             && self.groupable == other.groupable
             && self.checkbox == other.checkbox
             && self.expander == other.expander
+            && self.drag_handle == other.drag_handle
             && self.pinned == other.pinned
             && self.group_path == other.group_path
             && same_closure(self.span.as_ref(), other.span.as_ref())

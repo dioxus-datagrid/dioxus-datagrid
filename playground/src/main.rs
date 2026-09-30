@@ -9,6 +9,7 @@
 mod clipboard_spike;
 mod components;
 mod detail_rows;
+mod row_order;
 
 use chrono::NaiveDate;
 use clipboard_spike::ClipboardSpike;
@@ -22,6 +23,7 @@ use dioxus_datagrid::{
     Aggregate, CellFormat, CellSelectionMode, Column, ColumnId, ColumnWidth, Create, Delete,
     EditMode, GridLocale, GridRow, GridState, Pinned, Save, SaveBatch, SelectionMode,
 };
+use row_order::ReorderRows;
 
 const STYLE: Asset = asset!("/assets/playground.css");
 
@@ -158,9 +160,9 @@ fn label(id: &str, german: bool) -> &'static str {
     }
 }
 
-/// The columns, in English or German, with totals under age and salary if
-/// `totals` is set.
-fn columns(
+/// What the switches above the grid ask of its columns.
+#[derive(Clone, Copy, PartialEq)]
+struct ColumnSetup {
     german: bool,
     totals: bool,
     pinned: bool,
@@ -168,7 +170,22 @@ fn columns(
     spanning: bool,
     checkbox: bool,
     details: bool,
-) -> Vec<Column<Employee>> {
+    row_drag: bool,
+}
+
+/// The columns, in English or German, with totals under age and salary if
+/// `totals` is set.
+fn columns(setup: ColumnSetup) -> Vec<Column<Employee>> {
+    let ColumnSetup {
+        german,
+        totals,
+        pinned,
+        header_groups,
+        spanning,
+        checkbox,
+        details,
+        row_drag,
+    } = setup;
     let label = |id| label(id, german);
     // Every column can be edited, once a `DataGridEditor` says how; without
     // one the setters are never called.
@@ -251,6 +268,13 @@ fn columns(
     };
     let columns: Vec<Column<Employee>> = if details {
         std::iter::once(Column::new("expand", "").expander())
+            .chain(columns)
+            .collect()
+    } else {
+        columns
+    };
+    let columns: Vec<Column<Employee>> = if row_drag {
+        std::iter::once(Column::new("order", "").drag_handle())
             .chain(columns)
             .collect()
     } else {
@@ -385,16 +409,18 @@ fn App() -> Element {
     let mut clipboard_spike = use_signal(|| false);
     let mut checkbox_column = use_signal(|| false);
     let mut detail_rows = use_signal(|| false);
+    let mut row_drag = use_signal(|| false);
     let cols = use_memo(move || {
-        columns(
-            german(),
-            totals(),
-            pinned(),
-            header_groups(),
-            spanning(),
-            checkbox_column(),
-            detail_rows(),
-        )
+        columns(ColumnSetup {
+            german: german(),
+            totals: totals(),
+            pinned: pinned(),
+            header_groups: header_groups(),
+            spanning: spanning(),
+            checkbox: checkbox_column(),
+            details: detail_rows(),
+            row_drag: row_drag(),
+        })
     });
 
     let mut selection = use_signal(|| SelectionMode::Multi);
@@ -611,6 +637,16 @@ fn App() -> Element {
                 label { class: "toggle",
                     input {
                         r#type: "checkbox",
+                        "data-testid": "toggle-row-drag",
+                        checked: row_drag(),
+                        onchange: move |event| row_drag.set(event.checked()),
+                    }
+                    "Drag rows"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
                         "data-testid": "toggle-detail-rows",
                         checked: detail_rows(),
                         onchange: move |event| detail_rows.set(event.checked()),
@@ -758,6 +794,9 @@ fn App() -> Element {
                     }
                     if detail_rows() {
                         EmployeeDetails { some_rows: true }
+                    }
+                    if row_drag() {
+                        ReorderRows { rows }
                     }
                     if column_menu() {
                         DataGridColumnMenu::<Employee> {}

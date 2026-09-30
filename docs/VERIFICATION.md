@@ -536,3 +536,25 @@ WebKit — none → `false`, partial → `true`, all → `false` bei gesetztem `
 
 **Nebenbefund:** `aria-checked="mixed"` auf einer nativen Checkbox wäre kein Ersatz. HTML-AAM leitet
 den Zustand aus den Eigenschaften ab; das Attribut würde ignoriert. Deshalb trägt die Box es nicht.
+
+## 17. Phase 12: Zeilen ziehen mit Pointer-Events
+
+Geprüft am 2026-09-30 in Playwright-Chromium und -WebKit (`tests/e2e/row-drag.spec.ts`), getrieben
+mit `page.mouse.move/down/up` statt mit `dragTo`.
+
+**Der Befund von §12 gilt weiter, und er gilt hier andersherum:** `dragTo` löst in WebKit keinen
+echten HTML-Drag aus, der Spalten-Drag-Test läuft deshalb ohne WebKit. Ein Zeilen-Drag aus
+Pointer-Events läuft **in beiden** — neun Tests, gleiche Ergebnisse: ziehen nach unten und nach
+oben, Loslassen am Ausgangspunkt, `Escape` mittendrin, Tastaturweg, gesperrt bei Sortierung, und
+axe ohne Befund.
+
+**Was Pointer-Events kosten:** keine Zeigererfassung ohne `web-sys` (ADR-0018). Für die Maus trägt
+das, weil jede Zeile selbst meldet, dass der Zeiger über ihr ist, und das Wurzelelement ein
+Loslassen außerhalb daran erkennt, dass keine Taste mehr gedrückt ist.
+
+**Für Touch trägt es nicht**, und das ist nicht gemessen, sondern aus der Spezifikation gelesen und
+in §12 schon einmal festgehalten: ein Touch-Zeiger wird implizit an dem Element erfasst, auf dem er
+aufsetzt, also hören die Zeilen darunter nichts. Der Griff lässt eine Berührung deshalb durch
+(`pointer_type() == "touch"` → kein Ziehen), statt eine Geste anzubieten, die nichts bewirkt. **Am
+Gerät nachzusehen** ist trotzdem etwas: dass eine Berührung auf dem Griff wirklich scrollt und nicht
+hängen bleibt.

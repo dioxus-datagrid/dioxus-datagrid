@@ -1308,3 +1308,59 @@ eine Detailzeile im Modell ist, wer sie zählt, und wer sagt, dass sie offen ist
   erst nach der Veröffentlichung gepusht. Ein `data_grid_detail` gehört deshalb in die Freigabe von
   0.10.0; bis dahin zeigt `playground/src/detail_rows.rs`, wie eine Anwendung es selbst macht: das
   Handle aus dem Kontext holen und `set_detail_rows` aufrufen.
+
+---
+
+## ADR-0037 — Zeilen ziehen: Pointer-Events, und der Griff ist nicht die Wahrheit
+
+**Kontext.** `docs/ROADMAP.md` Phase 12 verlangt „Zeilen per Drag umsortieren (Callback, die Daten
+gehören der App)". Für Spalten fiel die Wahl in Phase 10 auf HTML-Drag-and-Drop (VERIFICATION §12);
+für Zeilen fällt sie anders, und das ist begründungspflichtig.
+
+**Entscheidung.**
+
+1. **Pointer-Events statt HTML-Drag-and-Drop.** `dragTo` löst in WebKit keinen echten Drag aus —
+   deshalb läuft der Spalten-Drag-Test ohne WebKit (VERIFICATION §12). Bei Zeilen wäre dieselbe
+   Lücke schlimmer: Umsortieren ist eine Kernfunktion, kein Zusatzweg neben einer Liste. Mit
+   `pointerdown`/`pointermove`/`pointerup` läuft der Test in **Chromium und WebKit**.
+
+2. **Die Zeile unter dem Zeiger meldet sich selbst.** Es gibt keine Zeigererfassung ohne `web-sys`
+   (ADR-0018), also hat jede Zeile ein `onpointermove`, das dem Gitter sagt, dass der Zeiger über
+   ihr ist. Ein Loslassen außerhalb des Gitters merkt das Wurzelelement daran, dass keine Taste
+   mehr gedrückt ist — derselbe Weg wie beim Spaltenziehen. Ein Overlay wie beim Breitenziehen
+   gibt es nicht: es läge über den Zeilen und würde genau die Meldungen verschlucken.
+
+3. **Eine Berührung zieht nicht.** Ein Touch-Zeiger wird implizit an dem Element erfasst, auf dem
+   er aufsetzt; die Zeilen darunter hören nie von ihm. Statt halb zu funktionieren, lässt der Griff
+   eine Berührung durch: die Seite scrollt, wie sie es überall tut. Der Weg dahin, wenn es jemand
+   braucht: die Zeilen beim Beginn des Ziehens einmal vermessen (`get_client_rect`) und aus den
+   Koordinaten des Zeigers auf die Zeile schließen — dann trägt auch Touch. Bis dahin ist die
+   Tastatur der Weg, der überall funktioniert.
+
+4. **`Alt+Shift+↑/↓` bewegt die fokussierte Zeile** — dieselben Tasten, die auf einem Spaltenkopf
+   die Spalte bewegen, eine Ebene tiefer. Gezählt wird in **sichtbaren** Zeilen: mit einem Filter
+   tauscht eine Zeile mit der Zeile über ihr auf dem Schirm, nicht mit den verborgenen dazwischen.
+   Am Rand einer Seite hört es auf; eine Zeile auf die nächste Seite zu schieben, ist keine
+   Bewegung, die jemand sieht. `Escape` bricht ein laufendes Ziehen ab.
+
+5. **Nur wo die Reihenfolge auf dem Schirm die der Daten ist.** Ist sortiert oder gruppiert, gibt
+   es **keine** Griffe und die Tastatur bewegt nichts: eine Zeile innerhalb einer erzeugten
+   Reihenfolge zu verschieben, sagt den Daten darunter nichts. Gefiltert ist erlaubt — ein Filter
+   lässt die Reihenfolge, wie sie ist.
+
+6. **Das Gitter verschiebt nichts.** Es meldet `RowMove { row, from, to }` mit Indizes in die
+   Zeilen, die es bekommen hat, und `to` ist, **wo die Zeile danach steht**. `move_row` im Kern
+   macht denselben Zug an einem `Vec`, und `RowMove::apply` ist ein Aufruf dafür. Ein Gitter, das
+   die Daten der Anwendung umsortiert, wäre eine Zusage, die es nicht halten kann.
+
+**Folgen.**
+
+- Neu im Kern: `move_row`, `ColumnSpec::drag_handle`, zwei Texte in `GridLocale`. Die drei
+  Steuerspalten (Checkbox, Expander, Griff) teilen sich jetzt ein privates `control_column`.
+- Neu in `dioxus-datagrid`: `RowMove`, `DropSide`, `GridHandle::set_row_move` und die Methoden
+  darum, das Primitive `GridRowHandle`. Eine Zeile trägt `data-dragging`, die Zeile unter dem
+  Zeiger `data-drop="before"`/`"after"`.
+- Ein Klick auf eine Griffzelle wählt nichts aus und beginnt kein Rechteck: ein Klick auf einen
+  Griff ist ein Ziehen, das nicht stattgefunden hat.
+- Wie bei den Detailzeilen bindet die Registry-Komponente dafür eine neue Crate-API; ein
+  `data_grid_reorder` gehört deshalb in die Freigabe von 0.10.0 (ADR-0019).
