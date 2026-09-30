@@ -1,0 +1,59 @@
+//! Detail rows for `data_grid`, composed from what the `dioxus-datagrid` crate
+//! already draws.
+//!
+//! This file is yours once `dx components add` copies it in. The detail row
+//! itself — where it sits, what counts it, and the button that opens it — lives
+//! in the crate; this component only says what a row shows.
+
+use dioxus::prelude::*;
+use dioxus_datagrid::{DetailRows, GridHandle, GridRow};
+
+/// Props for [`DataGridDetail`].
+#[derive(Props, Clone, PartialEq)]
+pub struct DataGridDetailProps<T: GridRow + PartialEq + 'static> {
+    /// Renders the detail of a row: anything at all, a nested grid included.
+    pub render: Callback<T, Element>,
+    /// Whether a row has a detail at all. Every row has one without it.
+    ///
+    /// Make it in a hook — `use_hook(|| Callback::new(…))` — so that it is the
+    /// same callback on every render; one made afresh each time would look like
+    /// a change to the grid.
+    #[props(default)]
+    pub has_detail: Option<Callback<T, bool>>,
+}
+
+/// Gives the `DataGrid` around it detail rows: a row with a
+/// [`Column::expander`](dioxus_datagrid::Column::expander) opens one under
+/// itself. Renders nothing of its own.
+///
+/// ```rust,ignore
+/// DataGrid { data: orders, columns,
+///     DataGridDetail {
+///         render: move |order: Order| rsx! { OrderLines { order } },
+///     }
+/// }
+/// ```
+#[component]
+pub fn DataGridDetail<T: GridRow + PartialEq + 'static>(
+    props: DataGridDetailProps<T>,
+) -> Element {
+    // Put there by `DataGrid`; outside one there is nothing to open.
+    let grid = try_use_context::<GridHandle<T>>();
+    // Taking the component away closes what is open and takes the buttons with
+    // it.
+    use_drop(move || {
+        if let Some(mut grid) = grid {
+            grid.clear_detail_rows();
+        }
+    });
+    let Some(mut grid) = grid else {
+        return rsx! {};
+    };
+
+    grid.set_detail_rows(DetailRows {
+        render: props.render,
+        has_detail: props.has_detail,
+    });
+
+    rsx! {}
+}

@@ -1,11 +1,9 @@
-| [`registry/data_grid_editor`](registry/data_grid_editor) | Editing for it: cells, rows, a form dialog or batches, installed next to `data_grid`. |
-| [`registry/data_grid_group_panel`](registry/data_grid_group_panel) | Grouping: drag a header onto the panel, or pick a column from its list. |
-| [`registry/data_grid_column_menu`](registry/data_grid_column_menu) | A menu at every header: sort, group, pin, hide, fit the width. |
 # dioxus-datagrid
 
-A typed, accessible data grid for **Dioxus 0.7**: sorting, filtering, search, paging, selection,
-resizable and hideable columns, virtualization and full keyboard navigation. It follows the WAI-ARIA data grid pattern and runs on web, desktop
-and mobile.
+A typed, accessible data grid for **Dioxus 0.7**: sorting, filtering, search, paging, row and cell
+selection, editing, grouping, resizable, movable and pinnable columns, detail rows, virtualization,
+the clipboard and full keyboard navigation. It follows the WAI-ARIA data grid pattern and runs on
+web, desktop and mobile.
 
 ![The data_grid component, sorted by department with two rows selected](docs/screenshot.png)
 
@@ -29,6 +27,8 @@ project by `dx components add` and is yours to change from then on.
 | [`registry/data_grid_editor`](registry/data_grid_editor) | Editing for it: cells, rows, a form dialog or batches, installed next to `data_grid`. |
 | [`registry/data_grid_group_panel`](registry/data_grid_group_panel) | Grouping: drag a header onto the panel, or pick a column from its list. |
 | [`registry/data_grid_column_menu`](registry/data_grid_column_menu) | A menu at every header: sort, group, pin, hide, fit the width. |
+| [`registry/data_grid_detail`](registry/data_grid_detail) | Detail rows: a row opens a second one under itself, holding anything you render. |
+| [`registry/data_grid_reorder`](registry/data_grid_reorder) | Row reordering: drag a row by its handle, or move it with `Alt+Shift+Arrow`. |
 
 ## Installation
 
@@ -206,6 +206,29 @@ DataGrid { data: orders, columns,
     DataGridColumnMenu::<Order> {}
 }
 ```
+
+`dx components add data_grid_detail` lets a row open a detail row under itself, and
+`dx components add data_grid_reorder` lets rows be dragged into another order. Both are a column
+plus a component: the column holds the controls, the component says what they do.
+
+```rust
+DataGrid { data: orders, columns,
+    // With a `Column::new("expand", "").expander()` among the columns.
+    DataGridDetail {
+        render: move |order: Order| rsx! { OrderLines { order } },
+    }
+    // With a `Column::new("order", "").drag_handle()` among them.
+    DataGridReorder {
+        on_move: move |moved: RowMove<Order>| {
+            orders.with_mut(|orders| moved.apply(orders));
+        },
+    }
+}
+```
+
+The detail row is a row of the view — it has its own `aria-rowindex`, and `aria-rowcount` counts it
+— and a moved row is reported, never moved behind your back. Rows are only draggable where the
+order on screen is their own: a sorted or grouped grid draws no handles.
 
 A column can also cover several columns in a row of its own choosing, which the columns it covers
 leave to it:

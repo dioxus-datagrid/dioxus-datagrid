@@ -1,6 +1,6 @@
 {
-  "name": "data_grid_editor",
-  "description": "Editing for data_grid: cells, rows, a form dialog or batches, with adding and deleting.",
+  "name": "data_grid_detail",
+  "description": "Detail rows for data_grid: a row opens a second one under itself, holding anything you render.",
   "authors": [
     "Marius Linnartz"
   ],

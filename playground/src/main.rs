@@ -8,22 +8,20 @@
 
 mod clipboard_spike;
 mod components;
-mod detail_rows;
-mod row_order;
 
 use chrono::NaiveDate;
 use clipboard_spike::ClipboardSpike;
 use components::data_grid::DataGrid;
 use components::data_grid_column_menu::DataGridColumnMenu;
+use components::data_grid_detail::DataGridDetail;
 use components::data_grid_editor::DataGridEditor;
 use components::data_grid_group_panel::DataGridGroupPanel;
-use detail_rows::EmployeeDetails;
+use components::data_grid_reorder::DataGridReorder;
 use dioxus::prelude::*;
 use dioxus_datagrid::{
     Aggregate, CellFormat, CellSelectionMode, Column, ColumnId, ColumnWidth, Create, Delete,
-    EditMode, GridLocale, GridRow, GridState, Pinned, Save, SaveBatch, SelectionMode,
+    EditMode, GridLocale, GridRow, GridState, Pinned, RowMove, Save, SaveBatch, SelectionMode,
 };
-use row_order::ReorderRows;
 
 const STYLE: Asset = asset!("/assets/playground.css");
 
@@ -476,6 +474,33 @@ fn App() -> Element {
             rows.extend(changes.added.iter().cloned());
         });
     };
+    // What an opened row shows, and which rows have anything to show: only
+    // people of thirty or more, so that a row without a detail is in the way of
+    // anything that tries them.
+    let detail = move |employee: Employee| {
+        rsx! {
+            div { class: "employee-detail", "data-testid": "detail-{employee.id}",
+                // Not a heading: the grid sits in a page whose headings are its
+                // own, and a row's detail is not a section of it.
+                p { class: "employee-detail-name", "{employee.name}" }
+                dl {
+                    dt { "Email" }
+                    dd { "{employee.email}" }
+                    dt { "Department" }
+                    dd { "{employee.department}" }
+                }
+                // Something to reach with the keyboard, to show that a detail is
+                // an ordinary part of the page.
+                button { "data-testid": "detail-action-{employee.id}", "Write to {employee.name}" }
+            }
+        }
+    };
+    let has_detail = move |employee: Employee| employee.age >= 30;
+    // The grid reports a move; the rows are the playground's to change.
+    let move_row = move |moved: RowMove<Employee>| {
+        rows.with_mut(|rows| moved.apply(rows));
+    };
+
     let new_row = move |()| Employee {
         id: rows.peek().iter().map(|row| row.id).max().unwrap_or(0) + 1,
         name: String::new(),
@@ -793,10 +818,10 @@ fn App() -> Element {
                         DataGridGroupPanel::<Employee> {}
                     }
                     if detail_rows() {
-                        EmployeeDetails { some_rows: true }
+                        DataGridDetail { render: detail, has_detail }
                     }
                     if row_drag() {
-                        ReorderRows { rows }
+                        DataGridReorder { on_move: move_row }
                     }
                     if column_menu() {
                         DataGridColumnMenu::<Employee> {}

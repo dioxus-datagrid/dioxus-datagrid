@@ -23,12 +23,12 @@ This page is a summary. The binding documents are
 | Phase 9 | 0.7.0 | **Editing** — cell, row, dialog and batch; validation; add and delete; the grid never writes your data |
 | Phase 10 | 0.8.0 | **Grouping and aggregates** — multi-level grouping, a group panel, sum/average/min/max/count, the treegrid, grouping on the server |
 | Phase 11 | 0.9.0 | **Column layout** — order by drag and by keyboard, pinned columns at both edges, multi-level headers, a column menu, widths measured from the rendered grid, cells over several columns |
+| Phase 12 | 0.10.0 | **Rows, selection, clipboard** — detail rows, row reordering by drag and by keyboard, a checkbox column with a three-state "select all", cell and rectangular selection, copy as TSV and paste |
 
 ## Ahead
 
 | | | |
 |---|---|---|
-| Phase 12 | 0.10.0 (M) | **Rows, selection, clipboard** — detail rows, row reordering, a checkbox column, cell and range selection, copy as TSV and paste |
 | Phase 13 | 0.11.0 (M) | **Export and print** — a separate `datagrid-export` crate: CSV, Excel with formatting and groups, PDF; a print stylesheet |
 | Phase 14 | 0.12.0 (M) | **The UI around it** — toolbar, context menu, an adaptive layout that turns rows into cards on narrow screens, RTL |
 | Phase 15 | 0.13.0 (L) | **Large and live data** — loading blocks while scrolling instead of paging, infinite scroll, column virtualization, variable row heights, live updates |

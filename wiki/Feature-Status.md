@@ -1,7 +1,7 @@
 # Feature status
 
 What the grid does today, area by area, and what is not there yet. The state is the released
-**0.9.0**, which ended Phase 11 with the column layout.
+**0.10.0**, which ended Phase 12 with rows, selection and the clipboard.
 
 The comparison is against the Syncfusion Blazor DataGrid, which is the yardstick the
 [roadmap](Roadmap.md) uses. "Planned" names the phase that will close the gap;
@@ -34,7 +34,7 @@ The comparison is against the Syncfusion Blazor DataGrid, which is the yardstick
 | Cells | Your own markup per column, or the value formatted by the grid. | — |
 | Formatting | Number (decimals, thousands), currency, percent, date and date-time (`chrono` feature), alignment, wrap or truncate with a tooltip. | — |
 | Columns | Resize by dragging or with `Alt+Arrow`; reorder by dragging a header or with `Alt+Shift+Arrow`; pin to either edge; multi-level headers derived from the columns' own groups; a menu at every header (`data_grid_column_menu`); one cell over several columns. Order, widths, pinning and visibility all kept in the state. | Column virtualization for very wide grids — **Phase 15**. |
-| Rows | Fixed row height, virtualized. | Detail rows, row drag and drop, row spanning — **Phase 12**. Variable heights — **Phase 15**. |
+| Rows | Fixed row height, virtualized. A row can open a detail row under itself, holding anything, a nested grid included (`data_grid_detail`). Rows can be dragged into another order by a handle, or moved with `Alt+Shift+Arrow` (`data_grid_reorder`). | Row spanning. Variable heights — **Phase 15**, which is also what detail rows need to work in a virtualized grid. |
 | Virtualization | Rows of a fixed height: only what is in view is in the DOM, while the scrollbar, the keyboard and `aria-rowcount` cover all of them. 100,000 rows stay fluid, grouped as well. | Column virtualization, loading blocks while scrolling instead of paging, infinite scroll — **Phase 15**. |
 | Localization | Every text the grid writes comes from a `GridLocale`: English by default, German included. Number, currency and date formats per locale. | More shipped languages; one is a table of strings away. |
 | Responsive | Touch targets, virtualization verified on an Android emulator. | Rows as cards on narrow screens, filters and editing as a sheet — **Phase 14**. |
@@ -47,8 +47,8 @@ The comparison is against the Syncfusion Blazor DataGrid, which is the yardstick
 | Validation | Per column by the value's kind, per row after a column changed; errors at the cell with `aria-invalid` and `aria-describedby`. | — |
 | Add and delete | With confirmation, and the selection cleaned up afterwards. | — |
 | Who writes | Never the grid. It hands the edited row to your callback — which may be `async` — shows it while the save runs, and takes it back with the message if the save fails. | — |
-| Selection | Rows: single, multi, range with `Shift`. Survives sorting, filtering and paging, because it is keyed. | Cell and rectangular selection, a checkbox column with a three-state "select all" — **Phase 12**. |
-| Clipboard | — | Copy as TSV that Excel understands, paste into editable cells — **Phase 12**. |
+| Selection | Rows: single, multi, range with `Shift`, keyed so it survives sorting, filtering and paging. Cells: one or a rectangle grown with `Shift`+arrow or `Shift`+click. A checkbox column with a three-state "select all" over the rows on show. | — |
+| Clipboard | `Ctrl+C` copies the selection as tab-separated text a spreadsheet reads back as the block it was; `Ctrl+V` writes such a block into editable cells, whole rows or not at all. | Reading the clipboard on demand is refused by every browser, so pasting comes from the real `paste` event. |
 
 ## Around the grid
 

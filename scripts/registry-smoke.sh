@@ -30,13 +30,15 @@ echo "==> Listing components in $registry"
 cd "$fixture"
 dx components list --path "$registry"
 
-echo "==> Adding data_grid, data_grid_editor, data_grid_group_panel and data_grid_column_menu"
+echo "==> Adding data_grid and its add-ons"
 dx components add data_grid --path "$registry"
-# Installed separately, as the docs say: it names no componentDependencies
-# (ADR-0025), so it relies on data_grid being there.
+# Installed separately, as the docs say: they name no componentDependencies
+# (ADR-0025), so they rely on data_grid being there.
 dx components add data_grid_editor --path "$registry"
 dx components add data_grid_group_panel --path "$registry"
 dx components add data_grid_column_menu --path "$registry"
+dx components add data_grid_detail --path "$registry"
+dx components add data_grid_reorder --path "$registry"
 
 echo "==> Verifying the expected files were produced"
 expected=(
@@ -53,6 +55,11 @@ expected=(
   "src/components/data_grid_column_menu/mod.rs"
   "src/components/data_grid_column_menu/component.rs"
   "src/components/data_grid_column_menu/style.css"
+  # These two render nothing of their own, so they bring no stylesheet.
+  "src/components/data_grid_detail/mod.rs"
+  "src/components/data_grid_detail/component.rs"
+  "src/components/data_grid_reorder/mod.rs"
+  "src/components/data_grid_reorder/component.rs"
   "assets/dx-components-theme.css"
 )
 for file in "${expected[@]}"; do
@@ -63,14 +70,15 @@ for file in "${expected[@]}"; do
 done
 
 # Files listed under "exclude" in the manifest must not leak into user projects.
-for file in src/components/data_grid{,_editor,_group_panel,_column_menu}/{component.json,docs.md}; do
+for file in src/components/data_grid{,_editor,_group_panel,_column_menu,_detail,_reorder}/{component.json,docs.md}; do
   if [[ -f "$fixture/$file" ]]; then
     echo "FAIL: $file is excluded in the manifest but was copied anyway" >&2
     exit 1
   fi
 done
 
-for module in data_grid data_grid_editor data_grid_group_panel data_grid_column_menu; do
+for module in data_grid data_grid_editor data_grid_group_panel data_grid_column_menu \
+              data_grid_detail data_grid_reorder; do
   if ! grep -q "pub mod $module;" "$fixture/src/components/mod.rs"; then
     echo "FAIL: $module was not registered in src/components/mod.rs" >&2
     exit 1

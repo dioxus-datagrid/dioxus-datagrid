@@ -1,6 +1,6 @@
 {
-  "name": "data_grid_editor",
-  "description": "Editing for data_grid: cells, rows, a form dialog or batches, with adding and deleting.",
+  "name": "data_grid_reorder",
+  "description": "Row reordering for data_grid: drag a row into another place, or move it with the keyboard.",
   "authors": [
     "Marius Linnartz"
   ],

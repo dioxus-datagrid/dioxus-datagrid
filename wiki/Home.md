@@ -10,8 +10,8 @@ against rows in memory or against a server.
 
 | | |
 |---|---|
-| Latest release | **0.9.0** — column layout (crates.io, docs.rs) |
-| Next | Phase 12 — rows, selection, clipboard: detail rows, row reordering, a checkbox column, cell and range selection, copy and paste |
+| Latest release | **0.10.0** — rows, selection, clipboard (crates.io, docs.rs) |
+| Next | Phase 13 — export and print: a separate `datagrid-export` crate with CSV, Excel and PDF, and a print stylesheet |
 | Long game | [Roadmap to 1.0](Roadmap.md) — parity with the Syncfusion Blazor DataGrid on the features people actually use |
 
 Every phase ends in a release, so you can stop on any version and have something whole.
