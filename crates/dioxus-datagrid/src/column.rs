@@ -336,6 +336,24 @@ impl<T> Column<T> {
         self
     }
 
+    /// Makes the column hold the buttons that open and close a row's detail.
+    /// See [`ColumnSpec::expander`] and
+    /// [`GridHandle::set_detail_rows`](crate::GridHandle::set_detail_rows).
+    ///
+    /// The grid draws the buttons, so the column needs no closure of its own; a
+    /// button appears only where there is a detail to show.
+    ///
+    /// ```
+    /// # use dioxus_datagrid::Column;
+    /// # struct Order;
+    /// let expand = Column::<Order>::new("expand", "").expander();
+    /// ```
+    #[must_use]
+    pub fn expander(mut self) -> Self {
+        self.spec = self.spec.expander();
+        self
+    }
+
     /// Holds the column at an edge while the grid scrolls sideways. Pinned
     /// columns are laid out as a block at that edge, whatever the column order.
     #[must_use]

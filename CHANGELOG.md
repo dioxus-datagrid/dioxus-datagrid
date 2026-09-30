@@ -20,6 +20,15 @@ All notable changes to this project are documented here. The format follows
   or a quotation mark is quoted so a spreadsheet reads the block back unchanged. `to_tsv` and
   `tsv_field` in `datagrid-core` build the text; `GridHandle::copy_text`, `copy_selection`,
   `cell_text` and `can_copy` are the grid's side of it.
+- Detail rows. A column declared with `Column::new("expand", "").expander()` gives every row a
+  button that opens a detail row under it, holding whatever `GridHandle::set_detail_rows` renders
+  for that row — a nested grid included. The detail row is a row of the view: it has its own
+  `aria-rowindex`, `aria-rowcount` counts it, it follows its row through sorting and filtering, and
+  it takes a place on the page. `ViewRow::Detail` and `compute_view_with_details` in
+  `datagrid-core` put it there; `toggle_detail`, `is_detail_expanded`, `row_has_detail`,
+  `can_expand_details`, `collapse_all_details` and `detail_id` are the grid's side of it. Not
+  available in a virtualized or remote grid, where a row of its own height would put every row
+  after it in the wrong place.
 - A checkbox column: `Column::new("select", "").checkbox()` shows a checkbox in every row that
   selects it and a "select all" in its header, drawn by the grid because only the grid knows what is
   selected. The header's box covers the rows on show — with paging, the current page — and shows the
@@ -39,10 +48,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- `GridLocale` has four new fields: `paste_refused` and `paste_refused_one` for the message a partly
-  refused paste shows, and `select_all` and `select_row` for the names of a checkbox column's boxes.
-  `ColumnSpec` has a new public field, `checkbox`. Code that builds either from
-  `..Default::default()`, `GridLocale::german()` or `ColumnSpec::new` is unaffected.
+- `GridLocale` has seven new fields: `paste_refused` and `paste_refused_one` for the message a
+  partly refused paste shows, `select_all` and `select_row` for the names of a checkbox column's
+  boxes, and `expand_row`, `collapse_row` and `detail_column` for a detail row's button and its
+  column. `ColumnSpec` has two new public fields, `checkbox` and `expander`, and `ViewRow` a new
+  variant, `Detail`. Code that builds a locale or a column from `..Default::default()`,
+  `GridLocale::german()` or `ColumnSpec::new` is unaffected; a `match` on `ViewRow` needs an arm for
+  the new variant, which the enum being `#[non_exhaustive]` already asked for.
 - `GridOptions` has a new public field, `cell_selection`. With `CellSelectionMode::Range` set,
   `Shift`+arrow grows the cell rectangle instead of extending the row selection; `Space` still
   selects rows. Without it nothing changes.

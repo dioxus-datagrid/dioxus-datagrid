@@ -9,6 +9,7 @@
 //! [`GridRow`](datagrid_core::GridRow) trait you implement on your row type.
 
 pub use crate::column_menu::{GridColumnMenu, column_menu_entries};
+pub use crate::detail::{GridDetailRow, GridDetailToggle};
 pub use crate::edit_ui::{
     GridCellEditor, GridDeleteConfirm, GridEditDialog, GridEditStatus, GridEditToolbar,
 };
@@ -158,12 +159,20 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
                     event.prevent_default();
                 }
             }
-            // On a body cell, Enter or F2 starts editing it, if it can be.
+            // On a body cell, Enter or F2 starts editing it, if it can be — and
+            // in an expander column it opens the row's detail instead, since
+            // there is nothing there to edit.
             Key::Enter | Key::F2 if !grid.focus_is_header() => {
-                if grid
-                    .focus_data_row()
-                    .is_some_and(|row| grid.start_edit(row, focus.col))
-                {
+                let columns = grid.visible_columns();
+                let expander = columns
+                    .get(focus.col)
+                    .is_some_and(|column| column.spec().is_expander());
+                let handled = match grid.focus_data_row() {
+                    Some(row) if expander => grid.toggle_detail(row),
+                    Some(row) => grid.start_edit(row, focus.col),
+                    None => false,
+                };
+                if handled {
                     event.prevent_default();
                 }
             }
@@ -460,7 +469,9 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
     let sortable = column.is_sortable();
     // A checkbox column's header holds the "select all" instead of a label, and
     // offers neither sorting nor a column menu: there is nothing to sort by.
+    // An expander column's header holds nothing at all.
     let checkbox = column.spec().is_checkbox();
+    let expander = column.spec().is_expander();
     let direction = grid.sort_direction(&id);
     let priority = grid.sort_priority(&id);
 
@@ -605,8 +616,13 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
             role: "columnheader",
             // Named explicitly, so that a menu button or any other control
             // inside the cell does not end up in the column's name. A checkbox
-            // column usually has no label, so it borrows the box's.
-            aria_label: if checkbox && column.label().is_empty() { grid.locale().read().select_all.to_string() } else { column.label().to_owned() },
+            // or expander column usually has no label of its own, and a column
+            // header with no name is a cell a reader cannot place.
+            aria_label: match (column.label(), checkbox, expander) {
+                ("", true, _) => grid.locale().read().select_all.to_string(),
+                ("", _, true) => grid.locale().read().detail_column.to_string(),
+                (label, _, _) => label.to_owned(),
+            },
             aria_colindex: "{column_index + 1}",
             aria_sort,
             tabindex: if focused { "0" } else { "-1" },
@@ -641,6 +657,11 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
             ..attributes,
             if checkbox {
                 GridSelectAll { grid }
+            } else if expander && column.label().is_empty() {
+                // A column header with no text at all is one a sighted reader
+                // cannot place either, so an unnamed expander column shows
+                // what it is.
+                span { "data-detail-column": "", "{grid.locale().read().detail_column}" }
             } else {
                 {column.render_header()}
             }
@@ -828,6 +849,11 @@ pub fn GridRow<T: GridRowKey + PartialEq + 'static>(
                 GridGroupFooterRow { grid, row_index, attributes }
             };
         }
+        Some(ViewRow::Detail(_)) => {
+            return rsx! {
+                GridDetailRow { grid, row_index, attributes }
+            };
+        }
         _ => {}
     }
 
@@ -858,6 +884,10 @@ pub fn GridRow<T: GridRowKey + PartialEq + 'static>(
 
     let selectable = grid.selection_mode() != SelectionMode::None;
     let selected = key.as_ref().is_some_and(|key| grid.is_selected(key));
+    // A row that can be opened says whether it is; the detail row below it is
+    // what "expanded" means here.
+    let expandable = grid.can_expand_details() && grid.row_has_detail(row_index);
+    let expanded = expandable && grid.is_detail_expanded(row_index);
     let editing = grid
         .edit_target()
         .is_some_and(|target| !target.form && target.row_index == Some(row_index));
@@ -869,6 +899,10 @@ pub fn GridRow<T: GridRowKey + PartialEq + 'static>(
             aria_level,
             aria_selected: selectable.then_some(if selected { "true" } else { "false" }),
             "data-selected": "{selected}",
+            // Only for styling. `aria-expanded` on a row is for a treegrid,
+            // where a row's children are rows of its own; in a grid it belongs
+            // on the button that does the expanding (ADR-0036).
+            "data-expanded": expandable.then(|| expanded.to_string()),
             "data-editing": editing.then_some("true"),
             "data-deleted": grid.is_row_deleted(row_index).then_some("true"),
             "data-saving": grid.is_row_saving(row_index).then_some("true"),
@@ -924,14 +958,23 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
         && grid
             .edit_target()
             .is_some_and(|target| target.edits_cell(row_index, column.id()));
-    // A checkbox column shows what is selected, not what the row holds.
+    // A checkbox column shows what is selected, an expander column what is
+    // open — neither shows what the row holds.
     let checkbox = column.spec().is_checkbox();
+    let expander = column.spec().is_expander();
 
     // The row as the grid shows it: with unsaved and in-flight edits.
     let (content, tooltip) = if checkbox {
         (
             rsx! {
                 GridSelectCheckbox { grid, row_index, column_index }
+            },
+            None,
+        )
+    } else if expander {
+        (
+            rsx! {
+                GridDetailToggle { grid, row_index, column_index }
             },
             None,
         )
@@ -974,6 +1017,13 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
         }
         let at = CellFocus::new(focus_row, column_index);
         grid.set_focus(at);
+
+        // An expander cell is about the row's detail, and about nothing else:
+        // the whole cell opens it, not only the button in it.
+        if expander {
+            grid.toggle_detail(row_index);
+            return;
+        }
 
         // A checkbox cell is about its row, not about a rectangle of values:
         // a click toggles the row rather than adding it, and starts no

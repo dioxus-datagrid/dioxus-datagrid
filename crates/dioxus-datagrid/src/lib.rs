@@ -73,6 +73,7 @@
 mod column;
 mod column_menu;
 mod copy;
+mod detail;
 mod edit;
 mod edit_ui;
 mod filter_menu;
@@ -87,6 +88,7 @@ mod timer;
 
 pub use column::{CellRenderer, Column, EditorRenderer, HeaderRenderer};
 pub use column_menu::{ColumnAction, ColumnMenuEntry};
+pub use detail::DetailRows;
 pub use edit::{
     Create, Delete, EditMode, EditMove, EditStatus, EditTarget, Editing, Save, SaveBatch,
 };

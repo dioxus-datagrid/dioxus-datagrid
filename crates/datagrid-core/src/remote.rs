@@ -257,6 +257,9 @@ impl<T> Page<T> {
                         ViewRow::GroupFooter(index)
                     });
                 }
+                // Expanding a row is something a client does to a page it was
+                // sent; a page from a server never carries a detail row.
+                ViewRow::Detail(_) => {}
             }
         }
         let grouped = view.group_levels > 0;

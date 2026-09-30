@@ -85,6 +85,12 @@ pub struct GridLocale {
     pub select_all: Cow<'static, str>,
     /// Name of a checkbox column's checkbox in a row.
     pub select_row: Cow<'static, str>,
+    /// Name of the button that opens a row's detail.
+    pub expand_row: Cow<'static, str>,
+    /// Name of the button that closes a row's detail.
+    pub collapse_row: Cow<'static, str>,
+    /// Name of an expander column's header, which holds no control of its own.
+    pub detail_column: Cow<'static, str>,
     /// Accessible name of the button that opens a column's filter menu, with `{column}`.
     pub filter_menu: Cow<'static, str>,
     /// Tab of the filter menu with conditions.
@@ -280,6 +286,9 @@ impl GridLocale {
             selected_count: Cow::Borrowed("{count} selected"),
             select_all: Cow::Borrowed("Select all rows"),
             select_row: Cow::Borrowed("Select row"),
+            expand_row: Cow::Borrowed("Show details"),
+            collapse_row: Cow::Borrowed("Hide details"),
+            detail_column: Cow::Borrowed("Details"),
             filter_menu: Cow::Borrowed("Filter options for {column}"),
             filter_by_condition: Cow::Borrowed("Condition"),
             filter_by_values: Cow::Borrowed("Values"),
@@ -390,6 +399,9 @@ impl GridLocale {
             selected_count: Cow::Borrowed("{count} ausgewählt"),
             select_all: Cow::Borrowed("Alle Zeilen auswählen"),
             select_row: Cow::Borrowed("Zeile auswählen"),
+            expand_row: Cow::Borrowed("Details anzeigen"),
+            collapse_row: Cow::Borrowed("Details ausblenden"),
+            detail_column: Cow::Borrowed("Details"),
             filter_menu: Cow::Borrowed("Filteroptionen für {column}"),
             filter_by_condition: Cow::Borrowed("Bedingung"),
             filter_by_values: Cow::Borrowed("Werte"),

@@ -464,6 +464,14 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
     /// unsaved batch changes and edits being saved applied.
     pub fn with_row<R>(&self, row_index: usize, read: impl FnOnce(&T) -> R) -> Option<R> {
         let index = self.view().read().data_index(row_index)?;
+        self.with_data_row(index, read)
+    }
+
+    /// The row at `index` in the data as the grid shows it. The same as
+    /// [`with_row`](Self::with_row), asked by index rather than by position —
+    /// which is how a detail row knows the row it belongs to, even when a page
+    /// boundary sits between them.
+    pub(crate) fn with_data_row<R>(&self, index: usize, read: impl FnOnce(&T) -> R) -> Option<R> {
         let data = self.data.read();
         let row = data.get(index)?;
         let edits = self.edit_rows.read();

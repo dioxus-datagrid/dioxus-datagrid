@@ -143,6 +143,16 @@
   text-align: center;
 }
 
+/* A checkbox column. The box is the whole content of the cell, so it sits in
+   the middle of the line rather than on it, and takes no margin of its own on
+   top of the cell's padding. */
+.dg [role="gridcell"] > input[type="checkbox"],
+.dg [role="columnheader"] > input[type="checkbox"] {
+  margin: 0;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
 .dg [role="gridcell"][data-overflow="wrap"] {
   overflow-wrap: anywhere;
   white-space: normal;
@@ -566,6 +576,44 @@
   background: var(--primary-color-3);
   cursor: pointer;
   font-weight: 600;
+}
+
+/* A row's detail: one cell across the grid, holding whatever the application
+   renders for that row. It is as tall as its content, so nothing here fixes a
+   height. */
+.dg [data-detail-cell] {
+  grid-column: 1 / -1;
+  padding: 0.75rem 1rem;
+  background: var(--primary-color-2);
+  white-space: normal;
+  overflow: visible;
+}
+
+/* The button that opens a row: the same mark the group toggle uses, so the two
+   read as the same gesture. */
+.dg [data-expander] {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dg [data-expander]::before {
+  display: inline-block;
+  content: "▾";
+  transition: transform 0.15s;
+}
+
+.dg [data-expander="false"]::before {
+  transform: rotate(-90deg);
+}
+
+.dg[dir="rtl"] [data-expander="false"]::before,
+[dir="rtl"] .dg [data-expander="false"]::before {
+  transform: rotate(90deg);
 }
 
 .dg [data-group-toggle]::before {

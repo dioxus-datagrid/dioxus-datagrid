@@ -576,6 +576,44 @@
   font-weight: 600;
 }
 
+/* A row's detail: one cell across the grid, holding whatever the application
+   renders for that row. It is as tall as its content, so nothing here fixes a
+   height. */
+.dg [data-detail-cell] {
+  grid-column: 1 / -1;
+  padding: 0.75rem 1rem;
+  background: var(--primary-color-2);
+  white-space: normal;
+  overflow: visible;
+}
+
+/* The button that opens a row: the same mark the group toggle uses, so the two
+   read as the same gesture. */
+.dg [data-expander] {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dg [data-expander]::before {
+  display: inline-block;
+  content: "▾";
+  transition: transform 0.15s;
+}
+
+.dg [data-expander="false"]::before {
+  transform: rotate(-90deg);
+}
+
+.dg[dir="rtl"] [data-expander="false"]::before,
+[dir="rtl"] .dg [data-expander="false"]::before {
+  transform: rotate(90deg);
+}
+
 .dg [data-group-toggle]::before {
   display: inline-block;
   content: "▾";

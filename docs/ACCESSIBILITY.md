@@ -95,6 +95,7 @@ Kopfzeile davor (`GridHandle::header_rows`). Damit stimmt die Fokus-Koordinate d
 | `Ctrl+C` / `Cmd+C` | die Auswahl als tabgetrennten Text in die Zwischenablage |
 | `Ctrl+V` / `Cmd+V` | tabgetrennten Text in bearbeitbare Zellen einfügen, ab der Ecke der Auswahl |
 | `Space` (auf der Kopfzelle einer Checkbox-Spalte) | alle Zeilen der Seite auswählen oder freigeben |
+| `Enter` (auf einer Zelle der Expander-Spalte) | die Detailzeile dieser Zeile öffnen oder schließen |
 
 Auf macOS gilt `Cmd` gleichwertig zu `Ctrl` für `Home`/`End`.
 
@@ -318,6 +319,31 @@ Tabellenkalkulationen als Block von Zellen lesen.
   auch der nicht, passiert nichts. Ein Gitter, das nach Rechten fragt, um eine Zeile zu kopieren,
   wäre schlimmer als ein gelegentlich stilles Nein (ADR-0033).
 
+## Detailzeilen
+
+Eine Zeile kann eine zweite unter sich öffnen, die beliebigen Inhalt trägt — auch ein eigenes
+Gitter. Die Knöpfe dafür stehen in einer Spalte mit `.expander()`; was zu sehen ist, sagt die
+Anwendung über `set_detail_rows`.
+
+- **Die Detailzeile ist eine Zeile.** `role="row"` mit einer Zelle über alle Spalten
+  (`aria-colspan`), mit eigener `aria-rowindex`, und `aria-rowcount` zählt sie mit. So bleibt die
+  Zählung stimmig, statt dass die Zeilen darunter falsche Nummern tragen.
+- **`aria-expanded` sitzt am Knopf**, nicht an der Zeile: an einem `role="row"` ist es nur in einem
+  `treegrid` zulässig, wo die Kinder einer Zeile wieder Zeilen sind. Solange das Detail da ist,
+  zeigt `aria-controls` des Knopfes auf dessen `id`; ist es zu, zeigt es auf nichts — eine Zusage
+  auf ein Element, das es nicht gibt, wäre keine.
+- **Kein zusätzlicher Tab-Stopp.** Der Knopf trägt `tabindex="-1"`; die Zelle um ihn trägt die
+  Tastatur, wo `Enter` öffnet und schließt. Ein Klick irgendwo in die Zelle tut dasselbe.
+- **Die Pfeile gehen über die Detailzeile hinweg, nicht in ihre Spalten** — sie ist eine Zelle,
+  wie die Kopfzeile einer Gruppe. Was die Anwendung hineinrendert, ist danach Teil der Seite und
+  in der normalen Reihenfolge erreichbar.
+- **Nur wo es etwas zu zeigen gibt.** Zeilen ohne Detail bekommen keinen Knopf und sagen nichts
+  über einen Zustand, den sie nicht haben.
+- **Eine Expander-Spalte ohne eigene Beschriftung zeigt „Details"** im Kopf. Ein Spaltenkopf ohne
+  sichtbaren Text ist einer, den niemand einordnen kann.
+- **In einem virtualisierten oder entfernten Gitter gibt es sie nicht** — dort würden die Zeilen
+  verrutschen (ADR-0036). Die Spalte zeichnet dann gar keine Knöpfe.
+
 ## Checkbox-Spalte
 
 Eine Spalte mit `.checkbox()` zeigt in jeder Zeile eine Checkbox und darüber eine, die alle
@@ -438,6 +464,12 @@ vergessen.
   wird, was das Gitter der Zwischenablage übergibt; sie zurückzulesen ist überall verboten
   (VERIFICATION §15). Textbildung in `crates/dioxus-datagrid/tests/copy.rs`, das Format in
   `crates/datagrid-core/tests/tsv.rs`.
+- **Detailzeilen:** `tests/e2e/detail-rows.spec.ts` — öffnen und schließen, die Detailzeile steht
+  unter ihrer Zeile und trägt die nächste Zeilennummer, der Knopf zeigt auf sie, eine Zeile ohne
+  Detail hat keinen Knopf, `Enter` auf der Zelle, die Pfeile gehen über sie hinweg, der Inhalt ist
+  Teil der Seite, offen bleibt offen beim Sortieren, eine Seite trägt sie mit, virtualisiert gibt
+  es sie nicht, axe. Markup in `crates/dioxus-datagrid/tests/detail.rs`, die Ansicht selbst in
+  `crates/datagrid-core/tests/detail.rs`.
 - **Checkbox-Spalte:** `tests/e2e/checkbox.spec.ts` — Klick schaltet um, `Shift`+Klick reicht,
   Kopf-Checkbox in allen drei Zuständen (der dritte als DOM-Eigenschaft geprüft), `Space` auf Kopf-
   und Zeilenzelle, Blättern lässt die andere Seite in Ruhe, `Single` ohne Kopf-Checkbox, `None` ohne

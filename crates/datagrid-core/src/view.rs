@@ -8,7 +8,7 @@ use crate::{
     GroupKey, SortDirection, SortValue, TextCollation, Value,
 };
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// One row of a [`View`], in display order.
 ///
@@ -28,6 +28,9 @@ pub enum ViewRow {
     /// The row below an expanded group's rows that shows its aggregates: the
     /// index into [`View::groups`]. Only there when a column has an aggregate.
     GroupFooter(usize),
+    /// The detail row of an expanded data row, right below it: the index into
+    /// the original rows of the row it belongs to.
+    Detail(usize),
 }
 
 impl ViewRow {
@@ -36,7 +39,9 @@ impl ViewRow {
     pub fn data_index(self) -> Option<usize> {
         match self {
             Self::Data(index) => Some(index),
-            Self::GroupHeader(_) | Self::GroupFooter(_) => None,
+            // A detail row belongs to a data row but is not one: whatever walks
+            // the data rows must not meet the same row twice.
+            Self::GroupHeader(_) | Self::GroupFooter(_) | Self::Detail(_) => None,
         }
     }
 
@@ -45,7 +50,16 @@ impl ViewRow {
     pub fn group_index(self) -> Option<usize> {
         match self {
             Self::GroupHeader(group) | Self::GroupFooter(group) => Some(group),
-            Self::Data(_) => None,
+            Self::Data(_) | Self::Detail(_) => None,
+        }
+    }
+
+    /// The index into the original rows of the row a detail row belongs to.
+    #[must_use]
+    pub fn detail_index(self) -> Option<usize> {
+        match self {
+            Self::Detail(index) => Some(index),
+            Self::Data(_) | Self::GroupHeader(_) | Self::GroupFooter(_) => None,
         }
     }
 }
@@ -210,6 +224,25 @@ impl View {
 /// next. A page index past the last page is clamped, so a stale index yields
 /// the last page instead of nothing. A page size of `0` disables paging.
 pub fn compute_view<T>(rows: &[T], columns: &[ColumnSpec<T>], state: &GridState) -> View {
+    compute_view_with_details(rows, columns, state, &HashSet::new())
+}
+
+/// Filters, sorts and pages `rows` as [`compute_view`] does, and puts a
+/// [`Detail`](ViewRow::Detail) row under every row in `expanded`.
+///
+/// `expanded` holds indices into `rows`, not positions in the view: what is
+/// expanded follows its row through sorting, filtering and paging.
+///
+/// A detail row takes a place on the page like any other, which is what keeps
+/// `aria-rowcount` and `aria-rowindex` honest — and means a row can sit at the
+/// end of one page with its detail at the start of the next, the same way a
+/// group can span two pages.
+pub fn compute_view_with_details<T>(
+    rows: &[T],
+    columns: &[ColumnSpec<T>],
+    state: &GridState,
+    expanded: &HashSet<usize>,
+) -> View {
     let mut indices = filter_indices(rows, columns, state);
     let filtered_len = indices.len();
 
@@ -252,6 +285,14 @@ pub fn compute_view<T>(rows: &[T], columns: &[ColumnSpec<T>], state: &GridState)
         (builder.out, builder.groups)
     };
 
+    // Inserted before paging, so that every row of the view — detail rows
+    // included — has one place and one number.
+    let all_rows = if expanded.is_empty() {
+        all_rows
+    } else {
+        with_details(all_rows, expanded)
+    };
+
     let row_count = all_rows.len();
     let page_count = match state.page {
         Some(page) if page.size > 0 => row_count.div_ceil(page.size),
@@ -287,6 +328,20 @@ pub fn compute_view<T>(rows: &[T], columns: &[ColumnSpec<T>], state: &GridState)
         group_levels: grouped.len(),
         totals,
     }
+}
+
+/// Puts a detail row under every data row whose index is in `expanded`.
+fn with_details(rows: Vec<ViewRow>, expanded: &HashSet<usize>) -> Vec<ViewRow> {
+    let mut out = Vec::with_capacity(rows.len() + expanded.len());
+    for row in rows {
+        out.push(row);
+        if let Some(index) = row.data_index()
+            && expanded.contains(&index)
+        {
+            out.push(ViewRow::Detail(index));
+        }
+    }
+    out
 }
 
 /// Turns sorted rows into group headers, data rows and group footers.

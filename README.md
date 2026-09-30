@@ -295,7 +295,9 @@ cell selection on, `Shift+Arrow` grows a rectangle of cells instead, and `Shift`
 the anchor to the cell clicked. `Ctrl+C` copies the selection as tab-separated text, which a
 spreadsheet reads back as the block it was, and `Ctrl+V` writes such a block back into editable
 cells, from the corner of the selection down and right. A column declared with `.checkbox()` shows
-a checkbox per row and a tri-state "select all" above them, neither of which adds a tab stop.
+a checkbox per row and a tri-state "select all" above them, and one declared with `.expander()`
+opens a detail row under its row — holding anything, a nested grid included. Neither adds a tab
+stop: the cell around the control carries the keyboard.
 `aria-rowcount` and `aria-rowindex` stay correct across pages. On a header, `Alt+ArrowLeft` and
 `Alt+ArrowRight` resize the column. A cell over several columns, and a group over several column
 headers, is one stop: the arrows move to the cell after it, never into the columns it covers.

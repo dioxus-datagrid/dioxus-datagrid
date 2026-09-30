@@ -193,7 +193,9 @@ im Treegrid-Muster; 100.000 Zeilen gruppiert und virtualisiert flüssig.
 ### Phase 12: Zeilen, Auswahl, Zwischenablage → 0.10.0 (M)
 
 - Detailzeilen (Master-Detail) mit beliebigem Inhalt, auch verschachtelten Grids; ARIA über
-  `aria-expanded` und `aria-controls`.
+  `aria-expanded` und `aria-controls`. **Zur Freigabe von 0.10.0 gehört eine Registry-Komponente
+  `data_grid_detail`** — sie bindet `set_detail_rows` und darf nach ADR-0019 erst nach der
+  Veröffentlichung der Crates gepusht werden (ADR-0036).
 - Zeilen per Drag umsortieren (Callback, die Daten gehören der App).
 - Checkbox-Spalte mit „alle auswählen" (dreistufig).
 - Zellauswahl und rechteckige Bereiche (`Shift+Pfeil` im Zellmodus).

@@ -11,8 +11,6 @@
 use crate::GridHandle;
 use datagrid_core::{CellFocus, GridRow as GridRowKey, SelectionMode};
 use dioxus::prelude::*;
-use std::sync::atomic::{AtomicU64, Ordering};
-
 /// Writes the header checkbox's third state, which no attribute can express.
 ///
 /// `indeterminate` is a DOM property and HTML has no attribute for it; Dioxus
@@ -27,10 +25,6 @@ const SET_INDETERMINATE: &str = r#"
     }
     return true;
 "#;
-
-/// Numbers the header checkboxes, so that two grids on a page do not share an
-/// id. Only ever read from the one thread a `VirtualDom` runs on.
-static NEXT_ID: AtomicU64 = AtomicU64::new(0);
 
 /// The "select all" checkbox of a checkbox column's header.
 ///
@@ -48,7 +42,8 @@ static NEXT_ID: AtomicU64 = AtomicU64::new(0);
 #[component]
 pub fn GridSelectAll<T: GridRowKey + PartialEq + 'static>(grid: GridHandle<T>) -> Element {
     let mut grid = grid;
-    let id = use_hook(|| format!("dg-select-all-{}", NEXT_ID.fetch_add(1, Ordering::Relaxed)));
+    // The grid's own id, so two grids on a page do not share one.
+    let id = grid.element_id("select-all");
 
     // Read inside the effect, not captured from this render, so that the effect
     // re-runs whenever the selection or the rows on show change.

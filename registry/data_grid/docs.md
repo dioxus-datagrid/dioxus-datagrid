@@ -244,6 +244,23 @@ A column only does what you give it a closure for:
 - `.span(|row| ...)` — how many columns this column's cell covers in that row.
   The columns it covers render no cell of their own; the wide cell carries
   `aria-colspan` and never leaves its pinned block.
+- `.expander()` — a button in every row that opens a detail row under it,
+  holding whatever you render for that row, a nested grid included. What it
+  shows comes from `set_detail_rows` on the grid handle, which a child component
+  of the grid can reach through the context:
+  ```rust,ignore
+  #[component]
+  fn OrderDetails() -> Element {
+      let mut grid = use_context::<GridHandle<Order>>();
+      let render = use_hook(|| Callback::new(|order: Order| rsx! { OrderLines { order } }));
+      grid.set_detail_rows(DetailRows { render, has_detail: None });
+      rsx! {}
+  }
+  ```
+  A row without a detail gets no button. `Enter` on the cell opens and closes
+  it, and the detail row counts as a row: it has its own `aria-rowindex`, and
+  it can end up on the next page. Not available in a virtualized or remote
+  grid, where the rows would land in the wrong place.
 - `.checkbox()` — a checkbox in every row that selects it, and a "select all"
   above them. The grid draws them, so the column needs no closure at all; it
   comes narrow, centred and out of sorting, grouping and resizing. The header's
@@ -263,7 +280,8 @@ jump within a row and `Ctrl+Home`/`Ctrl+End` to the corners. On a header,
 `Enter` sorts and `Shift+Enter` adds that column to a multi-column sort. On a
 row, `Space` selects and `Shift+Space` or `Shift+Arrow` extends the selection. On
 a checkbox column's header, `Space` selects every row on show, or lets them all
-go. With
+go; on a cell of an expander column, `Enter` opens and closes the row's detail.
+With
 `cell_selection` set, `Shift+Arrow` grows a rectangle of cells instead and `Space`
 stays the row's. `Ctrl+C` copies the selection — the rectangle, else the selected
 rows, else the focused cell — as tab-separated text, formatted as the grid shows

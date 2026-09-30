@@ -8,6 +8,7 @@
 
 mod clipboard_spike;
 mod components;
+mod detail_rows;
 
 use chrono::NaiveDate;
 use clipboard_spike::ClipboardSpike;
@@ -15,6 +16,7 @@ use components::data_grid::DataGrid;
 use components::data_grid_column_menu::DataGridColumnMenu;
 use components::data_grid_editor::DataGridEditor;
 use components::data_grid_group_panel::DataGridGroupPanel;
+use detail_rows::EmployeeDetails;
 use dioxus::prelude::*;
 use dioxus_datagrid::{
     Aggregate, CellFormat, CellSelectionMode, Column, ColumnId, ColumnWidth, Create, Delete,
@@ -165,6 +167,7 @@ fn columns(
     header_groups: bool,
     spanning: bool,
     checkbox: bool,
+    details: bool,
 ) -> Vec<Column<Employee>> {
     let label = |id| label(id, german);
     // Every column can be edited, once a `DataGridEditor` says how; without
@@ -238,9 +241,16 @@ fn columns(
             .editable(|row: &mut Employee, since: NaiveDate| row.since = since),
     ];
     // The selection column comes first, before anything groups, pins or
-    // reorders the rest.
+    // reorders the rest; the expander column right after it.
     let columns: Vec<Column<Employee>> = if checkbox {
         std::iter::once(Column::new("select", "").checkbox())
+            .chain(columns)
+            .collect()
+    } else {
+        columns
+    };
+    let columns: Vec<Column<Employee>> = if details {
+        std::iter::once(Column::new("expand", "").expander())
             .chain(columns)
             .collect()
     } else {
@@ -374,6 +384,7 @@ fn App() -> Element {
     let mut spanning = use_signal(|| false);
     let mut clipboard_spike = use_signal(|| false);
     let mut checkbox_column = use_signal(|| false);
+    let mut detail_rows = use_signal(|| false);
     let cols = use_memo(move || {
         columns(
             german(),
@@ -382,6 +393,7 @@ fn App() -> Element {
             header_groups(),
             spanning(),
             checkbox_column(),
+            detail_rows(),
         )
     });
 
@@ -599,6 +611,16 @@ fn App() -> Element {
                 label { class: "toggle",
                     input {
                         r#type: "checkbox",
+                        "data-testid": "toggle-detail-rows",
+                        checked: detail_rows(),
+                        onchange: move |event| detail_rows.set(event.checked()),
+                    }
+                    "Detail rows"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
                         "data-testid": "toggle-checkbox-column",
                         checked: checkbox_column(),
                         onchange: move |event| checkbox_column.set(event.checked()),
@@ -733,6 +755,9 @@ fn App() -> Element {
                     lang: if german() { "de" } else { "en" },
                     if grouping() {
                         DataGridGroupPanel::<Employee> {}
+                    }
+                    if detail_rows() {
+                        EmployeeDetails { some_rows: true }
                     }
                     if column_menu() {
                         DataGridColumnMenu::<Employee> {}

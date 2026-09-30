@@ -1244,3 +1244,67 @@ genau das Werkzeug für diese Prüfung von Hand. Er geht heraus, sobald sie gela
   ohne Namen dasteht.
 - Gruppenzeilen bekommen keine Checkbox. „Eine Gruppe auswählen" ist eine eigene Entscheidung und
   kommt, wenn ein Anwendungsfall sie verlangt.
+
+---
+
+## ADR-0036 — Detailzeilen: eine Zeile der Ansicht, kein Anhängsel an die Zeile
+
+**Kontext.** `docs/ROADMAP.md` Phase 12 verlangt „Detailzeilen (Master-Detail) mit beliebigem
+Inhalt, auch verschachtelten Grids; ARIA über `aria-expanded` und `aria-controls`". Offen war, was
+eine Detailzeile im Modell ist, wer sie zählt, und wer sagt, dass sie offen ist.
+
+**Entscheidung.**
+
+1. **Sie ist eine Zeile der Ansicht.** `ViewRow::Detail(index)` steht neben `Data`, `GroupHeader`
+   und `GroupFooter`; `compute_view_with_details` setzt sie **vor dem Blättern** unter ihre Zeile.
+   Damit zählt sie in `row_count`, bekommt eine eigene `aria-rowindex`, folgt ihrer Zeile durch
+   Sortieren und Filtern und verschwindet mit ihr, wenn ein Filter sie wegnimmt.
+   *Alternative:* sie nach dem Blättern einzusetzen, damit eine Seite immer gleich viele
+   Datenzeilen hat. Verworfen — dann wüsste niemand, wie viele Zeilen die Ansicht insgesamt hat,
+   und zwei Seiten trügen dieselben Zeilennummern. Der Preis ist, dass eine Zeile am Ende einer
+   Seite stehen und ihr Detail auf der nächsten beginnen kann; dieselbe Regel gilt seit Phase 10
+   für Gruppen.
+
+2. **Offen ist ein Schlüssel, kein Index.** Das Gitter merkt sich die geöffneten Zeilen als
+   `HashSet<T::Key>` und übersetzt erst beim Berechnen der Ansicht in Indizes. Damit übersteht das
+   Öffnen Sortieren, Filtern und Blättern. Wie die Zeilenauswahl steht es **nicht** in `GridState`:
+   ein Schlüssel ist nicht serialisierbar, und ein Neuladen fängt geschlossen an.
+
+3. **`aria-expanded` gehört an den Knopf, nicht an die Zeile.** Das war ein Fund von axe, nicht
+   eine Vermutung: `aria-expanded` an einem `role="row"` ist nur in einem `treegrid` zulässig, wo
+   die Kinder einer Zeile wieder Zeilen sind (`aria-conditional-attr`). Die Zeile trägt deshalb nur
+   `data-expanded` fürs Gestalten; der Knopf trägt `aria-expanded` und, solange das Detail da ist,
+   `aria-controls` auf dessen `id`. Auf ein Element zu zeigen, das es nicht gibt, sagt nichts.
+
+4. **Die Knöpfe stehen in einer eigenen Spalte**, `Column::expander()`, wie die Checkboxen in einer
+   Checkbox-Spalte (ADR-0035) — gezeichnet vom Gitter, weil nur es weiß, was offen ist, und nur
+   dort, wo es etwas zu zeigen gibt (`has_detail`). Kein zusätzlicher Tab-Stopp: `Enter` auf der
+   Zelle öffnet und schließt, ein Klick auf die ganze Zelle auch.
+
+5. **Eine Spaltenüberschrift ohne Text ist eine Überschrift, die niemand einordnen kann.** Eine
+   Expander-Spalte ohne eigene Beschriftung zeigt deshalb das kurze Wort aus der Sprache des
+   Gitters („Details"), und ist so breit, dass es hineinpasst. Auch das kam von axe
+   (`empty-table-header`): ein zugänglicher Name allein reicht der Regel nicht, sichtbarer Text
+   muss da sein. Die Checkbox-Spalte braucht keinen, weil in ihrem Kopf eine benannte Checkbox
+   steht.
+
+6. **Virtualisiert und entfernt: nein, und zwar hörbar.** Ein virtualisiertes Gitter setzt seine
+   Zeilen, indem es gleiche Höhen zählt; ein Detail ist so hoch wie sein Inhalt. Ein entferntes
+   Gitter wird von einem Server geblättert, der von einer Zeile, die der Client einfügt, nichts
+   weiß. In beiden Fällen ist `can_expand_details()` falsch, `toggle_detail` tut nichts und gibt
+   `false` zurück, und die Spalte zeichnet gar keine Knöpfe — lieber gar kein Angebot als eines,
+   das die Zeilen verrutschen lässt.
+
+**Folgen.**
+
+- Neu im Kern: `ViewRow::Detail`, `ViewRow::detail_index`, `compute_view_with_details`,
+  `ColumnSpec::expander`, drei Texte in `GridLocale`. `compute_view` bleibt, wie es war.
+- Neu in `dioxus-datagrid`: `DetailRows`, `GridHandle::set_detail_rows` und die Methoden um
+  `toggle_detail`, die Primitiven `GridDetailRow` und `GridDetailToggle`, sowie
+  `GridHandle::element_id` — eine Nummer pro Gitter, damit die `id`s zweier Gitter auf einer Seite
+  sich unterscheiden. Die Kopf-Checkbox aus ADR-0035 benutzt sie jetzt auch.
+- **Noch keine Registry-Komponente.** Sie würde `set_detail_rows` brauchen, das es auf crates.io
+  noch nicht gibt — nach ADR-0019 wird eine Komponente, die an eine neue Crate-API gebunden ist,
+  erst nach der Veröffentlichung gepusht. Ein `data_grid_detail` gehört deshalb in die Freigabe von
+  0.10.0; bis dahin zeigt `playground/src/detail_rows.rs`, wie eine Anwendung es selbst macht: das
+  Handle aus dem Kontext holen und `set_detail_rows` aufrufen.

@@ -1,13 +1,14 @@
 //! The `use_grid` hook and the handle it returns.
 
 use crate::Column;
+use crate::detail::DetailRows;
 use crate::edit::{EditRows, EditStatus, EditTarget, Editing, Session};
 use datagrid_core::{
     CellFocus, CellRange, CellSelectionMode, ColumnFilter, ColumnId, ColumnSpec, ColumnWidth,
     DEFAULT_REMOTE_PAGE_SIZE, DistinctValues, GridLocale, GridQuery, GridRow, GridState, GroupSpan,
     NavKey, Pinned, RowSpans, Selection, SelectionExtent, SelectionMode, SortDirection, ValueKind,
-    View, ViewRow, compute_view, distinct_values, group_header_rows, group_levels, navigate,
-    reveal_scroll_top, rows_per_viewport, visible_range,
+    View, ViewRow, compute_view_with_details, distinct_values, group_header_rows, group_levels,
+    navigate, reveal_scroll_top, rows_per_viewport, visible_range,
 };
 use dioxus::html::ScrollBehavior;
 use dioxus::html::geometry::PixelsVector2D;
@@ -17,6 +18,7 @@ use std::future::Future;
 use std::ops::Range;
 use std::pin::Pin;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 /// The measured geometry of the grid's scroll container, in CSS pixels.
@@ -265,6 +267,16 @@ pub struct GridHandle<T: GridRow + 'static> {
     pub(crate) remote: bool,
     /// How the grid edits; see [`GridHandle::set_editing`]. Not reactive: it
     /// is set on every render and only read when an edit starts or ends.
+    /// What a row's detail renders, and which rows have one; `None` where the
+    /// grid has no detail rows at all.
+    pub(crate) detail_config: Signal<Option<DetailRows<T>>>,
+    /// The rows whose detail is open, by key, so that sorting, filtering and
+    /// paging leave them open. Not part of [`GridState`]: like the selection, it
+    /// does not survive a reload.
+    pub(crate) expanded_details: Signal<HashSet<T::Key>>,
+    /// Makes this grid's generated ids its own; see
+    /// [`element_id`](Self::element_id).
+    pub(crate) id_base: u64,
     pub(crate) edit_config: Signal<Option<Editing<T>>>,
     /// The edit in progress. Changes with every keystroke, so only editors
     /// read it; cells read [`edit_target`](Self::edit_target).
@@ -358,6 +370,7 @@ where
 
     let base = use_grid_base(data, columns, options, None);
     let state = base.state;
+    let expanded = base.expanded_details;
 
     // A selected row that is no longer in the data cannot be seen or
     // deselected, so it leaves the selection with its row. Only local grids do
@@ -378,11 +391,26 @@ where
             .iter()
             .map(|column| column.spec().clone())
             .collect();
-        compute_view(&rows, &specs, &state.read())
+        // Which rows are expanded, as indices into the data: the view knows
+        // rows by their place, the grid keeps them by their key.
+        let open = expanded.read();
+        let details: HashSet<usize> = if open.is_empty() {
+            HashSet::new()
+        } else {
+            rows.iter()
+                .enumerate()
+                .filter(|(_, row)| open.contains(&row.key()))
+                .map(|(index, _)| index)
+                .collect()
+        };
+        compute_view_with_details(&rows, &specs, &state.read(), &details)
     });
 
     base.with_view(view)
 }
+
+/// Numbers the grids on a page, so that the ids two of them generate differ.
+static NEXT_GRID_ID: AtomicU64 = AtomicU64::new(0);
 
 /// Everything a grid owns except the view, which a local grid computes from its
 /// rows and a remote grid takes from the server's answer.
@@ -413,6 +441,9 @@ pub(crate) struct GridBase<T: GridRow + 'static> {
     locale: Signal<GridLocale>,
     distinct: CopyValue<Option<DistinctSource>>,
     remote: bool,
+    detail_config: Signal<Option<DetailRows<T>>>,
+    expanded_details: Signal<HashSet<T::Key>>,
+    id_base: u64,
     edit_config: Signal<Option<Editing<T>>>,
     edit_session: Signal<Option<Session<T>>>,
     pub(crate) edit_rows: Signal<EditRows<T>>,
@@ -509,6 +540,12 @@ where
         locale,
         distinct: use_hook(move || CopyValue::new(distinct)),
         remote,
+        detail_config: use_signal(|| None::<DetailRows<T>>),
+        expanded_details: use_signal(HashSet::<T::Key>::new),
+        // A counter rather than a random number: ids only have to differ from
+        // the other grids on the page, and a stable one keeps a server-rendered
+        // page and its client agreeing.
+        id_base: use_hook(|| NEXT_GRID_ID.fetch_add(1, Ordering::Relaxed)),
         edit_config: use_signal(|| None::<Editing<T>>),
         edit_session,
         edit_rows: use_signal(EditRows::default),
@@ -587,6 +624,9 @@ impl<T: GridRow + PartialEq> GridBase<T> {
             distinct: self.distinct,
             view,
             remote: self.remote,
+            detail_config: self.detail_config,
+            expanded_details: self.expanded_details,
+            id_base: self.id_base,
             edit_config: self.edit_config,
             edit_session: self.edit_session,
             edit_target,
@@ -629,6 +669,16 @@ impl<T: GridRow> GridHandle<T> {
     #[must_use]
     pub fn columns(&self) -> ReadSignal<Vec<Column<T>>> {
         self.columns
+    }
+
+    /// An id unique to this grid, for the elements that have to be named by
+    /// one: `aria-controls`, a label's `for`, and anything else that points at
+    /// an element rather than containing it.
+    ///
+    /// Two grids on a page generate different ids for the same `name`.
+    #[must_use]
+    pub fn element_id(&self, name: &str) -> String {
+        format!("dg-{}-{name}", self.id_base)
     }
 
     /// The current view: which rows to draw, in which order.
@@ -1098,8 +1148,9 @@ impl<T: GridRow> GridHandle<T> {
         };
 
         match self.row_kind(row_index) {
-            // A group's own row is one cell across the whole grid.
-            Some(ViewRow::GroupHeader(_)) => {
+            // A group's own row, and a detail row, are one cell across the
+            // whole grid: the arrows move past them, not through them.
+            Some(ViewRow::GroupHeader(_) | ViewRow::Detail(_)) => {
                 let mut declared = vec![(1, Pinned::None); columns];
                 if let Some(first) = declared.first_mut() {
                     first.0 = columns;

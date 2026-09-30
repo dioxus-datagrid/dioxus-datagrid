@@ -218,6 +218,9 @@ pub struct ColumnSpec<T> {
     /// Whether the column holds checkboxes that select rows; see
     /// [`ColumnSpec::checkbox`].
     pub checkbox: bool,
+    /// Whether the column holds the buttons that open a row's detail; see
+    /// [`ColumnSpec::expander`].
+    pub expander: bool,
 }
 
 impl<T> ColumnSpec<T> {
@@ -247,7 +250,42 @@ impl<T> ColumnSpec<T> {
             group_path: Vec::new(),
             span: None,
             checkbox: false,
+            expander: false,
         }
+    }
+
+    /// Makes the column hold the buttons that open and close a row's detail.
+    ///
+    /// The grid draws the buttons, since only the grid knows what is open. Like
+    /// [`checkbox`](ColumnSpec::checkbox) it sets what such a column wants to
+    /// be: narrow, centred, and out of sorting, grouping and resizing.
+    ///
+    /// A button appears only where there is something to show; see
+    /// `GridHandle::set_detail_rows` in `dioxus-datagrid`.
+    ///
+    /// ```
+    /// # use datagrid_core::ColumnSpec;
+    /// # struct Order;
+    /// let expand = ColumnSpec::<Order>::new("expand").expander();
+    /// assert!(expand.is_expander());
+    /// ```
+    #[must_use]
+    pub fn expander(mut self) -> Self {
+        self.expander = true;
+        self.sortable = false;
+        self.groupable = false;
+        self.resizable = false;
+        // Wide enough for the button, and for the short word its header shows
+        // when the column has no label of its own.
+        self.width = ColumnWidth::Px(88.0);
+        self.align = Some(CellAlign::Center);
+        self
+    }
+
+    /// Whether the column holds the buttons that open a row's detail.
+    #[must_use]
+    pub const fn is_expander(&self) -> bool {
+        self.expander
     }
 
     /// Makes the column a column of checkboxes that select rows, with a
@@ -711,6 +749,7 @@ impl<T> Clone for ColumnSpec<T> {
             group_path: self.group_path.clone(),
             span: self.span.clone(),
             checkbox: self.checkbox,
+            expander: self.expander,
         }
     }
 }
@@ -738,6 +777,7 @@ impl<T> fmt::Debug for ColumnSpec<T> {
             .field("group_path", &self.group_path)
             .field("spans", &self.span.is_some())
             .field("checkbox", &self.checkbox)
+            .field("expander", &self.expander)
             .finish()
     }
 }
@@ -776,6 +816,7 @@ impl<T> PartialEq for ColumnSpec<T> {
             && self.aggregates == other.aggregates
             && self.groupable == other.groupable
             && self.checkbox == other.checkbox
+            && self.expander == other.expander
             && self.pinned == other.pinned
             && self.group_path == other.group_path
             && same_closure(self.span.as_ref(), other.span.as_ref())

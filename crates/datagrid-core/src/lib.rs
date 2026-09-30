@@ -106,7 +106,9 @@ pub use span::RowSpans;
 pub use state::{GridState, PageState};
 pub use tsv::{from_tsv, to_tsv, tsv_field};
 pub use value::CellValue;
-pub use view::{DistinctValues, View, ViewRow, compute_view, distinct_values};
+pub use view::{
+    DistinctValues, View, ViewRow, compute_view, compute_view_with_details, distinct_values,
+};
 pub use virtualize::{
     offset_of, reveal_scroll_top, rows_per_viewport, total_height, visible_range,
 };
