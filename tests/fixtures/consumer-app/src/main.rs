@@ -1,19 +1,24 @@
 //! Consumer fixture for the registry smoke test.
 //!
-//! `scripts/registry-smoke.sh` runs `dx components add` for `data_grid`,
-//! `data_grid_editor` and `data_grid_group_panel` against this crate and then
-//! checks that it compiles. The code below is what the components'
-//! `docs.md` tells a user to write, so the smoke test also catches documentation
-//! that no longer matches the component.
+//! `scripts/registry-smoke.sh` runs `dx components add` for `data_grid` and
+//! every add-on against this crate and then checks that it compiles. The code
+//! below is what the components' `docs.md` tells a user to write, so the smoke
+//! test also catches documentation that no longer matches the component — and
+//! every add-on is actually mounted here, because a module that compiles says
+//! nothing about a component nobody renders.
 
 mod components;
 
 use components::data_grid::DataGrid;
 use components::data_grid_column_menu::DataGridColumnMenu;
+use components::data_grid_detail::DataGridDetail;
 use components::data_grid_editor::DataGridEditor;
 use components::data_grid_group_panel::DataGridGroupPanel;
+use components::data_grid_reorder::DataGridReorder;
 use dioxus::prelude::*;
-use dioxus_datagrid::{Aggregate, Column, Delete, EditMode, GridRow, Save, SelectionMode};
+use dioxus_datagrid::{
+    Aggregate, Column, Delete, EditMode, GridRow, RowMove, Save, SelectionMode,
+};
 
 fn main() {
     dioxus::launch(App);
@@ -45,6 +50,10 @@ fn App() -> Element {
 
     let columns = use_hook(|| {
         vec![
+            // The grid draws the handle and the expander; the add-ons only say
+            // what a move does and what a detail row shows.
+            Column::new("order", "").drag_handle(),
+            Column::new("expand", "").expander(),
             Column::new("name", "Name")
                 .cell(|user: &User| rsx! { "{user.name}" })
                 .sort_by_text(|user: &User| user.name.as_str())
@@ -76,6 +85,16 @@ fn App() -> Element {
             },
             DataGridGroupPanel::<User> {}
             DataGridColumnMenu::<User> {}
+            DataGridDetail {
+                render: move |user: User| rsx! {
+                    div { "{user.name} is {user.age}" }
+                },
+            }
+            DataGridReorder {
+                on_move: move |moved: RowMove<User>| {
+                    users.with_mut(|users| moved.apply(users));
+                },
+            }
             DataGridEditor {
                 mode: EditMode::Row,
                 on_save: move |save: Save<User>| {
