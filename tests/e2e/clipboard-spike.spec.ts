@@ -5,7 +5,13 @@ import { expect, type Page, test } from "@playwright/test";
 // asserts a verdict — the verdicts are what we are trying to find out, and they
 // are recorded in docs/VERIFICATION.md. Goes away with the spike.
 //
-//   npx playwright test clipboard-spike --project=webkit --reporter=list
+//   SPIKE=1 npx playwright test clipboard-spike --project=webkit --reporter=list
+//
+// Skipped unless SPIKE=1: a test that asserts no verdict cannot pass or fail
+// meaningfully, so it has no business deciding a CI run — and a probe an engine
+// never answers only runs the suite into its timeouts.
+
+test.skip(!process.env.SPIKE, "spike scaffolding; run it with SPIKE=1");
 
 const probe = (page: Page, id: string) => page.getByTestId(`spike-${id}-result`);
 

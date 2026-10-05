@@ -120,6 +120,9 @@ test("a moved column survives a reload", async ({ page }) => {
   expect(await headerOrder(page)).toEqual(["Name", "Age", "Email", "Department"]);
 
   await page.reload();
+  // The grid first, then its order: reading the headers is one shot without a
+  // retry, and a WASM app is not on the page the instant the reload returns.
+  await expect(page.locator(".dg-count")).toHaveText("12 rows");
 
   expect(await headerOrder(page)).toEqual(["Name", "Age", "Email", "Department"]);
 });

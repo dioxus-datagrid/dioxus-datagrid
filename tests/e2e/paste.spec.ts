@@ -36,14 +36,18 @@ async function paste(page: Page, text: string) {
   await page.evaluate((text) => {
     const data = new DataTransfer();
     data.setData("text/plain", text);
-    const event = new ClipboardEvent("paste", {
-      clipboardData: data,
-      bubbles: true,
-      cancelable: true,
-    });
-    // WebKit ignores clipboardData in the constructor, so it is put in place.
-    if (!event.clipboardData) {
-      Object.defineProperty(event, "clipboardData", { value: data });
+    const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true });
+    // The engines disagree about the constructor's `clipboardData`: WebKit
+    // ignores it, and Firefox answered with nothing a listener could read. So
+    // the data is put in place here in every engine rather than in the init,
+    // which is the one route all three agree on.
+    Object.defineProperty(event, "clipboardData", { value: data, configurable: true });
+    // Said plainly, so a failure names the cause: an event that carries
+    // nothing is this helper's problem, an event that carries the text and
+    // changes no cell is the grid's.
+    const carried = event.clipboardData?.getData("text/plain");
+    if (carried !== text) {
+      throw new Error(`the paste event carried ${JSON.stringify(carried)}`);
     }
     (document.activeElement ?? document.body).dispatchEvent(event);
   }, text);

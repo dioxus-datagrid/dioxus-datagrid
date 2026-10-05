@@ -515,6 +515,31 @@ Gitterzelle (also auf nichts Bearbeitbarem) liegt. Für Chromium ist das der Weg
 Zeichen-Apps eingefügte Bilder bekommen; WebKit ist an dieser Stelle strenger. **Von Hand
 nachzusehen** — in Safari und in einem Desktop-Build, zusammen mit dem oben schon offenen Punkt.
 
+**Nachtrag (Firefox, 2026-10-05).** Der erste CI-E2E-Lauf nach 0.9.0 war im Firefox-Job rot: sieben
+der zehn Paste-Tests, immer mit demselben Bild — die Zelle stand unverändert da, der eingefügte Text
+kam nie an. Chromium und WebKit waren im gleichen Lauf grün.
+
+Nicht an diesem Rechner nachstellbar: Firefox startet hier nicht (`spawn UNKNOWN`, die
+Playwright-Binärdatei lässt sich auch nach Neuinstallation nicht ausführen), und die Actions-Logs
+sind ohne Anmeldung gesperrt. Was den Fehler eingekreist hat, ist der Report als Artefakt.
+
+**Der Verdacht, und wie der nächste Lauf ihn entscheidet.** Der Testhelfer baute das Ereignis als
+`new ClipboardEvent("paste", { clipboardData: data })` und legte den `DataTransfer` nur dann selbst
+nach, wenn `clipboardData` **falsy** war — das deckt WebKit ab, das `null` liefert, aber nicht eine
+Engine, die ein leeres `DataTransfer` zurückgibt: dann ist `getData("text/plain")` leer, und der
+Listener steigt zu Recht aus. Der Helfer legt den `DataTransfer` jetzt in **jeder** Engine selbst nach
+und prüft vor dem Verschicken, dass das Ereignis den Text trägt. Damit sagt der nächste rote Lauf,
+falls es einen gibt, welche Hälfte es ist: ein Ereignis ohne Text ist der Helfer, ein Ereignis mit
+Text und eine unveränderte Zelle ist das Gitter (dann wäre zu prüfen, ob der Eval-Listener in Firefox
+überhaupt installiert wird). Dass der Listener dort hängt, ist **nicht** gemessen — nur, dass er in
+Chromium und WebKit hängt.
+
+**Dazu gelernt, und das ist der eigentliche Punkt:** Phase 12 lief lokal nur gegen Chromium und
+WebKit, weil Firefox hier nicht startet — und zwischen 0.9.0 und heute hat kein CI-E2E-Lauf
+stattgefunden. Zwölf Commits ohne die dritte Engine. Vor dem nächsten Veröffentlichen gehört ein
+grüner CI-E2E-Lauf **vor** den Release-Commit, nicht danach (`wiki/Release-Process.md` Schritt 1
+sagt das längst; befolgt war es für die lokal gefahrenen Engines).
+
 ## 16. Phase 12: Dioxus setzt `indeterminate` nicht
 
 Geprüft am 2026-09-28 an der Quelle, nicht am Versuch:
