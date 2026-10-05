@@ -12,7 +12,8 @@ use dioxus_datagrid::primitives::{
     GridSearch, VirtualGridBody,
 };
 use dioxus_datagrid::{
-    CellSelectionMode, Column, GridLocale, GridOptions, GridRow, GridState, SelectionMode, use_grid,
+    CellSelectionMode, Column, GridLocale, GridOptions, GridRow, GridState, SelectionMode,
+    merge_class, use_grid,
 };
 
 const THEME: Asset = asset!("/assets/dx-components-theme.css");
@@ -154,12 +155,16 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
 
     // Every row is a CSS subgrid of this one track list.
     let template = grid.column_template("minmax(6rem, auto)");
+    // A `class` of the caller's joins this one rather than fighting it: two
+    // `class` attributes on one element mean one of them loses.
+    let mut attributes = props.attributes.clone();
+    let class = merge_class(&mut attributes, "dg-wrapper");
 
     rsx! {
         document::Link { rel: "stylesheet", href: THEME }
         document::Link { rel: "stylesheet", href: STYLE }
 
-        div { class: "dg-wrapper", ..props.attributes,
+        div { class, ..attributes,
 
             if props.searchable || props.column_picker {
                 div { class: "dg-toolbar",

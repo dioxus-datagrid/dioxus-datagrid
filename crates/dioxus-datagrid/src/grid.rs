@@ -1246,12 +1246,20 @@ impl<T: GridRow> GridHandle<T> {
     }
 
     /// The visible columns' widths as a CSS `grid-template-columns` value, such
-    /// as `"minmax(6rem, auto) 88px 1fr"`.
+    /// as `"minmax(6rem, auto) 88px minmax(48px, 1fr)"`.
     ///
     /// An auto-sized column becomes `minmax(<min_width>px, auto)`, or
     /// `auto_track` if it sets no minimum. Laying every row out on this one
     /// track list, as CSS subgrid rows, keeps header and cells aligned without
     /// measuring anything.
+    ///
+    /// A `Fraction` column gets the same floor, from its
+    /// [`min_width`](datagrid_core::ColumnSpec::min_width) or else
+    /// [`DEFAULT_MIN_COLUMN_WIDTH`](crate::DEFAULT_MIN_COLUMN_WIDTH). A bare
+    /// `1fr` is `minmax(auto, 1fr)`, and where the fixed columns already fill
+    /// the grid there is no free space to take a share of, so the column
+    /// collapses — to nothing at all once a cell hides its overflow. With a floor the grid scrolls instead, which is what
+    /// a column too narrow for its row does everywhere else.
     #[must_use]
     pub fn column_template(&self, auto_track: &str) -> String {
         self.visible_columns()
@@ -1262,7 +1270,10 @@ impl<T: GridRow> GridHandle<T> {
                     None => auto_track.to_owned(),
                 },
                 ColumnWidth::Px(width) => format!("{width}px"),
-                ColumnWidth::Fraction(fraction) => format!("{fraction}fr"),
+                ColumnWidth::Fraction(fraction) => {
+                    let min = column.spec().resize_min_width();
+                    format!("minmax({min}px, {fraction}fr)")
+                }
             })
             .collect::<Vec<_>>()
             .join(" ")

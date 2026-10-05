@@ -558,3 +558,40 @@ aufsetzt, also hören die Zeilen darunter nichts. Der Griff lässt eine Berühru
 (`pointer_type() == "touch"` → kein Ziehen), statt eine Geste anzubieten, die nichts bewirkt. **Am
 Gerät nachzusehen** ist trotzdem etwas: dass eine Berührung auf dem Griff wirklich scrollt und nicht
 hängen bleibt.
+
+## 18. Nach 0.10.0: Zwei `class`-Attribute an einem Element
+
+Geprüft am 2026-10-05 mit einem Spike im Testverzeichnis (danach gelöscht, die Prüfung steckt jetzt
+in `crates/dioxus-datagrid/tests/layout.rs`): eine Komponente mit eigener Klasse *und*
+`#[props(extends = GlobalAttributes)]`-Spread auf demselben Element.
+
+```rust
+rsx! { div { class: "dg-wrapper", ..attributes } }   // attributes: class="mine"
+```
+
+ergibt gerendert
+
+```html
+<div class="dg-wrapper" class="mine"></div>
+```
+
+**Dioxus führt die beiden nicht zusammen.** Zwei *literale* `class`-Attribute im selben `rsx!`
+verbindet das Makro zur Übersetzungszeit (`dioxus-ssr`-Test `class: "a", class: "a"` →
+`class="a a"`), ein Spread ist aber dynamisch und wird daneben geschrieben. Was dann gilt, hängt vom
+Renderer ab: ein Browser, der dieses HTML liest, nimmt nach der HTML-Spezifikation das **erste**
+Attribut (die Klasse der Komponente, die des Aufrufers verschwindet), `setAttribute` im Interpreter
+nimmt das **letzte** (die des Aufrufers, das Styling der Komponente verschwindet). Beides ist
+falsch, und beides fällt still aus.
+
+Deshalb führt `merge_class` sie selbst zusammen, und `data_grid` benutzt es. Betroffen ist nur, wer
+beides an einem Element hat — die Primitives schreiben keine eigenen Klassen.
+
+**Nebenbefund zu `fr`:** nachgelesen am 2026-10-05 in CSS Grid Layout Level 1
+(<https://www.w3.org/TR/css-grid-1/>). Ein `<flex>` außerhalb von `minmax()` heißt dort
+„implies an automatic minimum (i.e. minmax(auto, <flex>))“ — `1fr` ist also `minmax(auto, 1fr)`.
+Das automatische Minimum eines Rasterelements ist nur dann inhaltsbasiert, wenn sein `overflow`
+*kein* scrollender Wert ist; `hidden` zählt dazu, und sonst ist es null. Die Zellen des Grids
+verbergen ihren Überlauf (für die Ellipse), also ist ihr Minimum null. Füllen die festen Spalten das
+Raster schon, bleibt kein freier Platz zu verteilen, und die Spalte schrumpft nicht auf ihren
+Inhalt, sondern verschwindet. Das ist aus der Spezifikation gelesen, nicht im Browser gemessen;
+gemessen ist das Template, das die Spalte jetzt bekommt (`minmax(48px, 1fr)`, `tests/layout.rs`).

@@ -3,10 +3,9 @@
 //! Run it with `dx serve --package example-basic` for web, or add
 //! `--platform desktop` for a desktop window.
 
-use datagrid_core::{GridRow, SelectionMode};
 use dioxus::prelude::*;
 use dioxus_datagrid::primitives::{GridBody, GridHeader, GridPagination, GridRoot, GridSearch};
-use dioxus_datagrid::{Column, GridOptions, use_grid};
+use dioxus_datagrid::{Column, GridOptions, GridRow, SelectionMode, use_grid};
 
 const STYLE: Asset = asset!("/assets/grid.css");
 

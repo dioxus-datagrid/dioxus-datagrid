@@ -8,7 +8,8 @@ license.workspace = true
 
 [dependencies]
 dioxus.workspace = true
-datagrid-core.workspace = true
+# One dependency, as an application needs: `dioxus-datagrid` re-exports the
+# core crate's types.
 dioxus-datagrid.workspace = true
 
 [features]

@@ -49,6 +49,11 @@ The command copies the component into `src/components/data_grid/`, adds `dioxus-
 `Cargo.toml` and copies the dx-components theme into `assets/`. If this is your first component,
 add `mod components;` to `main.rs`.
 
+That one dependency is all an application needs: `dioxus-datagrid` re-exports everything
+`datagrid-core` makes public, down to `dioxus_datagrid::datagrid_core` for the whole crate. Depend
+on `datagrid-core` directly only where there is no UI at all — a server that answers a
+`GridQuery`, as [`examples/server`](examples/server) does.
+
 dx keeps a clone of the registry and does not refresh it on its own. To pick up a newer version of
 the component, refresh the clone first:
 

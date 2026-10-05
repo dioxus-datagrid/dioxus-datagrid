@@ -34,9 +34,7 @@ pub struct DataGridDetailProps<T: GridRow + PartialEq + 'static> {
 /// }
 /// ```
 #[component]
-pub fn DataGridDetail<T: GridRow + PartialEq + 'static>(
-    props: DataGridDetailProps<T>,
-) -> Element {
+pub fn DataGridDetail<T: GridRow + PartialEq + 'static>(props: DataGridDetailProps<T>) -> Element {
     // Put there by `DataGrid`; outside one there is nothing to open.
     let grid = try_use_context::<GridHandle<T>>();
     // Taking the component away closes what is open and takes the buttons with

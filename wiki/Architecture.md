@@ -20,6 +20,11 @@ Four layers, each usable without the one above it.
 Pick your level: install the component and be done, compose the primitives with your own markup, or
 drive the core from something that is not Dioxus at all.
 
+The split is ours, not yours: `dioxus-datagrid` re-exports everything `datagrid-core` makes public
+(and the crate itself as `dioxus_datagrid::datagrid_core`), so an application has one dependency.
+Only code with no UI at all — a server answering a `GridQuery` — depends on the core directly. See
+`docs/DECISIONS.md` ADR-0038.
+
 ## The boundaries, and why they are worth keeping
 
 **`datagrid-core` knows nothing about Dioxus or the DOM.** Everything that can be decided without a

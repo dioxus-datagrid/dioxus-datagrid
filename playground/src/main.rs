@@ -814,6 +814,9 @@ fn App() -> Element {
                     locale: if german() { GridLocale::german() } else { GridLocale::english() },
                     // Tells screen readers which language the grid speaks.
                     lang: if german() { "de" } else { "en" },
+                    // A class of the application's own: it joins `dg-wrapper`
+                    // rather than replacing it.
+                    class: "pg-grid",
                     if grouping() {
                         DataGridGroupPanel::<Employee> {}
                     }

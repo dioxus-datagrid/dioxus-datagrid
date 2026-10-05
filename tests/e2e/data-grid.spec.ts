@@ -57,6 +57,15 @@ test.describe("rendering", () => {
     const results = await new AxeBuilder({ page }).include(".dg-wrapper").analyze();
     expect(results.violations).toEqual([]);
   });
+
+  test("the grid keeps its own class next to the application's", async ({ page }) => {
+    // Both, and in a browser: here the classes are set through `setAttribute`,
+    // where the last of two `class` attributes wins rather than the first.
+    const wrapper = page.locator(".dg-wrapper");
+    await expect(wrapper).toHaveClass("dg-wrapper pg-grid");
+    // Another global attribute still arrives.
+    await expect(wrapper).toHaveAttribute("lang", "en");
+  });
 });
 
 // The theme switches through prefers-color-scheme, so contrast has to hold in

@@ -93,6 +93,7 @@ fn Users() -> Element {
 | `initial_state` | `None` | A `GridState` to start from, read on the first render. |
 | `on_state_change` | — | Fires with the whole `GridState` whenever it changes. |
 | children | — | Add-ons such as `DataGridEditor` or `DataGridGroupPanel`, placed above the grid. |
+| any global attribute | — | Put on the wrapper. A `class` joins `dg-wrapper` rather than replacing it. |
 
 ## Editing
 
@@ -230,7 +231,9 @@ A column only does what you give it a closure for:
 - `.sort_by_value(...)` — sortable by a number, bool, or `Option` of one.
 - `.filter_by(...)` — takes part in column filters and in the global search.
 - `.width(ColumnWidth::Px(120.0))` — a fixed track instead of the default
-  `minmax(6rem, auto)`. `Fraction` gives it a share of the free space.
+  `minmax(6rem, auto)`. `Fraction` gives it a share of the free space, and never less than
+  its `min_width` — where the fixed columns already fill the grid, the grid scrolls rather
+  than letting the column vanish.
 - `.min_width(80.0)` — the narrowest the user can resize it to.
 - `.resizable(false)` — no resize handle for this column.
 - `.hidden()` — not shown, and not offered in the column menu.
@@ -313,6 +316,10 @@ it rather than into the columns it covers.
 Every colour comes from the dx-components theme variables, so the grid matches
 the official components and follows light and dark mode without extra work. The
 component links both stylesheets itself.
+
+A `class` of your own joins `dg-wrapper` on the wrapper instead of replacing
+it, so the grid keeps its layout while your class sits beside it; `style` and
+every other global attribute land there too.
 
 Class names are prefixed `dg-`. State is exposed as data attributes you can
 style against: `data-sortable`, `data-sorted`, `data-sort-priority` on headers,

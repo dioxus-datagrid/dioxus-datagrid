@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [0.10.0] - 2026-09-30
+## [0.10.0] - 2026-10-05
 
 ### Added
 
@@ -77,6 +77,25 @@ All notable changes to this project are documented here. The format follows
 - `GridOptions` has a new public field, `cell_selection`. With `CellSelectionMode::Range` set,
   `Shift`+arrow grows the cell rectangle instead of extending the row selection; `Space` still
   selects rows. Without it nothing changes.
+
+### Fixed
+
+- `dioxus-datagrid` re-exports everything `datagrid-core` makes public, so an application needs
+  this one dependency. A type that cannot be named is no help: `GridQuery::sort` is a
+  `Vec<SortState>`, so writing a `DataSource` meant depending on the core crate as well. `SortState`,
+  `PageState`, `ColumnSpec`, `Selection`, `SelectionExtent`, `GroupSpan`, `RowSpans`, `move_row`,
+  `to_tsv` and `from_tsv` among others now have a name here, and `dioxus_datagrid::datagrid_core`
+  is the whole crate for anything this list has not caught up with.
+- A `class` on `data_grid` joins the component's own instead of being dropped. A component that
+  writes a class *and* spreads the caller's attributes onto the same element puts two `class`
+  attributes on it, and then one of them loses: a browser reading server-rendered HTML keeps the
+  first, `setAttribute` keeps the last. `merge_class` joins them, and `data_grid` uses it.
+- A `ColumnWidth::Fraction` column no longer collapses where the fixed columns already fill the
+  grid. A bare `1fr` is `minmax(auto, 1fr)`, and a cell that hides its overflow has an automatic
+  minimum of nothing, so the column vanished rather than shrinking. It is laid out as
+  `minmax(<min_width>px, <n>fr)` now, from the column's `min_width` or else
+  `DEFAULT_MIN_COLUMN_WIDTH`, and the grid scrolls as it does for any column too narrow for its
+  rows.
 
 ## [0.9.0] - 2026-09-27
 

@@ -1957,7 +1957,6 @@ dependencies = [
 name = "example-basic"
 version = "0.1.0"
 dependencies = [
- "datagrid-core",
  "dioxus",
  "dioxus-datagrid",
 ]
@@ -1988,7 +1987,6 @@ dependencies = [
 name = "example-virtualized"
 version = "0.1.0"
 dependencies = [
- "datagrid-core",
  "dioxus",
  "dioxus-datagrid",
 ]

@@ -1364,3 +1364,60 @@ für Zeilen fällt sie anders, und das ist begründungspflichtig.
   Griff ist ein Ziehen, das nicht stattgefunden hat.
 - Wie bei den Detailzeilen bindet die Registry-Komponente dafür eine neue Crate-API; ein
   `data_grid_reorder` gehört deshalb in die Freigabe von 0.10.0 (ADR-0019).
+
+## ADR-0038 — Drei Lücken, die erst eine fremde Anwendung zeigt
+
+**Kontext.** Eine Anwendung außerhalb dieses Repositorys hat `dioxus-datagrid` 0.9 eingebunden und
+drei Dinge gemeldet, die hier niemand bemerkt hatte: `SortState` ist nicht re-exportiert, ein
+`class` am `DataGrid` wird von `dg-wrapper` geschluckt, und eine `Fraction`-Spalte schrumpft auf
+null, wenn die festen Spalten den Platz schon füllen. Keines davon ist ein Fehler im Verhalten des
+Gitters — jedes ist eine Lücke an der Naht zwischen Bibliothek und Anwendung, und die sieht man von
+innen nicht.
+
+**Warum sie niemand bemerkt hatte.** Jedes Beispiel in `examples/` hat `datagrid-core` *und*
+`dioxus-datagrid` in seiner `Cargo.toml`, der Playground benutzt `data_grid` ohne eigene Klasse, und
+im Playground hat jede Spalte eine Breite, die aufgeht. Die Beispiele haben den Weg der Anwendung
+also nie gegangen.
+
+**Entscheidung.**
+
+1. **`dioxus-datagrid` re-exportiert alles, was `datagrid-core` öffentlich macht**, und zusätzlich
+   die Crate selbst als `dioxus_datagrid::datagrid_core`. Eine Anwendung braucht **eine**
+   Abhängigkeit. Ein Typ, der nicht benannt werden kann, hilft nicht: `GridQuery::sort` ist ein
+   `Vec<SortState>`, also kommt niemand ohne `SortState` an einer `DataSource` vorbei. Der
+   Re-Export der Crate ist die Notluke für alles, was die Liste einmal nicht mitbekommt.
+   `examples/basic` und `examples/virtualized` hängen von jetzt an **nur** an `dioxus-datagrid` —
+   damit CI merkt, was einer Anwendung fehlt. Die Server-Beispiele behalten `datagrid-core`: ein
+   Server, der Zeilen liefert, hat mit der Dioxus-Crate nichts zu tun.
+
+2. **Eine Komponente führt ihre Klasse mit der des Aufrufers zusammen**, mit `merge_class`. Zwei
+   `class`-Attribute an einem Element entscheidet nicht Dioxus, sondern der Renderer, und beide
+   Antworten sind falsch (VERIFICATION §18). Der Helfer liegt in der Crate und nicht in der
+   Registry-Komponente, weil er dort kopiert und vergessen würde, und weil er allen nützt, die
+   eigene Zellen bauen.
+
+3. **Eine `Fraction`-Spalte bekommt einen Boden**: `minmax(<min_width>px, <n>fr)` statt `<n>fr`,
+   aus `min_width` oder sonst `DEFAULT_MIN_COLUMN_WIDTH`. `1fr` allein ist `minmax(auto, 1fr)`, und
+   das automatische Minimum einer Zelle, die ihren Überlauf verbirgt, ist null — ohne freien Platz
+   verschwindet die Spalte also, statt zu schrumpfen (VERIFICATION §18). Mit Boden scrollt das
+   Gitter, wie es für jede zu schmale Spalte scrollt. Das ist dieselbe Grenze, an der ein Ziehen
+   aufhört, also dieselbe Zahl: `resize_min_width`.
+
+**Verworfen.**
+
+- **Ein `class`-Prop neben dem Spread.** Zwei Wege für dasselbe Attribut, und der Spread nimmt
+  `class` ohnehin an — ein Aufrufer hätte je nach Schreibweise ein anderes Ergebnis.
+- **`Fraction` ohne Boden lassen und es nur dokumentieren.** Eine Spalte, die unsichtbar wird, ist
+  keine Einstellung, die jemand gewählt hat; wer wirklich bis null schrumpfen will, sagt
+  `min_width(0.0)`.
+- **Die Re-Export-Liste kürzen und nur `datagrid_core` durchreichen.** Der kürzere Pfad ist der, den
+  Anwendungen schreiben; die Notluke ist für den Rest da, nicht umgekehrt.
+
+**Folgen.**
+
+- Neu in `dioxus-datagrid`: `merge_class`, der Re-Export von `datagrid_core` und ~30 weitere Namen.
+  Nichts davon ändert bestehenden Code.
+- `column_template` schreibt für `Fraction`-Spalten eine andere Spur. Wer sich auf `"1fr"` im
+  erzeugten Template verlässt, muss nachziehen; im Layout ändert sich nur, dass die Spalte bleibt.
+- Für jede künftige Lücke dieser Art ist die Frage nicht „ist es ein Fehler", sondern „geht ein
+  Beispiel diesen Weg" — und wenn nicht, geht von jetzt an eines.

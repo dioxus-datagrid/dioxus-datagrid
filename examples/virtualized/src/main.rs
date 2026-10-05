@@ -6,10 +6,9 @@
 //!
 //! Run it with `dx serve --package example-virtualized`.
 
-use datagrid_core::{GridRow, SelectionMode};
 use dioxus::prelude::*;
 use dioxus_datagrid::primitives::{GridHeader, GridRoot, GridSearch, VirtualGridBody};
-use dioxus_datagrid::{Column, ColumnWidth, GridOptions, use_grid};
+use dioxus_datagrid::{Column, ColumnWidth, GridOptions, GridRow, SelectionMode, use_grid};
 
 const STYLE: Asset = asset!("/assets/virtualized.css");
 
