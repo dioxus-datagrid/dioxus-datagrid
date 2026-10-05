@@ -102,6 +102,7 @@ While the save runs, the grid already shows the edited row.
 | `validate_row` | — | Checks a whole row, after each column's own checks. |
 | `confirm_delete` | `true` | Whether deleting asks first. |
 | `toolbar` | `true` | Whether to show the Add, Edit, Delete and Save buttons. |
+| any global attribute | — | Put on the edit bar. A `class` joins `dg-edit-bar` rather than replacing it. |
 
 ## Columns
 

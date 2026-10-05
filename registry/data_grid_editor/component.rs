@@ -9,7 +9,9 @@ use dioxus::prelude::*;
 use dioxus_datagrid::primitives::{
     GridDeleteConfirm, GridEditDialog, GridEditStatus, GridEditToolbar,
 };
-use dioxus_datagrid::{Create, Delete, EditMode, Editing, GridHandle, GridRow, Save, SaveBatch};
+use dioxus_datagrid::{
+    Create, Delete, EditMode, Editing, GridHandle, GridRow, Save, SaveBatch, merge_class,
+};
 
 const STYLE: Asset = asset!("/src/components/data_grid_editor/style.css");
 
@@ -92,10 +94,15 @@ pub fn DataGridEditor<T: GridRow + PartialEq + 'static>(props: DataGridEditorPro
         confirm_delete: props.confirm_delete,
     });
 
+    // A `class` of the caller's joins this one rather than fighting it: two
+    // `class` attributes on one element mean one of them loses.
+    let mut attributes = props.attributes.clone();
+    let class = merge_class(&mut attributes, "dg-edit-bar");
+
     rsx! {
         document::Link { rel: "stylesheet", href: STYLE }
 
-        div { class: "dg-edit-bar", ..props.attributes,
+        div { class, ..attributes,
             if props.toolbar {
                 GridEditToolbar { grid, class: "dg-edit-toolbar" }
             }

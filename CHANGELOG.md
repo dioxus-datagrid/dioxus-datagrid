@@ -89,7 +89,8 @@ All notable changes to this project are documented here. The format follows
 - A `class` on `data_grid` joins the component's own instead of being dropped. A component that
   writes a class *and* spreads the caller's attributes onto the same element puts two `class`
   attributes on it, and then one of them loses: a browser reading server-rendered HTML keeps the
-  first, `setAttribute` keeps the last. `merge_class` joins them, and `data_grid` uses it.
+  first, `setAttribute` keeps the last. `merge_class` in `dioxus-datagrid` joins them; `data_grid`,
+  `data_grid_editor` and `data_grid_group_panel` all use it.
 - A `ColumnWidth::Fraction` column no longer collapses where the fixed columns already fill the
   grid. A bare `1fr` is `minmax(auto, 1fr)`, and a cell that hides its overflow has an automatic
   minimum of nothing, so the column vanished rather than shrinking. It is laid out as

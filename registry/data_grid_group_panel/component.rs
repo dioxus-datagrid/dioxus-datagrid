@@ -7,7 +7,7 @@
 
 use dioxus::prelude::*;
 use dioxus_datagrid::primitives::GridGroupPanel;
-use dioxus_datagrid::{GridHandle, GridRow};
+use dioxus_datagrid::{GridHandle, GridRow, merge_class};
 
 const STYLE: Asset = asset!("/src/components/data_grid_group_panel/style.css");
 
@@ -36,8 +36,13 @@ pub fn DataGridGroupPanel<T: GridRow + PartialEq + 'static>(
         return rsx! {};
     };
 
+    // A `class` of the caller's joins this one rather than fighting it: two
+    // `class` attributes on one element mean one of them loses.
+    let mut attributes = props.attributes.clone();
+    let class = merge_class(&mut attributes, "dg-group-panel");
+
     rsx! {
         document::Link { rel: "stylesheet", href: STYLE }
-        GridGroupPanel { grid, class: "dg-group-panel", attributes: props.attributes }
+        GridGroupPanel { grid, class, attributes }
     }
 }
