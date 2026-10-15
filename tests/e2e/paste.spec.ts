@@ -133,6 +133,9 @@ test("a paste past the last row adds none", async ({ page }) => {
   await expect(cell(page, before - 1, 0)).toHaveText("Last");
   await expect(bodyRows(page)).toHaveCount(before);
   await expect(grid(page).getByRole("gridcell", { name: "Over the edge" })).toHaveCount(0);
+  // The row did not vanish quietly: the page holds five of twelve rows, so the
+  // second row of the block had nowhere to go, and the status says so.
+  await expect(status(page)).toHaveText("One row did not fit");
 });
 
 test("an open editor keeps its own paste", async ({ page }) => {

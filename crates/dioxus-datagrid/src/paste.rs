@@ -54,11 +54,20 @@ pub struct PasteReport {
     /// refused. A row is pasted whole or not at all, so that a validator still
     /// sees a row that makes sense.
     pub refused: usize,
+    /// How many rows of the block found no row to land on: a paste never adds
+    /// rows, and it never reaches onto the next page. Counted so that the grid
+    /// can say so — a row that vanishes without a word is worse than one that
+    /// does not fit.
+    ///
+    /// Cells past the last column are dropped as well and are not counted
+    /// here: the row they belong to is written, so what landed is on screen.
+    pub dropped: usize,
 }
 
 impl PasteReport {
     /// Whether the paste changed nothing and refused nothing — there was
-    /// nowhere to put it.
+    /// nowhere to put it. A block that found no rows at all is empty by this
+    /// measure, and says so through [`dropped`](PasteReport::dropped).
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.rows == 0 && self.refused == 0
@@ -97,7 +106,9 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
     /// the focused cell when no rectangle is selected. From there the block
     /// spreads right and down; a single pasted cell fills the whole selected
     /// rectangle instead, as a spreadsheet does. Cells past the last column or
-    /// the last row are dropped — a paste never adds rows.
+    /// the last row are dropped — a paste never adds rows, and never reaches
+    /// onto the next page; rows that found no place are counted in
+    /// [`PasteReport::dropped`] and named in the status line.
     ///
     /// What it skips: a column that cannot be edited keeps its value but still
     /// takes its place in the block, so the rest of a row stays under the
@@ -160,6 +171,9 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
             .filter(|position| *position >= first_row)
             .take(height)
             .collect();
+        // The block is as tall as it is; what the grid has no row for is
+        // dropped, and counted so that the status line can mention it.
+        report.dropped = height.saturating_sub(rows.len());
         let columns = self.visible_columns();
         let locale = self.locale.peek().clone();
 
@@ -224,9 +238,17 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
             self.select_cell(CellFocus::new(first + header_rows, start.col));
             self.extend_cell_selection(CellFocus::new(last + header_rows, last_column));
         }
+        // Both can happen at once: a value refused in one row, another row
+        // with nowhere to go. Neither is worth hiding behind the other.
+        let mut notes = Vec::new();
         if report.refused > 0 {
-            self.edit_status
-                .set(EditStatus::Failed(locale.paste_refused(report.refused)));
+            notes.push(locale.paste_refused(report.refused));
+        }
+        if report.dropped > 0 {
+            notes.push(locale.paste_dropped(report.dropped));
+        }
+        if !notes.is_empty() {
+            self.edit_status.set(EditStatus::Failed(notes.join(" · ")));
         }
         report
     }

@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A paste says what did not fit. `PasteReport` has a new field, `dropped`: the rows of a pasted
+  block that found no row to land on, because a paste never adds rows and never reaches onto the
+  next page. The status line names them, from the new `GridLocale::paste_dropped` and
+  `paste_dropped_one`, next to the refused rows it already named. Found by hand: pasting two rows
+  onto the last row of a page wrote one and said "Saved" (`docs/VERIFICATION.md` §15).
+
+### Changed
+
+- `PasteReport` has a new public field and `GridLocale` two, which is a breaking change only for
+  code that builds either with a struct literal rather than from `..Default::default()`.
+
 ## [0.10.0] - 2026-10-05
 
 ### Added

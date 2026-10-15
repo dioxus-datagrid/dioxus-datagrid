@@ -89,6 +89,9 @@ struct Setup {
     /// Starts an edit of the first cell before pasting.
     #[props(default)]
     editing: bool,
+    /// Rows per page, for a block that runs over the end of one.
+    #[props(default)]
+    page_size: Option<usize>,
 }
 
 /// Pastes into a grid and renders what came of it.
@@ -96,13 +99,11 @@ struct Setup {
 fn Grid(setup: Setup, saved: Cell<Vec<Row>>, report: Cell<PasteReport>) -> Element {
     let mut data = use_signal(rows);
     let cols = use_hook(columns);
-    let mut grid = use_grid(
-        data,
-        cols,
-        GridOptions::default()
-            .selection(SelectionMode::Multi)
-            .cell_selection(CellSelectionMode::Range),
-    );
+    let mut options = GridOptions::default()
+        .selection(SelectionMode::Multi)
+        .cell_selection(CellSelectionMode::Range);
+    options.page_size = setup.page_size;
+    let mut grid = use_grid(data, cols, options);
 
     grid.set_editing(Editing {
         mode: setup.mode,
@@ -248,7 +249,8 @@ fn a_block_lands_at_the_focused_cell() {
         PasteReport {
             rows: 2,
             cells: 4,
-            refused: 0
+            refused: 0,
+            dropped: 0
         }
     );
     assert_eq!(outcome.saved.len(), 2, "one save per row");
@@ -311,6 +313,62 @@ fn a_block_longer_than_the_grid_does_not_add_rows() {
 
     assert_eq!(outcome.shown.len(), 3);
     assert_eq!(outcome.report.rows, 3);
+    // And it says what fell off the end instead of losing it quietly.
+    assert_eq!(outcome.report.dropped, 2);
+    assert!(
+        outcome.status.contains("2 rows did not fit"),
+        "{}",
+        outcome.status
+    );
+}
+
+#[test]
+fn a_block_that_runs_over_the_end_of_a_page_says_so() {
+    // Two rows on the page, three in the block: the third row exists in the
+    // data, on the next page, and a paste does not reach it.
+    let outcome = paste(
+        Setup::builder()
+            .text("Zora\r\nAdi\r\nIda".to_owned())
+            .focus(Some((1, 0)))
+            .page_size(Some(2))
+            .build(),
+    );
+
+    assert_eq!(outcome.shown.len(), 2, "one page");
+    assert_eq!(outcome.shown[0], "Zora|engineering|30");
+    assert_eq!(outcome.shown[1], "Adi|sales|41");
+    assert_eq!(outcome.report.rows, 2);
+    assert_eq!(outcome.report.dropped, 1);
+    assert!(
+        outcome.status.contains("One row did not fit"),
+        "{}",
+        outcome.status
+    );
+}
+
+#[test]
+fn a_refused_row_and_a_dropped_one_are_both_named() {
+    let outcome = paste(
+        Setup::builder()
+            // The first row's age is not a number, and the fourth row of the
+            // block has nowhere to land: the grid shows three rows.
+            .text(
+                "Zora\tengineering\tmaybe\r\nAdi\tsales\t42\r\nIda\tsales\t33\r\nOver\tsales\t20"
+                    .to_owned(),
+            )
+            .focus(Some((1, 0)))
+            .build(),
+    );
+
+    assert_eq!(outcome.report.refused, 1);
+    assert_eq!(outcome.report.dropped, 1);
+    // Neither hides behind the other.
+    assert!(
+        outcome.status.contains("Could not paste one row")
+            && outcome.status.contains("One row did not fit"),
+        "{}",
+        outcome.status
+    );
 }
 
 #[test]

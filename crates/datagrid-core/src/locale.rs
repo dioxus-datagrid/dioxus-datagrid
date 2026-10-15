@@ -201,6 +201,11 @@ pub struct GridLocale {
     pub paste_refused: Cow<'static, str>,
     /// Shown when one row of a pasted block could not be used.
     pub paste_refused_one: Cow<'static, str>,
+    /// Shown when rows of a pasted block found no row to land on, with
+    /// `{count}`.
+    pub paste_dropped: Cow<'static, str>,
+    /// Shown when one row of a pasted block found no row to land on.
+    pub paste_dropped_one: Cow<'static, str>,
     /// Accessible name of a column header's options menu, for `{column}`.
     pub column_menu: Cow<'static, str>,
     /// Sorts the column from low to high.
@@ -348,6 +353,8 @@ impl GridLocale {
             edit_save_failed: Cow::Borrowed("Could not save: {error}"),
             paste_refused: Cow::Borrowed("Could not paste {count} rows"),
             paste_refused_one: Cow::Borrowed("Could not paste one row"),
+            paste_dropped: Cow::Borrowed("{count} rows did not fit"),
+            paste_dropped_one: Cow::Borrowed("One row did not fit"),
             column_menu: Cow::Borrowed("Column options for {column}"),
             sort_ascending: Cow::Borrowed("Sort ascending"),
             sort_descending: Cow::Borrowed("Sort descending"),
@@ -463,6 +470,8 @@ impl GridLocale {
             edit_save_failed: Cow::Borrowed("Speichern fehlgeschlagen: {error}"),
             paste_refused: Cow::Borrowed("{count} Zeilen konnten nicht eingefügt werden"),
             paste_refused_one: Cow::Borrowed("Eine Zeile konnte nicht eingefügt werden"),
+            paste_dropped: Cow::Borrowed("{count} Zeilen haben nicht gepasst"),
+            paste_dropped_one: Cow::Borrowed("Eine Zeile hat nicht gepasst"),
             column_menu: Cow::Borrowed("Spaltenoptionen für {column}"),
             sort_ascending: Cow::Borrowed("Aufsteigend sortieren"),
             sort_descending: Cow::Borrowed("Absteigend sortieren"),
@@ -572,6 +581,16 @@ impl GridLocale {
             self.paste_refused_one.clone().into_owned()
         } else {
             fill(&self.paste_refused, &[("count", &self.integer(count))])
+        }
+    }
+
+    /// "3 rows did not fit", or "One row did not fit".
+    #[must_use]
+    pub fn paste_dropped(&self, count: usize) -> String {
+        if count == 1 {
+            self.paste_dropped_one.clone().into_owned()
+        } else {
+            fill(&self.paste_dropped, &[("count", &self.integer(count))])
         }
     }
 

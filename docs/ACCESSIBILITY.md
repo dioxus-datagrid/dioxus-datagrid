@@ -401,7 +401,10 @@ zum Kopieren, mit denselben Regeln für das Format.
   Zelle; von dort nach rechts und unten. Eine einzelne eingefügte Zelle füllt das ganze ausgewählte
   Rechteck, wie in einer Tabellenkalkulation.
 - **Es wächst nichts.** Was über die letzte Spalte oder die letzte Zeile hinausragt, fällt weg; ein
-  Einfügen legt keine Zeilen an.
+  Einfügen legt keine Zeilen an und reicht nicht auf die nächste Seite. **Zeilen, die so wegfallen,
+  sagt die Statuszeile** („Eine Zeile hat nicht gepasst") — eine Zeile, die lautlos verschwindet,
+  ist schlimmer als eine, die nicht passt. Zellen jenseits der letzten Spalte bleiben unerwähnt:
+  ihre Zeile wird geschrieben, man sieht also, was angekommen ist.
 - **Eine Spalte, die nicht bearbeitet werden kann, behält ihren Wert** — hält aber ihren Platz, damit
   der Rest der Zeile unter den Spalten bleibt, aus denen er kopiert wurde.
 - **Eine Zeile ganz oder nicht.** Lehnt eine Spalte oder die Anwendung einen Wert ab, bleibt die
