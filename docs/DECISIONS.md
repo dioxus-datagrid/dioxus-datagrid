@@ -462,7 +462,9 @@ Grid-Root verfolgt den Zeiger. Playwright zeigte zwei Lücken:
   `preventDefault` im `keydown` verhindert es; im Playwright-Test bleibt die Seite stehen.
 - **Messung statt Annahme:** Jede Kopfzelle meldet ihre gerenderte Breite per `onresize`. Ein
   Ziehen startet von dort, weil die Breite einer `Auto`- oder `Fraction`-Spalte nur das Layout
-  kennt. Jede Bewegung rechnet vom Startpunkt aus, nicht schrittweise, damit verlorene Events sich
+  kennt. *(Seit Phase 11 anders umgesetzt: die Kopfzelle übergibt ihr `MountedData`, und
+  `GridHandle::measure_columns` misst aus dem Effekt des Wurzelelements — beim Einhängen wäre jede
+  Messung zu früh. VERIFICATION §3 und §14.)* Jede Bewegung rechnet vom Startpunkt aus, nicht schrittweise, damit verlorene Events sich
   nicht aufsummieren.
 - **Die letzte sichtbare Spalte lässt sich nicht ausblenden**, und die Fokus-Koordinate wird beim
   Lesen auf vorhandene Zellen begrenzt. Ohne beides hätte das Gitter ohne Spalten oder nach dem

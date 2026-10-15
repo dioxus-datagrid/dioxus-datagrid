@@ -422,28 +422,55 @@ Einpassung in den Viewport hängt daran und ist per E2E-Test abgedeckt. Die Rege
 als „ein Element pro App"; welche Elemente erfasst werden und welche nicht, ist von außen nicht
 zu klären.
 
-**Offen für Dioxus.** Ein Bugreport mit dem Capture-Mitschnitt oben wäre der nächste Schritt.
-Für uns ist der Weg über eine Stelle ohnehin der bessere: eine Messung statt einer pro Zelle.
+**Korrektur (2026-10-15): der Befund oben war falsch gedeutet.** Zwei Messungen, und `onresize`
+ist in Ordnung.
 
-**Nachtrag 2026-09-27: der offensichtliche Verdacht ist unschuldig.** In die Quelle geschaut, statt
-weiter von außen zu raten:
+*Minimalreproduktion ohne Datagrid* (Dioxus 0.7.10, vier Elemente mit je einem `onresize`, ein
+Knopf ändert die Breite des Containers): drei Formen durchgespielt — verschachtelte `div`s, ein
+Raster, dessen Zeile ein Subgrid ist (wie unseres), dasselbe in einem `overflow: auto`. In **jeder**
+Form bekommt jedes Element sein Ereignis, mit seiner eigenen Größe, und ein daneben gelegter eigener
+`ResizeObserver` meldet **genau dieselbe Liste**. Zwei Anläufe davor waren keine Reproduktion,
+sondern ein Fehler im Aufbau: die Spurliste überlief den Container, also änderten die Zellen ihre
+Breite nicht — und dann ist Stille richtig.
 
-- `dioxus-core-types/src/bubbles.rs` führt `"resize" => false`. `createListener` nimmt damit den
-  Nicht-Bubbling-Zweig und hängt den Handler **an das jeweilige Element**, nicht an die Wurzel.
-- `createResizeObserver` beobachtet **jedes** übergebene Element; der eine gemeinsame
-  `ResizeObserver` verschickt sein CustomEvent an `entry.target`.
-- Dieser Code ist auf `main` von DioxusLabs/dioxus heute zeichengleich mit 0.7.10.
+*Am echten Gitter* (Playground, Spaltenköpfe vorübergehend mit einem protokollierenden `onresize`
+versehen, danach zurückgenommen). Breite des Wurzelelements von 1086 px auf 618 px geändert:
 
-Es ist also nicht „ein Observer pro App", und die Ursache unseres Befunds ist damit weiterhin
-unidentifiziert — am wahrscheinlichsten auf der Rust-Seite, beim Zurückrouten des synthetischen
-Events an den Handler des Ziels. Eine Suche in den Issues von DioxusLabs/dioxus findet **keinen**
-Report zu `onresize`-Abdeckung; offen und für uns einschlägig ist dagegen
+```
+Kopfbreiten vorher    306 | 399 | 293 | 88
+Kopfbreiten nachher   150 | 243 | 137 | 88     (die letzte Spalte ist fest)
+eigener Observer      root 618, col1 150, col2 243, col3 137
+Dioxus, in Rust       header 0: 150.03   header 1: 242.64   header 2: 137.33
+```
+
+Jeder Handler bekommt **seine** Breite. Die vierte Spalte fehlt in beiden Listen, weil sie sich
+nicht geändert hat. `resize` erreicht also nicht ein Element pro Gitter, sondern jedes, dessen Größe
+sich ändert — wie die Spezifikation es sagt und wie der Interpreter-Code es im Nachtrag vom
+2026-09-27 schon nahelegte.
+
+**Was ich nicht mehr messen kann**, ist die Messung von damals. Zwei Erklärungen passen zu ihren
+Zahlen, und beide sind heute belegbar:
+
+- *Keine Ereignisse an den Köpfen:* im schmalen Browser-Pane überläuft das Gitter sein
+  Wurzelelement (heute nachgesehen: Wurzel 215 px, Spurliste 96+96+96+88 = 376 px). Dann stehen die
+  Kopfbreiten auf ihrem Minimum von 6 rem und ändern sich beim Ändern der Wurzelbreite **nicht** —
+  es ist nichts zu melden. Genau in diese Falle bin ich heute zweimal selbst getappt.
+- *684 px für jede Auto-Spalte:* das ist die Messung **beim Einhängen**, die §3 beschreibt — vor
+  dem Anwenden der Stylesheets spannt die Kopfzelle über den Container. Das war kein falsch
+  geleitetes Ereignis, sondern ein zu früher Zeitpunkt.
+
+Aus zwei Beobachtungen wurde damals eine Ursache gemacht, die es nicht gibt.
+
+**Was bleibt.** Die Lösung bleibt, aber mit der richtigen Begründung: nicht „nur ein Element bekommt
+ein `resize`", sondern **beim Einhängen ist jede Messung zu früh** (§3), und eine Messung aus dem
+Effekt des Wurzelelements ist einfacher als eine pro Zelle. Dass Kopfzellen sich jetzt auch selbst
+messen *könnten*, ist damit zwar wahr, aber kein Grund, funktionierenden Code umzubauen.
+
+**Kein Bugreport.** Es gibt nichts zu melden: weder „ein Observer pro App" (Nachtrag 2026-09-27)
+noch „ein Ereignis pro Gitter" (diese Korrektur). Einschlägig für uns bleibt allein
 [#2293](https://github.com/DioxusLabs/dioxus/issues/2293) „Incorrect values returned by
-`MountedData::get_client_rect()`" (seit 2024-04-11) — genau die API, auf der unsere Messung steht.
-
-**Zurückgestellt.** Ein Fix bräuchte eine Minimalreproduktion und Debugging in einem
-dioxus-Checkout, und er landete auf `main` = 0.8-Alpha, die wir nicht benutzen. Wir sind nicht
-blockiert; der Ausflug wird fällig, wenn Dioxus 0.8 stabil wird (§11).
+`MountedData::get_client_rect()`" — die API, auf der `measure_columns` steht; ob uns das trifft, ist
+eine eigene Messung und nicht Teil dieser.
 
 ## 15. Phase 12: Was die Zwischenablage durchlässt
 
