@@ -1067,7 +1067,8 @@ bearbeitbare Zellen" und schreibt vor, den Zugriff zuerst per Spike zu prüfen. 
 - Desktop und Mobile sind ungeprüft: derselbe Weg, anderes WebView. Vor dem Ausliefern von Phase 12
   an einem Desktop-Build nachzusehen.
 - Der Spike (`playground/src/clipboard_spike.rs`, `tests/e2e/clipboard-spike.spec.ts`) bleibt,
-  solange gebaut wird, und wird danach entfernt.
+  solange gebaut wird, und wird danach entfernt. *(Entfernt am 2026-10-15, nach der Handprüfung;
+  VERIFICATION §15.)*
 
 ---
 
@@ -1174,8 +1175,10 @@ Einfügen-Funktionen der Zeichen-Apps). Falls eine Prüfung von Hand zeigt, dass
 ist der bekannte Ausweg ein verstecktes `textarea`, das bei `Ctrl+V` kurz den Fokus bekommt — Aufwand
 und Fokus-Turnen, die erst eine Messung rechtfertigt.
 
-Der Spike (`playground/src/clipboard_spike.rs`) bleibt deshalb noch stehen: seine Paste-Probe ist
-genau das Werkzeug für diese Prüfung von Hand. Er geht heraus, sobald sie gelaufen ist.
+Der Spike (`playground/src/clipboard_spike.rs`) blieb deshalb noch stehen: seine Paste-Probe war
+genau das Werkzeug für diese Prüfung von Hand. Sie ist am 2026-10-15 gelaufen — ein echtes `Ctrl+V`
+liefert das Ereignis, im Browser und im Desktop-Build (VERIFICATION §15) —, und damit ist der Spike
+entfernt. Ein verstecktes `textarea` braucht es nicht.
 
 ---
 

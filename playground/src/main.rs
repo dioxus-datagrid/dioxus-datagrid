@@ -6,11 +6,9 @@
 //! `dx components add data_grid` hands a user. The same goes for
 //! `data_grid_editor` and `data_grid_group_panel`.
 
-mod clipboard_spike;
 mod components;
 
 use chrono::NaiveDate;
-use clipboard_spike::ClipboardSpike;
 use components::data_grid::DataGrid;
 use components::data_grid_column_menu::DataGridColumnMenu;
 use components::data_grid_detail::DataGridDetail;
@@ -404,7 +402,6 @@ fn App() -> Element {
     let mut header_groups = use_signal(|| false);
     let mut column_menu = use_signal(|| false);
     let mut spanning = use_signal(|| false);
-    let mut clipboard_spike = use_signal(|| false);
     let mut checkbox_column = use_signal(|| false);
     let mut detail_rows = use_signal(|| false);
     let mut row_drag = use_signal(|| false);
@@ -692,16 +689,6 @@ fn App() -> Element {
                 label { class: "toggle",
                     input {
                         r#type: "checkbox",
-                        "data-testid": "toggle-clipboard-spike",
-                        checked: clipboard_spike(),
-                        onchange: move |event| clipboard_spike.set(event.checked()),
-                    }
-                    "Clipboard spike (Phase 12)"
-                }
-
-                label { class: "toggle",
-                    input {
-                        r#type: "checkbox",
                         "data-testid": "toggle-span",
                         checked: spanning(),
                         onchange: move |event| spanning.set(event.checked()),
@@ -839,10 +826,6 @@ fn App() -> Element {
                             new_row,
                         }
                     }
-                }
-
-                if clipboard_spike() {
-                    ClipboardSpike {}
                 }
             }
         }

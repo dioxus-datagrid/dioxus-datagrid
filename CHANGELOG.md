@@ -19,6 +19,13 @@ All notable changes to this project are documented here. The format follows
 - `PasteReport` has a new public field and `GridLocale` two, which is a breaking change only for
   code that builds either with a struct literal rather than from `..Default::default()`.
 
+### Removed
+
+- The Phase 12 clipboard spike (`playground/src/clipboard_spike.rs`,
+  `tests/e2e/clipboard-spike.spec.ts`). Its four questions are answered, the last of them by hand
+  on 2026-10-15: a real `Ctrl+V` does deliver a `paste` event to a page whose focus is on a grid
+  cell, in the browser and in a desktop build. What it measured stays in `docs/VERIFICATION.md` §15.
+
 ## [0.10.0] - 2026-10-05
 
 ### Added

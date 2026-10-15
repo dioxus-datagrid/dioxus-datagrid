@@ -494,8 +494,9 @@ nur Chromium und WebKit.)
 WKWebView auf macOS/iOS ist bei Schreibzugriffen ohne Benutzeraktion streng. Das ist vor dem
 Ausliefern von Phase 12 an einem Desktop-Build nachzusehen, nicht zu vermuten.
 
-Spike und Spike-Spec bleiben, solange an Kopieren und Einfügen gebaut wird, und gehen danach
-wieder heraus — wie der Phase-0-Spike in Phase 3.
+Spike und Spike-Spec sind nach der Handprüfung am 2026-10-15 entfernt — wie der Phase-0-Spike in
+Phase 3. Was sie gemessen haben, steht in diesem Abschnitt; die Dateinamen hier benennen also etwas,
+das es nicht mehr gibt, und das ist richtig so: der Befund bleibt, das Gerüst geht.
 
 **Nachtrag (Einfügen gebaut, 2026-09-27).** Zwei Messungen und eine Lücke.
 
@@ -549,8 +550,7 @@ Chromium-WebView auf Windows 11, mitgeschnitten mit einem Logger in der laufende
 
 ```
 keydown  key="v" ctrl=true   auf  cell row=2 col=1 "Zoe Bauer"
-paste    "Zora Bauer	zora@example.com
-Adi Fischer	adi@example.com"   auf dieselbe Zelle
+paste    "Zora Bauer\tzora@example.com\r\nAdi Fischer\tadi@example.com"   auf dieselbe Zelle
 nach 1,5 s   Zeile 1 "Zora Bauer | zora@example.com", Zeile 2 "Adi Fischer | adi@example.com"
              Status "Saved"
 ```
@@ -571,9 +571,12 @@ geschrieben, die andere fällt weg, Status „Saved". Das ist die Regel (ein Ein
 Gitter nicht und reicht nicht auf die nächste Seite), aber `PasteReport` zählt nur `rows`, `cells`
 und `refused` — für *weggefallen* gibt es kein Feld und keinen Text.
 
+**Ebenso von Hand geprüft, im Desktop-Build** (`dx serve --platform desktop`, WebView2 auf
+Windows): dieselben 56 Zeichen am Listener, dieselbe Wirkung. Der Dioxus-Desktop-Renderer trägt den
+Weg also auch — mit demselben Vorbehalt, dass WebView2 Chromium ist.
+
 **Weiter offen:** WKWebView (Safari, macOS/iOS). **Nicht geprüft**, nicht vermutet: hier steht kein
-Mac. Auf Windows ist der Desktop-Build WebView2, also wieder Chromium, und damit kein Ersatz für
-diese Messung.
+Mac, und WebView2 ist kein Ersatz für diese Messung.
 
 ## 16. Phase 12: Dioxus setzt `indeterminate` nicht
 
