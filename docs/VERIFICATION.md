@@ -542,6 +542,39 @@ stattgefunden. Zwölf Commits ohne die dritte Engine. Vor dem nächsten Veröffe
 grüner CI-E2E-Lauf **vor** den Release-Commit, nicht danach (`wiki/Release-Process.md` Schritt 1
 sagt das längst; befolgt war es für die lokal gefahrenen Engines).
 
+**Nachtrag (Handprüfung `Ctrl+V`, 2026-10-15).** Der Punkt, den keine Automatisierung beantworten
+kann, ist für Chromium beantwortet: **ein echtes `Ctrl+V` liefert ein `paste` an eine Seite, deren
+Fokus auf einer Gitterzelle liegt** — also auf nichts Bearbeitbarem. Von Hand gedrückt im
+Chromium-WebView auf Windows 11, mitgeschnitten mit einem Logger in der laufenden Seite:
+
+```
+keydown  key="v" ctrl=true   auf  cell row=2 col=1 "Zoe Bauer"
+paste    "Zora Bauer	zora@example.com
+Adi Fischer	adi@example.com"   auf dieselbe Zelle
+nach 1,5 s   Zeile 1 "Zora Bauer | zora@example.com", Zeile 2 "Adi Fischer | adi@example.com"
+             Status "Saved"
+```
+
+Damit trägt die Strecke aus §15 von der Taste bis in die Daten: Ereignis, Eval-Kanal, `from_tsv`,
+zwei Zeilen geschrieben und gespeichert. Die Kontrolle im offenen Editor liefert dasselbe Ereignis
+am Input, wo der Listener es absichtlich liegen lässt.
+
+*Ein erster Lauf derselben Prüfung zeigte nur **eine** geschriebene Zeile.* Nicht reproduzierbar:
+nachgestellt in sechs Zuständen (Zellauswahl None/Single/Range × Editing Cell/Row/Dialog/Batch, am
+laufenden Playground) schreibt das Gitter jedes Mal beide Zeilen, und der wiederholte echte
+Tastendruck ebenfalls. Es bleibt unerklärt und steht hier, damit es wiedererkannt wird, falls es
+zurückkommt — nicht mit einer erfundenen Ursache.
+
+**Dabei gefunden, und das ist echt:** ein Block, der über die **letzte Zeile der Seite** hinausragt,
+schreibt, was passt, und sagt nichts dazu. Zwei Zeilen auf die fünfte von fünf eingefügt: eine Zeile
+geschrieben, die andere fällt weg, Status „Saved". Das ist die Regel (ein Einfügen vergrößert das
+Gitter nicht und reicht nicht auf die nächste Seite), aber `PasteReport` zählt nur `rows`, `cells`
+und `refused` — für *weggefallen* gibt es kein Feld und keinen Text.
+
+**Weiter offen:** WKWebView (Safari, macOS/iOS). **Nicht geprüft**, nicht vermutet: hier steht kein
+Mac. Auf Windows ist der Desktop-Build WebView2, also wieder Chromium, und damit kein Ersatz für
+diese Messung.
+
 ## 16. Phase 12: Dioxus setzt `indeterminate` nicht
 
 Geprüft am 2026-09-28 an der Quelle, nicht am Versuch:
