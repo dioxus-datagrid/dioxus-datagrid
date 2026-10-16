@@ -685,3 +685,50 @@ verbergen ihren Überlauf (für die Ellipse), also ist ihr Minimum null. Füllen
 Raster schon, bleibt kein freier Platz zu verteilen, und die Spalte schrumpft nicht auf ihren
 Inhalt, sondern verschwindet. Das ist aus der Spezifikation gelesen, nicht im Browser gemessen;
 gemessen ist das Template, das die Spalte jetzt bekommt (`minmax(48px, 1fr)`, `tests/layout.rs`).
+
+## 19. Nach 0.10.0: Trifft uns dioxus#2293 (`get_client_rect`)?
+
+Geprüft am 2026-10-16 im Playground (Chromium, Browser-Pane), Dioxus 0.7.10, Web.
+
+**Was das Issue sagt.** [#2293](https://github.com/DioxusLabs/dioxus/issues/2293) „Incorrect values
+returned by `MountedData::get_client_rect()`" (offen seit 2024-04-11, Label `bug`, High-Priority
+Backlog, kein Maintainer-Kommentar): *der erste Aufruf im `onmounted`* liefert falsche Werte — im
+Bericht `31.7x22.0` statt `102x102`, weil die CSS-Maße noch nicht angewendet sind. Ein zweiter
+Kommentar bemängelt, dass der Rand fehle (`100x100` statt `102x102`). Gemeldet auf **Desktop**
+(0.5.1, später 0.6).
+
+**Das ist die Oberseite unseres §3**, dort auf Web gemessen und seit Phase 0 bekannt:
+`w=0.0, y=8539` beim Mount, DOM-genau bei der späteren Messung. Deshalb messen wir dort nicht.
+
+**Benutzen wir den kaputten Weg?** Nein. `get_client_rect` kommt an genau zwei Stellen vor, beide
+on demand und beide nach dem Layout:
+
+- `grid.rs` in `measure_columns`, aufgerufen aus dem Effekt des Wurzelelements und aus dessen
+  `onresize`;
+- `filter_menu.rs`, wenn das Panel in den Viewport eingepasst wird.
+
+Im `onmounted` einer Kopfzelle passiert nur `register_column_element` — das `MountedData` wird
+aufbewahrt, nicht gemessen.
+
+**Ist unsere Messung richtig?** Ja, bis auf die letzte Stelle. Zwei fixierte Spalten; der
+`--dg-pin-offset` der zweiten **ist** unsere gespeicherte Breite der ersten, also direkt vergleichbar
+mit dem DOM:
+
+```
+ohne Rand   getBoundingClientRect: 306.03125    gespeichert: 306.03125
+mit 3px Rand (per CSS eingespielt, dann Breitenänderung)
+            getBoundingClientRect: 242.359375   gespeichert: 242.359375
+            clientWidth (ohne Rand): 239        -> wir messen die Randbox, nicht die Innenbox
+```
+
+Beides direkt nach dem Laden, ohne Zutun. Die zweite Klage aus dem Issue — der Rand werde
+unterschlagen — trifft unseren Weg also ebenfalls nicht.
+
+**Offen bleibt:** gemessen ist Web. Das Issue ist für **Desktop** gemeldet, und unsere E2E-Suite
+fährt nur Web. Ob ein Desktop- oder Mobile-WebView bei der On-demand-Messung dieselben Zahlen
+liefert, ist nicht geprüft — fällig, wenn jemand das Gitter dort vermisst, oder zusammen mit der
+nächsten Desktop-Prüfung.
+
+**Für Anwendungen, die eigene Zellen bauen:** nicht im `onmounted` messen. Das `MountedData`
+aufbewahren und aus einem Effekt oder aus `onresize` messen; `GridHandle::measure_columns` macht
+genau das und ist der Weg, den die Primitives anbieten.

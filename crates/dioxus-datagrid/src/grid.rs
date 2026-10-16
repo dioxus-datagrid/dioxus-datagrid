@@ -241,8 +241,8 @@ pub struct GridHandle<T: GridRow + 'static> {
     /// starts from the width the column actually has, which for an `Auto` or
     /// `Fraction` column only layout knows.
     measured_widths: Signal<Vec<(ColumnId, f64)>>,
-    /// The header cells, so their widths can be measured on demand. `onresize`
-    /// reaches only the grid root (see `docs/VERIFICATION.md` §13).
+    /// The header cells, so their widths can be measured on demand: measuring
+    /// while mounting is too early (see `docs/VERIFICATION.md` §3).
     column_elements: Signal<Vec<(ColumnId, Rc<MountedData>)>>,
     /// The column resize in progress, if any.
     resize: Signal<Option<ColumnResize>>,
@@ -1381,11 +1381,13 @@ impl<T: GridRow> GridHandle<T> {
 
     /// Measures every column header and records the widths.
     ///
-    /// Called from the grid root's `onresize`, which is the one resize that
-    /// reaches us: Dioxus observes only the element the listener sits on, and
-    /// a header cell's own `onresize` never fires — `docs/VERIFICATION.md` §13.
-    /// Measuring from here also means it happens after layout, which a
-    /// measurement taken while mounting does not.
+    /// Called from an effect of the grid root and from its `onresize`, so that
+    /// it happens **after** layout. A measurement taken while a header mounts
+    /// is too early and reports a cell that still spans the container
+    /// (`docs/VERIFICATION.md` §3, and
+    /// [dioxus#2293](https://github.com/DioxusLabs/dioxus/issues/2293) for the
+    /// same thing upstream). One measurement from here is also simpler than one
+    /// per cell; a header cell's own `onresize` does fire, which §14 corrects.
     pub fn measure_columns(&mut self) {
         let elements = self.column_elements.peek().clone();
         let mut grid = *self;
