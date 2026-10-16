@@ -6,10 +6,11 @@ use crate::edit::{EditRows, EditStatus, EditTarget, Editing, Session};
 use crate::row_drag::{RowDrag, RowMove};
 use datagrid_core::{
     CellFocus, CellRange, CellSelectionMode, ColumnFilter, ColumnId, ColumnSpec, ColumnWidth,
-    DEFAULT_REMOTE_PAGE_SIZE, DistinctValues, GridLocale, GridQuery, GridRow, GridState, GroupSpan,
-    NavKey, Pinned, RowSpans, Selection, SelectionExtent, SelectionMode, SortDirection, ValueKind,
-    View, ViewRow, compute_view_with_details, distinct_values, group_header_rows, group_levels,
-    navigate, reveal_scroll_top, rows_per_viewport, visible_range,
+    DEFAULT_AUTO_COLUMN_WIDTH, DEFAULT_REMOTE_PAGE_SIZE, DistinctValues, GridLocale, GridQuery,
+    GridRow, GridState, GroupSpan, NavKey, Pinned, RowSpans, Selection, SelectionExtent,
+    SelectionMode, SortDirection, ValueKind, View, ViewRow, column_offset,
+    compute_view_with_details, distinct_values, group_header_rows, group_levels, navigate,
+    reveal_scroll_left, reveal_scroll_top, rows_per_viewport, visible_columns, visible_range,
 };
 use dioxus::html::ScrollBehavior;
 use dioxus::html::geometry::PixelsVector2D;
@@ -35,12 +36,42 @@ pub struct Layout {
     pub scroll_left: f64,
     /// The container's visible height.
     pub viewport_height: f64,
+    /// The container's visible width, which a grid that virtualizes its columns
+    /// needs to know which of them are in view.
+    pub viewport_width: f64,
     /// The height of the header row group, which sticks to the top of the
     /// viewport and hides whatever body rows are beneath it.
     pub header_height: f64,
     /// The height of a footer that sticks to the bottom of the viewport, such
     /// as the totals, which hides the body rows beneath it.
     pub footer_height: f64,
+}
+
+/// Which columns a grid that virtualizes them renders.
+///
+/// The columns in view, widened by the overscan, and the pinned ones at both
+/// edges, which are always there: they stick to the edge while the rest scrolls
+/// past, so they are never out of view.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ColumnWindow {
+    /// The columns whose place is in view, overscan included.
+    pub range: Range<usize>,
+    /// The columns before this index are pinned to the start edge.
+    pub pinned_start: usize,
+    /// The columns from this index on are pinned to the end edge.
+    pub pinned_end: usize,
+}
+
+impl ColumnWindow {
+    /// Whether a cell over `span` columns from `start` is rendered: it reaches
+    /// into the window, or into a pinned block.
+    #[must_use]
+    pub fn renders(&self, start: usize, span: usize) -> bool {
+        let end = start.saturating_add(span.max(1));
+        start < self.pinned_start
+            || end > self.pinned_end
+            || (start < self.range.end && end > self.range.start)
+    }
 }
 
 /// Answers a remote grid's value lists: the column, the query without paging,
@@ -74,6 +105,16 @@ pub struct GridOptions {
     /// The texts and number formats the grid's primitives use. English unless
     /// set; changing it on a later render switches the grid over.
     pub locale: GridLocale,
+    /// Renders only the columns in view, plus this many either side, and the
+    /// pinned ones; `None` renders every column.
+    ///
+    /// For grids with more columns than a screen holds. The columns' widths must
+    /// then be known without laying them out, which they are as far as it
+    /// matters: a fixed width is itself, and an automatic or fractional column
+    /// has its floor, see
+    /// [`ColumnSpec::floor_width`](datagrid_core::ColumnSpec::floor_width).
+    /// Changing it on a later render switches the grid over.
+    pub virtual_columns: Option<usize>,
 }
 
 /// How long a remote grid waits for typing to pause before it sends a request.
@@ -118,6 +159,14 @@ impl GridOptions {
     #[must_use]
     pub fn locale(mut self, locale: GridLocale) -> Self {
         self.locale = locale;
+        self
+    }
+
+    /// Renders only the columns in view, with `overscan` more on each side; see
+    /// [`virtual_columns`](GridOptions::virtual_columns).
+    #[must_use]
+    pub fn virtual_columns(mut self, overscan: usize) -> Self {
+        self.virtual_columns = Some(overscan);
         self
     }
 
@@ -237,6 +286,14 @@ pub struct GridHandle<T: GridRow + 'static> {
     /// as not rendered — enough for the grid to park focus on its root right
     /// after the cell took it.
     virtual_body: Signal<Option<(f64, usize)>>,
+    /// Overscan of a grid that virtualizes its columns; see
+    /// [`GridOptions::virtual_columns`].
+    virtual_columns: Signal<Option<usize>>,
+    /// The columns to render, derived from the scroll position and the columns'
+    /// widths. A memo, so that a scroll which moves no column in or out re-renders
+    /// nobody: the scroll position changes with every pixel, this only when a
+    /// column crosses the edge.
+    column_window: Memo<Option<ColumnWindow>>,
     /// Rendered header cell widths, as reported by their `onresize`. A drag
     /// starts from the width the column actually has, which for an `Auto` or
     /// `Fraction` column only layout knows.
@@ -414,6 +471,30 @@ where
     base.with_view(view)
 }
 
+/// The columns that are visible, in order, with the pinned ones gathered at
+/// their edges.
+fn shown_columns<T: GridRow>(state: &GridState, columns: &[Column<T>]) -> Vec<Column<T>> {
+    let declared: Vec<ColumnId> = columns.iter().map(|column| column.id().clone()).collect();
+
+    let mut shown: Vec<Column<T>> = state
+        .ordered_columns(&declared)
+        .iter()
+        .filter_map(|id| columns.iter().find(|column| column.id() == id))
+        .filter(|column| column.spec().is_visible(&state.hidden_columns))
+        .cloned()
+        .collect();
+
+    // Pinned columns are laid out as a block at their edge, so that one can
+    // never end up between two scrolling columns — the order within each
+    // block is the column order, which a stable sort keeps.
+    shown.sort_by_key(|column| match column.spec().effective_pin(state) {
+        Pinned::Start => 0,
+        Pinned::None => 1,
+        Pinned::End => 2,
+    });
+    shown
+}
+
 /// Numbers the grids on a page, so that the ids two of them generate differ.
 static NEXT_GRID_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -435,6 +516,7 @@ pub(crate) struct GridBase<T: GridRow + 'static> {
     root: Signal<Option<Rc<MountedData>>>,
     layout: Signal<Layout>,
     virtual_body: Signal<Option<(f64, usize)>>,
+    virtual_columns: Signal<Option<usize>>,
     measured_widths: Signal<Vec<(ColumnId, f64)>>,
     column_elements: Signal<Vec<(ColumnId, Rc<MountedData>)>>,
     resize: Signal<Option<ColumnResize>>,
@@ -477,6 +559,7 @@ where
     let requested_cell_mode = options.cell_selection;
     let requested_page_size = options.page_size;
     let requested_locale = options.locale.clone();
+    let requested_virtual_columns = options.virtual_columns;
 
     let mut mode = use_signal(|| requested_mode);
     let mut cell_mode = use_signal(|| requested_cell_mode);
@@ -485,6 +568,7 @@ where
     let mut state = use_signal(|| options.into_state());
     let mut selection = use_signal(Selection::new);
     let mut locale = use_signal(|| requested_locale.clone());
+    let mut virtual_columns = use_signal(|| requested_virtual_columns);
 
     // Options are plain values, so a component re-rendering with different ones
     // would otherwise be ignored after the first render. This is the pattern
@@ -508,6 +592,9 @@ where
     }
     if *locale.peek() != requested_locale {
         locale.set(requested_locale);
+    }
+    if *virtual_columns.peek() != requested_virtual_columns {
+        virtual_columns.set(requested_virtual_columns);
     }
 
     let remote = distinct.is_some();
@@ -536,6 +623,7 @@ where
         root: use_signal(|| None::<Rc<MountedData>>),
         layout: use_signal(Layout::default),
         virtual_body: use_signal(|| None::<(f64, usize)>),
+        virtual_columns,
         measured_widths: use_signal(Vec::new),
         column_elements: use_signal(Vec::new),
         resize: use_signal(|| None::<ColumnResize>),
@@ -605,6 +693,38 @@ impl<T: GridRow + PartialEq> GridBase<T> {
             }
         });
 
+        let (state, columns, layout, virtual_columns) =
+            (self.state, self.columns, self.layout, self.virtual_columns);
+        let column_window = use_memo(move || {
+            let overscan = (*virtual_columns.read())?;
+            let state = state.read();
+            let shown = shown_columns(&state, &columns.read());
+            let widths: Vec<f64> = shown
+                .iter()
+                .map(|column| f64::from(column.spec().floor_width(&state)))
+                .collect();
+            let layout = *layout.read();
+            let pins = |wanted: Pinned| {
+                shown
+                    .iter()
+                    .filter(|column| column.spec().effective_pin(&state) == wanted)
+                    .count()
+            };
+            Some(ColumnWindow {
+                // Scrolled the other way in right-to-left text, which reports it
+                // as a negative number; the distance from the start edge is what
+                // the widths are measured along.
+                range: visible_columns(
+                    &widths,
+                    layout.scroll_left.abs(),
+                    layout.viewport_width,
+                    overscan,
+                ),
+                pinned_start: pins(Pinned::Start),
+                pinned_end: shown.len() - pins(Pinned::End),
+            })
+        });
+
         GridHandle {
             data: self.data,
             columns: self.columns,
@@ -621,6 +741,8 @@ impl<T: GridRow + PartialEq> GridBase<T> {
             root: self.root,
             layout: self.layout,
             virtual_body: self.virtual_body,
+            virtual_columns: self.virtual_columns,
+            column_window,
             measured_widths: self.measured_widths,
             column_elements: self.column_elements,
             resize: self.resize,
@@ -744,27 +866,7 @@ impl<T: GridRow> GridHandle<T> {
     /// keyboard navigation moves through.
     #[must_use]
     pub fn visible_columns(&self) -> Vec<Column<T>> {
-        let state = self.state.read();
-        let columns = self.columns.read();
-        let declared: Vec<ColumnId> = columns.iter().map(|column| column.id().clone()).collect();
-
-        let mut shown: Vec<Column<T>> = state
-            .ordered_columns(&declared)
-            .iter()
-            .filter_map(|id| columns.iter().find(|column| column.id() == id))
-            .filter(|column| column.spec().is_visible(&state.hidden_columns))
-            .cloned()
-            .collect();
-
-        // Pinned columns are laid out as a block at their edge, so that one can
-        // never end up between two scrolling columns — the order within each
-        // block is the column order, which a stable sort keeps.
-        shown.sort_by_key(|column| match column.spec().effective_pin(&state) {
-            Pinned::Start => 0,
-            Pinned::None => 1,
-            Pinned::End => 2,
-        });
-        shown
+        shown_columns(&self.state.read(), &self.columns.read())
     }
 
     /// How many columns are visible.
@@ -1379,6 +1481,14 @@ impl<T: GridRow> GridHandle<T> {
         }
     }
 
+    /// Forgets a column header's element once it is gone, as a header scrolled
+    /// out of a virtualized grid is. Measuring a detached element reports zeros,
+    /// which is not what the column is.
+    pub fn unregister_column_element(&mut self, column: &ColumnId) {
+        let mut elements = self.column_elements.write();
+        elements.retain(|(id, _)| id != column);
+    }
+
     /// Measures every column header and records the widths.
     ///
     /// Called from an effect of the grid root and from its `onresize`, so that
@@ -1780,13 +1890,15 @@ impl<T: GridRow> GridHandle<T> {
     /// root stands in as the tab stop.
     #[must_use]
     pub fn focus_is_rendered(&self) -> bool {
-        match (self.focus_data_row(), self.rendered_range()) {
+        let row_rendered = match (self.focus_data_row(), self.rendered_range()) {
             // The header is never virtualized away.
             (None, _) | (_, None) => true,
             // Nor is the footer.
             (Some(body_row), _) if body_row >= self.view.read().len() => true,
             (Some(body_row), Some(range)) => range.contains(&body_row),
-        }
+        };
+        // The column may have scrolled out of the window just as the row can.
+        row_rendered && self.renders_cell(self.focus().col, 1)
     }
 
     // -- layout and virtualization -----------------------------------------------
@@ -1815,6 +1927,13 @@ impl<T: GridRow> GridHandle<T> {
     pub fn record_viewport_height(&mut self, height: f64) {
         if self.layout.peek().viewport_height != height {
             self.layout.write().viewport_height = height;
+        }
+    }
+
+    /// Records the scroll container's visible width.
+    pub fn record_viewport_width(&mut self, width: f64) {
+        if self.layout.peek().viewport_width != width {
+            self.layout.write().viewport_width = width;
         }
     }
 
@@ -1861,6 +1980,60 @@ impl<T: GridRow> GridHandle<T> {
         Some(self.virtual_range(row_height, overscan))
     }
 
+    /// The columns in the DOM, or `None` when every column is rendered.
+    ///
+    /// Derived from the scroll position, and only changes when a column crosses
+    /// the edge of the window, so reading it does not re-render on every pixel of
+    /// scrolling.
+    #[must_use]
+    pub fn column_window(&self) -> Option<ColumnWindow> {
+        self.column_window.read().clone()
+    }
+
+    /// Whether the cell over `span` columns from `column` is in the DOM: always
+    /// where the columns are not virtualized, else when it reaches into the
+    /// window or a pinned block.
+    ///
+    /// What a loop of your own over a row's cells asks before rendering each.
+    #[must_use]
+    pub fn renders_cell(&self, column: usize, span: usize) -> bool {
+        self.column_window
+            .read()
+            .as_ref()
+            .is_none_or(|window| window.renders(column, span))
+    }
+
+    /// The `grid-column` of the cell over `span` columns from `column`, as a
+    /// style declaration, or `None` where the columns are not virtualized.
+    ///
+    /// A row is a subgrid, and its cells find their tracks by following one
+    /// another. With cells missing, that no longer works: each one has to name its
+    /// track (`docs/VERIFICATION.md` §20). A cell of your own should put this in
+    /// its `style`.
+    #[must_use]
+    pub fn cell_placement(&self, column: usize, span: usize) -> Option<String> {
+        self.virtual_columns.read().as_ref()?;
+        Some(format!(
+            "grid-column: {} / span {};",
+            column + 1,
+            span.max(1)
+        ))
+    }
+
+    /// The track a column gets when it asks for `auto` and sets no minimum:
+    /// `minmax(6rem, auto)`, or in pixels, for a grid that has to know the width,
+    /// [`DEFAULT_AUTO_COLUMN_WIDTH`](crate::DEFAULT_AUTO_COLUMN_WIDTH).
+    ///
+    /// Pass it to [`column_template`](GridHandle::column_template).
+    #[must_use]
+    pub fn auto_track(&self) -> String {
+        if self.virtual_columns.read().is_some() {
+            format!("minmax({DEFAULT_AUTO_COLUMN_WIDTH}px, auto)")
+        } else {
+            "minmax(6rem, auto)".to_owned()
+        }
+    }
+
     /// The part of the viewport that shows body rows: its height minus the
     /// sticky header and footer.
     #[must_use]
@@ -1884,44 +2057,94 @@ impl<T: GridRow> GridHandle<T> {
         )
     }
 
-    /// Scrolls the focused row into view, if the grid is virtualized and it is
-    /// not already fully visible.
+    /// Scrolls the focused cell into view, if the grid is virtualized and it is
+    /// not already fully visible: its row in a grid that virtualizes rows, its
+    /// column in one that virtualizes columns.
     ///
     /// Updates the recorded scroll position immediately rather than waiting for
-    /// the scroll event, so the row is rendered in the same pass and its cell can
-    /// take focus straight away.
+    /// the scroll event, so the cell is rendered in the same pass and can take
+    /// focus straight away.
     pub fn reveal_focus(&mut self) {
-        let Some((row_height, _)) = *self.virtual_body.peek() else {
-            return;
-        };
-        // The header and the footer stay in place; only body rows scroll.
-        let Some(body_row) = self
-            .focus()
-            .row
-            .checked_sub(1)
-            .filter(|row| *row < self.view.peek().len())
-        else {
-            return;
-        };
         let layout = *self.layout.peek();
-        let body_viewport =
-            (layout.viewport_height - layout.header_height - layout.footer_height).max(0.0);
+        let mut top = layout.scroll_top;
+        let mut left = layout.scroll_left;
 
-        let Some(scroll_top) =
-            reveal_scroll_top(body_row, row_height, body_viewport, layout.scroll_top)
-        else {
+        if let Some((row_height, _)) = *self.virtual_body.peek()
+            // The header and the footer stay in place; only body rows scroll.
+            && let Some(body_row) = self
+                .focus_data_row()
+                .filter(|row| *row < self.view.peek().len())
+        {
+            let body_viewport =
+                (layout.viewport_height - layout.header_height - layout.footer_height).max(0.0);
+            if let Some(target) =
+                reveal_scroll_top(body_row, row_height, body_viewport, layout.scroll_top)
+            {
+                top = target;
+            }
+        }
+        if let Some(target) = self.column_reveal_left(&layout) {
+            left = target;
+        }
+
+        if top == layout.scroll_top && left == layout.scroll_left {
             return;
-        };
-
-        self.layout.write().scroll_top = scroll_top;
+        }
+        {
+            let mut layout = self.layout.write();
+            layout.scroll_top = top;
+            layout.scroll_left = left;
+        }
         if let Some(root) = self.root.peek().clone() {
-            let target = PixelsVector2D::new(layout.scroll_left, scroll_top);
+            let target = PixelsVector2D::new(left, top);
             spawn(async move {
                 // Instant, not smooth: with a key held down, a smooth scroll would
                 // lag behind the rows being rendered for the new position.
                 let _ = root.scroll(target, ScrollBehavior::Instant).await;
             });
         }
+    }
+
+    /// Where to scroll sideways to bring the focused column into view, or `None`
+    /// when it is, or when the columns are not virtualized.
+    ///
+    /// A pinned column is always in view. A scrolling one has to clear the
+    /// pinned blocks, which stay where they are and cover part of the viewport.
+    fn column_reveal_left(&self, layout: &Layout) -> Option<f64> {
+        self.virtual_columns.peek().as_ref()?;
+        let state = self.state.peek();
+        let shown = shown_columns(&state, &self.columns.peek());
+        let index = self.focus.peek().col.min(shown.len().checked_sub(1)?);
+        let column = shown.get(index)?;
+        if column.spec().effective_pin(&state).is_pinned() {
+            return None;
+        }
+
+        let widths: Vec<f64> = shown
+            .iter()
+            .map(|column| f64::from(column.spec().floor_width(&state)))
+            .collect();
+        let pinned_width = |wanted: Pinned| -> f64 {
+            shown
+                .iter()
+                .zip(&widths)
+                .filter(|(column, _)| column.spec().effective_pin(&state) == wanted)
+                .map(|(_, width)| *width)
+                .sum()
+        };
+
+        // The scroll position is negative in right-to-left text; the arithmetic
+        // runs along the distance from the start edge and the sign goes back on.
+        let sign = if layout.scroll_left < 0.0 { -1.0 } else { 1.0 };
+        reveal_scroll_left(
+            column_offset(&widths, index),
+            *widths.get(index)?,
+            layout.viewport_width,
+            layout.scroll_left.abs(),
+            pinned_width(Pinned::Start),
+            pinned_width(Pinned::End),
+        )
+        .map(|left| left * sign)
     }
 
     /// Moves DOM focus to the grid root, without it counting as the user

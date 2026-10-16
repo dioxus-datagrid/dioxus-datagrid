@@ -185,7 +185,7 @@ pub fn GridGroupFooterRow<T: GridRowKey + PartialEq + 'static>(
             "data-group-footer": "",
             "data-group-level": "{level}",
             ..attributes,
-            for column_index in 0..columns {
+            for column_index in (0..columns).filter(|column| grid.renders_cell(*column, 1)) {
                 GridAggregateCell {
                     key: "{column_index}",
                     grid,
@@ -256,6 +256,7 @@ pub fn GridAggregateCell<T: GridRowKey + PartialEq + 'static>(
             tabindex: if focused { "0" } else { "-1" },
             title,
             "data-align": column.spec().effective_align().as_str(),
+            style: grid.cell_placement(column_index, 1),
             onmounted,
             onclick: move |_| grid.set_focus(at),
             ..attributes,
@@ -329,7 +330,7 @@ pub fn GridFooter<T: GridRowKey + PartialEq + 'static>(
                 role: "row",
                 aria_rowindex: "{aria_row_index}",
                 aria_level: grouped.then_some("1"),
-                for column_index in 0..columns {
+                for column_index in (0..columns).filter(|column| grid.renders_cell(*column, 1)) {
                     GridAggregateCell {
                         key: "{column_index}",
                         grid,

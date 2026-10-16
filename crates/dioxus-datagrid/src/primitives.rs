@@ -279,6 +279,7 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
             onresize: move |event| {
                 if let Ok(size) = event.data().get_content_box_size() {
                     grid.record_viewport_height(size.height);
+                    grid.record_viewport_width(size.width);
                 }
                 // The grid's own resize is the one that fires, so the columns
                 // are measured from here rather than each from its own header.
@@ -383,7 +384,7 @@ pub fn GridHeader<T: GridRowKey + PartialEq + 'static>(
                     role: "row",
                     aria_rowindex: "{level + 1}",
                     "data-group-header-row": "{level}",
-                    for span in spans {
+                    for span in spans.into_iter().filter(|span| grid.renders_cell(span.start, span.span)) {
                         GridGroupHeaderCell {
                             key: "{level}-{span.start}",
                             grid,
@@ -394,7 +395,7 @@ pub fn GridHeader<T: GridRowKey + PartialEq + 'static>(
                 }
             }
             div { role: "row", aria_rowindex: "{leaf_index}",
-                for (index , column) in columns.into_iter().enumerate() {
+                for (index , column) in columns.into_iter().enumerate().filter(|(index, _)| grid.renders_cell(*index, 1)) {
                     GridHeaderCell {
                         key: "{column.id()}",
                         grid,
@@ -465,8 +466,9 @@ pub fn GridGroupHeaderCell<T: GridRowKey + PartialEq + 'static>(
             "data-group-header": "{level}",
             "data-pinned": pin.as_str(),
             style: format!(
-                "grid-column: span {};{}",
-                span.span,
+                "{}{}",
+                grid.cell_placement(start, span.span)
+                    .unwrap_or_else(|| format!("grid-column: span {};", span.span)),
                 pin_offset.map_or(String::new(), |offset| format!(" --dg-pin-offset: {offset}px;")),
             ),
             onmounted,
@@ -618,6 +620,13 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
     let focused = grid.focus() == CellFocus::new(leaf_row, column_index);
     let mut pull_focus = use_focus_pull(grid, CellFocus::new(leaf_row, column_index));
     let measured_id = id.clone();
+    // A header scrolled out of a virtualized grid is gone, and a gone element
+    // measures as nothing.
+    let forgotten_id = id.clone();
+    use_drop(move || {
+        let mut grid = grid;
+        grid.unregister_column_element(&forgotten_id);
+    });
     let onmounted = move |event: MountedEvent| {
         // Handed to the grid rather than measured here: at mount the stylesheet
         // may not have been applied, so the header still spans the container.
@@ -673,7 +682,13 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
             "aria-keyshortcuts": shortcuts,
             "data-dragging": dragging.then_some("true"),
             "data-pinned": pin.as_str(),
-            style: pin_offset.map(|offset| format!("--dg-pin-offset: {offset}px;")),
+            style: {
+                let mut style = grid.cell_placement(column_index, 1).unwrap_or_default();
+                if let Some(offset) = pin_offset {
+                    style.push_str(&format!("--dg-pin-offset: {offset}px;"));
+                }
+                (!style.is_empty()).then_some(style)
+            },
             draggable: draggable.then_some("true"),
             ondragstart: move |event: DragEvent| {
                 if !draggable {
@@ -904,6 +919,8 @@ pub fn GridRow<T: GridRowKey + PartialEq + 'static>(
     let cells: Vec<(usize, usize)> = (0..columns.len())
         .filter(|column| spans.is_anchor(*column))
         .map(|column| (column, spans.width(column)))
+        // A virtualized grid leaves out the cells that are out of view.
+        .filter(|(column, width)| grid.renders_cell(*column, *width))
         .collect();
 
     // aria-rowindex is 1-based over every row of the view and counts the header
@@ -1120,8 +1137,11 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
     // A row is a subgrid, so a cell that covers several columns says so in the
     // layout as well as to the reader.
     let mut style = String::new();
-    if span > 1 {
-        style.push_str(&format!("grid-column: span {span};"));
+    match grid.cell_placement(column_index, span) {
+        // With cells missing, a cell has to name its track.
+        Some(placement) => style.push_str(&placement),
+        None if span > 1 => style.push_str(&format!("grid-column: span {span};")),
+        None => {}
     }
     if let Some(offset) = pin_offset {
         style.push_str(&format!(" --dg-pin-offset: {offset}px;"));

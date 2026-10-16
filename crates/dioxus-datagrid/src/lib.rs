@@ -100,7 +100,8 @@ pub use edit::{
 };
 pub use edit_ui::CellEditor;
 pub use grid::{
-    COLUMN_RESIZE_STEP, DEFAULT_DEBOUNCE, GridHandle, GridOptions, IntoReadSignal, Layout, use_grid,
+    COLUMN_RESIZE_STEP, ColumnWindow, DEFAULT_DEBOUNCE, GridHandle, GridOptions, IntoReadSignal,
+    Layout, use_grid,
 };
 pub use group::GroupKeyPress;
 pub use paste::PasteReport;
@@ -121,14 +122,14 @@ pub use row_drag::{DropSide, RowMove};
 pub use datagrid_core::{
     Aggregate, AggregateFn, AggregateKind, AggregateValue, CellAlign, CellFocus, CellFormat,
     CellOverflow, CellRange, CellSelectionMode, CellValue, Changes, ColumnFilter, ColumnId,
-    ColumnSpec, ColumnWidth, Condition, DEFAULT_MIN_COLUMN_WIDTH, DEFAULT_REMOTE_PAGE_SIZE,
-    DataSource, DistinctValues, EditError, FilterOp, FilterTextFn, FromValue, GridLocale,
-    GridQuery, GridRow, GridState, Group, GroupKey, GroupSpan, GroupSummary, GroupedPage, NavKey,
-    Page, PagePart, PageState, Pinned, RequestId, RequestTracker, RowSpans, Selection,
-    SelectionExtent, SelectionMode, SetFn, SortDirection, SortKeyFn, SortState, SortValue, SpanFn,
-    TextCollation, ValidateFn, Value, ValueFn, ValueKind, View, ViewRow, changed_columns,
-    compute_view, compute_view_with_details, distinct_values, find_aggregate, from_tsv,
-    group_header_rows, group_levels, move_row, navigate, offset_of, reveal_scroll_top,
+    ColumnSpec, ColumnWidth, Condition, DEFAULT_AUTO_COLUMN_WIDTH, DEFAULT_MIN_COLUMN_WIDTH,
+    DEFAULT_REMOTE_PAGE_SIZE, DataSource, DistinctValues, EditError, FilterOp, FilterTextFn,
+    FromValue, GridLocale, GridQuery, GridRow, GridState, Group, GroupKey, GroupSpan, GroupSummary,
+    GroupedPage, NavKey, Page, PagePart, PageState, Pinned, RequestId, RequestTracker, RowSpans,
+    Selection, SelectionExtent, SelectionMode, SetFn, SortDirection, SortKeyFn, SortState,
+    SortValue, SpanFn, TextCollation, ValidateFn, Value, ValueFn, ValueKind, View, ViewRow,
+    changed_columns, compute_view, compute_view_with_details, distinct_values, find_aggregate,
+    from_tsv, group_header_rows, group_levels, move_row, navigate, offset_of, reveal_scroll_top,
     rows_per_viewport, to_tsv, total_height, tsv_field, visible_range,
 };
 
