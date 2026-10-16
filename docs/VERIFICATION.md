@@ -890,3 +890,62 @@ geprüft.
 bekommt, muss diese im Manifest nennen. Der Smoke-Test gegen die veröffentlichten Crates ist der
 Alarm dafür, und der lokale Test hätte es nicht gezeigt, weil er über einen `path`-Patch läuft.
 Das ist ein Grund mehr für die Reihenfolge aus ADR-0019: veröffentlichen, prüfen, dann pushen.
+
+## 23. Phase 14: Rechts-nach-links, was hält und was nicht
+
+Der Spike aus der Roadmap (RTL: Layout gespiegelt, Pfeiltasten gespiegelt). Zwei Teile: eine Seite
+ohne Framework je Fall (`tests/e2e/rtl-layout.spec.ts`, mit `dir="ltr"` daneben) und das echte Gitter im
+Playground mit `dir="rtl"` am Dokument, 199 Spalten, virtuelle Spalten, fixierte Spalten
+(`tests/e2e/rtl-grid.spec.ts` hält fest, was schon stimmt). Gemessen in Chromium und WebKit; Firefox läuft
+über die Specs in CI. Chromium und WebKit lieferten dieselben Zahlen.
+
+**Was hält, ohne Änderung:**
+
+- **`scrollLeft` ist in RTL die negative Entfernung vom Startrand.** Null in Ruhe, negativ beim
+  Scrollen. Eine **positive** Zuweisung tut nichts: sie wird auf 0 geklemmt (`+3000` ergab `0`, `-3000`
+  ergab `-3000`). Wer in RTL scrollt, muss das Vorzeichen kennen.
+- **Die Fensterrechnung** aus der Spaltenvirtualisierung stimmt: der Betrag von `scrollLeft` ist die
+  Entfernung vom Startrand; Spalte 150 liegt in beiden Richtungen 15000 px vom Startrand. Im Gitter zeigt
+  `scrollLeft = -12000` dieselben Spalten wie `12000` in LTR (`Metric 97` bis `104`), Kopf und Zellen
+  sind deckungsgleich.
+- **Subgrid, `grid-column: N` und fehlende Zellen** verhalten sich in RTL wie in LTR (Scrollmaß 30000,
+  erste Spalte am rechten Rand).
+- **`position: sticky` mit `inset-inline-start/-end`**: die Startspalte klebt rechts, die Endspalte links,
+  Abstand 0 und 0, auch weit gescrollt.
+- **Home und End** erreichen die erste und die letzte Spalte, sichtbar.
+
+**Was nicht hält, gemessen:**
+
+1. **Die Pfeiltasten sind nicht gespiegelt.** Unter RTL geht `ArrowRight` auf Spalte 2, also optisch nach
+   links. Bei einem Raster mit `dir="rtl"` erwartet man das Gegenteil.
+2. **Der Trennstrich der Endspalte** ist `box-shadow: -1px 0 0`, physisch: in RTL liegt er außen statt zum
+   Inhalt hin (berechneter Stil `-1px 0px 0px 0px` in beiden Richtungen; ein `box-shadow` spiegelt nicht,
+   eine `border-inline-end` schon, beides gemessen).
+3. **Der Resize-Griff** sitzt in RTL am physisch rechten Rand der Kopfzelle (Griff `x=867..875` in einer
+   Zelle von `779..875`), muss aber am Ende der Spalte stehen, links. Dasselbe gilt für das Spaltenmenü
+   (`right: 0`).
+4. **Das Ziehen zum Verbreitern**: 40 px nach physisch links verengen die Spalte in beiden Richtungen
+   (96 zu 56). In RTL müsste das verbreitern, denn der Spaltenrand liegt links.
+5. **`reveal_focus` greift beim ersten Mal ins Leere.** Das Vorzeichen leite ich aus dem aktuellen
+   `scrollLeft` ab, der in Ruhe 0 ist, also positiv: die Zuweisung wird auf 0 geklemmt. Gemessen, Druck für
+   Druck: bei Spalte 8 steht die Zelle teilweise **außerhalb** (`scrollLeft` 0), erst bei Spalte 9
+   springt es auf -491, vermutlich das native Scrollen des Browsers beim `focus()`, das den Fehler
+   meist verdeckt. Das Vorzeichen muss aus der bekannten Richtung kommen, nicht aus dem Messwert.
+
+**Aus dem Code gelesen, nicht gemessen:**
+
+- Auf- und Zuklappen einer Gruppe mit `ArrowRight`/`ArrowLeft` (`primitives.rs`): im Baum-Muster kehren
+  sich beide in RTL um.
+- `Alt+ArrowLeft/Right` (Spalte verbreitern, verengen) und `Alt+Shift+ArrowLeft/Right` (Spalte
+  verschieben): die Richtung ist fest.
+- Das Filtermenü passt sein Panel mit `min_x` und `max_x` in den Viewport ein (`fit_shift`): das ist
+  richtungsunabhängig.
+
+**Nicht geprüft:** Firefox (lokal nicht startbar), die Detailzeile, die Gruppeneinrückung, der Editor-Dialog
+(`left: 50%`), das Ziehen einer Spalte auf eine andere und echter arabischer oder hebräischer Text.
+
+**Die Richtung muss dem Gitter gesagt werden.** In `dioxus-datagrid` gibt es kein `getComputedStyle`
+(kein `web-sys`), und das Vorzeichen von `scrollLeft` verrät sie nur, wenn schon gescrollt wurde. Ein
+`document::eval` dafür wäre ein vierter Fall neben Zwischenablage, Download und Druck und brauchte
+eine eigene ADR.
+
