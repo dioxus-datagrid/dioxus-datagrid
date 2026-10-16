@@ -949,3 +949,16 @@ Playground mit `dir="rtl"` am Dokument, 199 Spalten, virtuelle Spalten, fixierte
 `document::eval` dafür wäre ein vierter Fall neben Zwischenablage, Download und Druck und brauchte
 eine eigene ADR.
 
+### Nachtrag: was `direction` behebt, und eine Falle im Stylesheet
+
+Die fünf Befunde sind behoben und in `tests/e2e/rtl-grid.spec.ts` festgehalten (Chromium und WebKit,
+30 Läufe), ADR-0044: die Pfeiltasten, die Gruppentasten (jetzt gemessen, vorher nur gelesen), der Griff am
+Ende der Spalte, das Ziehen und `Alt+Pfeil`, und das Vorzeichen des seitlichen Sichtbarmachens. Der
+Test dazu fängt den Fehler wirklich: mit der alten Vorzeichen-Ableitung steht die Zelle von Spalte 8 außerhalb
+(`[8]`), genau wie in der Messung oben.
+
+**`:dir(rtl)` kommt aus der Pipeline von `dx` nicht als `:dir` an.** Die ersten Regeln für den Trennstrich
+nutzten `.dg:dir(rtl) …`. Gemessen: das ausgelieferte Stylesheet (`style-dxh….css`, 12082 Zeichen) enthält
+`:lang(` und kein `:dir(`; unter `dir="rtl"` stand an den Zellen weiter der LTR-Wert (`1px`, erwartet `-1px`).
+Mit `.dg[dir="rtl"] …` greifen die Regeln. Was ich **nicht** gelesen habe, ist der Quelltext der Pipeline;
+dass sie `:dir()` in `:lang()` umschreibt, ist aus dem Ergebnis geschlossen, nicht belegt.

@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Right-to-left text. `GridOptions::direction(Direction::Rtl)` — or the `direction` prop on `data_grid`,
+  which also sets `dir` on the whole component — tells the grid which way it reads, which it cannot read
+  from the page (`docs/DECISIONS.md` ADR-0044). It mirrors the arrow keys (`NavKey::in_direction`), the
+  keys that open and close a group, `Alt`+arrow on a header, the edge a column is dragged by, and the
+  sign of the keyboard's sideways scroll, which was wrong the first time in right-to-left text; and it
+  puts the line at the edge of a pinned block on the side that faces the other columns, and the resize
+  handle and the column menu at the end of the line. `Direction` is new in `datagrid-core`,
+  `GridHandle::direction` and `is_rtl` in `dioxus-datagrid`. Without it nothing changes. Measured in
+  Chromium and WebKit; not checked: Firefox, detail rows, the editor dialog, real Arabic or Hebrew text.
+
 ## [0.12.0] - 2026-10-16
 
 Export and print: most of Phase 13. Excel is not in it: `rust_xlsxwriter` needs `zip` 8, every 7.x and

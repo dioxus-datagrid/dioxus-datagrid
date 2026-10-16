@@ -1719,3 +1719,59 @@ Ein Fortschritt („3 von 5 Seiten") fehlt. Beides ließe sich nachrüsten, ohne
 - **Die Seite als Export ausgeben, wenn mehr gewünscht ist.** Genau das hatte die erste Fassung der
   Komponente getan; eine Datei, die weniger enthält als verlangt, sagt es nicht.
 - **Gruppen aus Seiten zusammensetzen.** Siehe 5.
+
+---
+
+## ADR-0044 — Rechts-nach-links: eine Richtung, die dem Gitter gesagt wird
+
+**Kontext.** Phase 14 verlangt RTL: Layout gespiegelt, Pfeiltasten gespiegelt, getestet. Der Spike
+(VERIFICATION §23) hat gezeigt, was schon hält — Fensterrechnung, Subgrid, `sticky` mit logischen
+Offsets — und fünf Dinge, die nicht halten. Eine Frage blieb: woher weiß das Gitter, dass es RTL ist?
+`dioxus-datagrid` hat kein `getComputedStyle` (kein `web-sys`), und `scrollLeft` verrät die Richtung
+erst, wenn gescrollt wurde.
+
+**Entscheidung: explizit am Gitter** (mit dem Maintainer so gewählt).
+
+1. **`datagrid_core::Direction`** (`Ltr`, `Rtl`) und `GridOptions::direction: Option<Direction>`.
+   `None` ist der Zustand bis heute: das Layout folgt dem `dir` der Seite, Tasten und Maus verhalten
+   sich wie in LTR. Das ist rückwärtskompatibel; wer nichts setzt, bekommt nichts Neues.
+   `Some(Direction::Rtl)` spiegelt, was ein Gitter nicht von der Seite lesen kann, und setzt `dir` an der
+   Wurzel (`GridRoot`), damit die Spalten so liegen, wie die Tasten laufen.
+2. **Die Registry-Komponente `data_grid`** bekommt die Prop `direction` und setzt `dir` auch am
+   Wrapper, damit Werkzeugleiste, Filter und Seitenwechsel mitgehen. Eine Quelle der Wahrheit für CSS und
+   Logik; kein `document::eval` (der wäre ein vierter Fall neben Zwischenablage, Download und Druck).
+3. **Was gespiegelt wird:**
+   - die Pfeiltasten (`NavKey::in_direction`, im Kern, mit Test): `ArrowLeft` geht in RTL auf die
+     nächste Spalte;
+   - Auf- und Zuklappen einer Gruppe: aufklappen ist „weiter", also in RTL nach links;
+   - `Alt+Pfeil` an einem Kopf: Spalte verbreitern und verschieben folgen dem Pfeil auf dem Schirm;
+   - das Ziehen am Rand einer Spalte: `width = start + Richtung * (x - start_x)`, in RTL verbreitert
+     Ziehen nach links;
+   - das seitliche Sichtbarmachen mit der Tastatur: das Vorzeichen kommt aus der Richtung. Eine
+     positive Zuweisung an `scrollLeft` wird in RTL auf 0 geklemmt, und die Position verrät das
+     Vorzeichen erst nach dem ersten Scrollen. Ohne gesagte Richtung bleibt die alte Ableitung.
+   - CSS: `inset-inline-end` statt `right` am Resize-Griff und am Spaltenmenü; der Trennstrich der
+     fixierten Blöcke ist ein `box-shadow` und spiegelt nicht von selbst, also eine eigene Regel unter
+     `.dg[dir="rtl"]`.
+4. **Nicht `:dir(rtl)` im Stylesheet.** Das ausgelieferte CSS enthielt `:lang(` und kein `:dir(`: die
+   Pipeline von `dx` schreibt `:dir()` um in einen Selektor, der die Sprache fragt, nicht die Richtung,
+   sodass die Regeln unter `dir="rtl"` nicht griffen. Ein Attributselektor auf der Wurzel tut es, und die
+   Stylesheets benutzen ihn schon an anderen Stellen (Expander, Gruppenpfeil).
+
+**Verworfen.**
+
+- **Die Richtung aus dem `GridLocale`.** Eine Sprache hat eine Richtung, aber hebräische Daten in einer
+  englischen Oberfläche haben keine hebräische Sprache. Die Richtung ist keine Eigenschaft der Sprache
+  des Gitters.
+- **Messen per `document::eval`**: eine Richtung, die immer stimmt, aber ein vierter `eval`-Fall und ein
+  Weg, der dort kaputt ist, wo `eval` fehlt.
+- **`dir` zu erben und das Gitter es erraten zu lassen**: es gäbe nichts zu erraten, nur Folgen, die sich
+  bei jedem Scrollen anders zeigen.
+
+**Folgen.**
+
+- Wer `dir="rtl"` am `<html>` setzt und `direction` am Gitter **nicht**, hat gespiegeltes Layout, aber
+  nicht gespiegelte Tasten und keinen Trennstrich an der richtigen Seite. Das steht in der Doku von
+  `GridOptions::direction` und der Komponente: beides zusammen setzen.
+- Die Detailzeile, die Gruppeneinrückung, der Editor-Dialog und echter arabischer oder hebräischer Text
+  sind nicht geprüft; Firefox läuft über CI.
