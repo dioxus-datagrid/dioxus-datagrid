@@ -1664,3 +1664,58 @@ bleiben der Druck im Desktop-WebView und ein Papierausdruck.
   der Nutzer nie gewollt hat.
 - **Ein `iframe`.** Druck aus einem Rahmen verhält sich je Engine anders, und der Container im selben
   Dokument ist mit einem ersetzten `window.print` prüfbar.
+
+---
+
+## ADR-0043 — Export eines Server-Gitters: alle Seiten holen, flach, mit Obergrenze
+
+**Kontext.** Ein Gitter mit `use_grid_remote` hat nur die Seite im Speicher, die auf dem Schirm steht.
+`export_table(Filtered)` gibt dort `None`, weil „jede gefilterte Zeile" nicht da ist. Die Roadmap
+verlangt den Export „remote über die `DataSource`".
+
+**Entscheidung.**
+
+1. **`GridHandle::export_all(max_rows)`** holt die Zeilen Seite für Seite (`EXPORT_PAGE_SIZE`, 1000) aus
+   derselben Quelle, die das Gitter benutzt, mit der Sortierung, dem Filter und der Suche, die es jetzt
+   zeigt, und baut daraus dieselbe `ExportTable` wie ein lokales Gitter. Ein Gitter mit allen Zeilen
+   im Speicher antwortet sofort, ohne Server — ein Aufruf für beide.
+2. **Die Quelle steht im Handle, typgelöscht** (`FetchSource<T>`), so wie die für Wertelisten
+   (`DistinctSource`). Das Handle bleibt nur über den Zeilentyp generisch, und `use_grid_remote` bleibt
+   die einzige Stelle, die die `DataSource` kennt.
+3. **Eine Obergrenze, die vor dem Laden greift.** Mehr passende Zeilen als `max_rows` ist
+   `ExportError::TooMany { total, max }`, erkannt an der **ersten** Seite: niemand lädt 400 000 Zeilen,
+   um dann zu erfahren, dass es zu viele sind. `DEFAULT_EXPORT_ROWS` (100 000) ist, was ein Browser-Tab
+   und ein Tabellenkalkulationsprogramm gut tragen — eine Schätzung, keine Messung. Eine
+   Abbruchzahl an Seiten (`max_rows / Seitengröße + 2`) hält einen Server, der mehr Zeilen verspricht
+   als er liefert, von einer Endlosschleife ab.
+4. **Eine fehlgeschlagene Seite ist kein Teilergebnis**, sondern `ExportError::Source`: eine halbe
+   Datei, die vollständig aussieht, ist schlimmer als keine.
+5. **Flach.** Ein Server paginiert über Gruppenköpfe hinweg; die Gruppen aus Seiten wieder
+   zusammenzusetzen ist eine andere Aufgabe. Der Export schickt `group_by` leer und bekommt die Zeilen
+   in der Reihenfolge der Sortierung. **Summen** rechnet der Export selbst aus den Zeilen, die er hat —
+   über alle, nicht über eine Seite.
+6. **Eine Momentaufnahme:** die Anfrage entsteht, wenn der Future zum ersten Mal läuft; sortiert oder
+   filtert der Nutzer danach, ändert das diesen Export nicht. Alle Anfragen eines Exports stimmen
+   überein (getestet, mit einer Suche mitten im Laden).
+7. **Die Komponente** ruft für `Filtered` `export_all` und für `View` `export_table`, sperrt ihre Knöpfe
+   („Exportiere …") und sagt einen Fehler in einem `role="status"` (`GridLocale::export_busy`,
+   `export_failed`, `export_too_many`). Drucken geht denselben Weg.
+
+**Gemessen.** `tests/remote_export.rs` (simulierter Server, pausierte Zeit): alle Zeilen in Reihenfolge
+über drei Seiten, Sortierung und Suche in der Anfrage, `group_by` leer, die Obergrenze nach einer
+einzigen Anfrage, Abbruch beim Fehler der zweiten Seite, die Momentaufnahme, ein lokales Gitter ohne
+Server. `tests/e2e/fullstack.spec.ts` gegen den SQLite-Server: 5000 Zeilen in fünf Anfragen, Suche
+(„hans"), Filter und absteigende Sortierung gelten in der Datei, die Summenzeile steht darunter.
+Chromium und WebKit lokal, Firefox in CI.
+
+**Nicht geprüft.** Eine Datei von hunderttausend Zeilen im Browser (Zeit, Speicher): die Grenze ist
+geschätzt. Abbruch durch den Nutzer während des Ladens gibt es nicht; die Knöpfe sind nur gesperrt.
+Ein Fortschritt („3 von 5 Seiten") fehlt. Beides ließe sich nachrüsten, ohne die API zu brechen.
+
+**Verworfen.**
+
+- **Der Server schreibt die Datei.** Er könnte, aber ein Export muss ohne eigenen Endpunkt gehen, und
+  das Format (CSV-Optionen, Spalten, Beschriftungen) ist Sache des Gitters.
+- **Die Seite als Export ausgeben, wenn mehr gewünscht ist.** Genau das hatte die erste Fassung der
+  Komponente getan; eine Datei, die weniger enthält als verlangt, sagt es nicht.
+- **Gruppen aus Seiten zusammensetzen.** Siehe 5.

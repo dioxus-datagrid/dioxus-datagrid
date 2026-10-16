@@ -860,3 +860,13 @@ Feature `xlsx`.
   `<thead>` wiederholt sich also. Welcher Browser es war und wie viele Seiten, wurde nicht
   festgehalten. Offen: Papierausdruck, Desktop-WebView.
 
+### Nachtrag: Export eines Server-Gitters (ADR-0043)
+
+`tests/e2e/fullstack.spec.ts`, `export`, gegen `examples/fullstack` (SQLite über eine
+Server-Funktion, echte HTTP-Anfragen): „Download CSV" liefert 5000 Zeilen unter einer Kopfzeile
+(`Name,Department,City,Salary`), nicht die zwanzig der Seite; mit der Suche „hans" genau so viele
+Zeilen, wie das Gitter zählt, und jede enthält „hans"; nach zweimaligem Klick auf „Salary" ist die
+Datei absteigend nach Gehalt sortiert; danach lässt sich weiterblättern. Aufgefallen ist beim ersten
+Lauf, dass die Datei eine Zeile mehr hatte als erwartet: die Summenzeile, die der Export über alle
+geholten Zeilen rechnet, weil die Spalten Aggregate haben — gewollt, mein Test hatte sie als
+Datenzeile gezählt.

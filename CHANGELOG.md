@@ -22,6 +22,14 @@ All notable changes to this project are documented here. The format follows
   of a grid that loads from a server. The registry component `data_grid_export` puts a button in
   front of both (`GridLocale` gains `export_label`, `export_csv` and `print`). Excel waits for
   `rust_xlsxwriter` to move to `zip` 9, whose 8.x are all yanked.
+- Exporting the rows of a grid that loads them from a server. `GridHandle::export_all(max_rows)`
+  fetches every row that passes the filters, a thousand at a time, from the same `DataSource`, with
+  the sort, filters and search the grid shows, and builds the table an export writes; a grid with
+  every row in memory answers at once. More matching rows than `max_rows` is
+  `ExportError::TooMany`, found out from the first page; a failed page is `ExportError::Source` and
+  no table. The rows come flat, without groups (ADR-0043). `data_grid_export` uses it, disables its
+  buttons while it loads, and reports an error (`GridLocale` gains `export_busy`, `export_failed`
+  and `export_too_many`); `examples/fullstack` has a "Download CSV" button, tested against SQLite.
 - `examples/export`: a grid with groups, totals and awkward values (a comma, a quotation mark, a name
   that is a formula) that downloads and prints its rows, with the CSV it would write shown beside it. It
   depends on `dioxus-datagrid` and `datagrid-export` alone, the way an application does.

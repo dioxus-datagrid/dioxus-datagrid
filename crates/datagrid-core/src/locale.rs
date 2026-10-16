@@ -250,6 +250,12 @@ pub struct GridLocale {
     pub export_csv: Cow<'static, str>,
     /// The button that prints the grid.
     pub print: Cow<'static, str>,
+    /// Shown while an export loads its rows from a server.
+    pub export_busy: Cow<'static, str>,
+    /// An export that failed: `{message}` is what went wrong.
+    pub export_failed: Cow<'static, str>,
+    /// An export of more rows than it may take: `{total}` match, at most `{max}`.
+    pub export_too_many: Cow<'static, str>,
     /// Labels a sum.
     pub aggregate_sum: Cow<'static, str>,
     /// Labels a mean.
@@ -383,6 +389,11 @@ impl GridLocale {
             export_label: Cow::Borrowed("Export"),
             export_csv: Cow::Borrowed("Export as CSV"),
             print: Cow::Borrowed("Print"),
+            export_busy: Cow::Borrowed("Exporting …"),
+            export_failed: Cow::Borrowed("Export failed: {message}"),
+            export_too_many: Cow::Borrowed(
+                "{total} rows are too many to export (at most {max}). Narrow the filter.",
+            ),
             aggregate_sum: Cow::Borrowed("Sum"),
             aggregate_average: Cow::Borrowed("Average"),
             aggregate_min: Cow::Borrowed("Min"),
@@ -503,6 +514,11 @@ impl GridLocale {
             export_label: Cow::Borrowed("Export"),
             export_csv: Cow::Borrowed("Als CSV exportieren"),
             print: Cow::Borrowed("Drucken"),
+            export_busy: Cow::Borrowed("Exportiere …"),
+            export_failed: Cow::Borrowed("Export fehlgeschlagen: {message}"),
+            export_too_many: Cow::Borrowed(
+                "{total} Zeilen sind zu viele für einen Export (höchstens {max}). Bitte den Filter einengen.",
+            ),
             aggregate_sum: Cow::Borrowed("Summe"),
             aggregate_average: Cow::Borrowed("Mittelwert"),
             aggregate_min: Cow::Borrowed("Min."),
@@ -604,6 +620,21 @@ impl GridLocale {
         } else {
             fill(&self.paste_dropped, &[("count", &self.integer(count))])
         }
+    }
+
+    /// "Export failed: server unavailable".
+    #[must_use]
+    pub fn export_failed(&self, message: &str) -> String {
+        fill(&self.export_failed, &[("message", message)])
+    }
+
+    /// "2,500 rows are too many to export (at most 2,000). Narrow the filter."
+    #[must_use]
+    pub fn export_too_many(&self, total: usize, max: usize) -> String {
+        fill(
+            &self.export_too_many,
+            &[("total", &self.integer(total)), ("max", &self.integer(max))],
+        )
     }
 
     /// "Stop grouping by City".

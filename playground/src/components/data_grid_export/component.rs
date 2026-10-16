@@ -10,7 +10,10 @@
 
 use datagrid_export::{CsvOptions, HtmlOptions, to_csv, to_html};
 use dioxus::prelude::*;
-use dioxus_datagrid::{ExportScope, GridHandle, GridRow, merge_class, print_html, save_file};
+use dioxus_datagrid::{
+    DEFAULT_EXPORT_ROWS, ExportError, ExportScope, ExportTable, GridHandle, GridRow, merge_class,
+    print_html, save_file,
+};
 
 const STYLE: Asset = asset!("/src/components/data_grid_export/style.css");
 
@@ -22,8 +25,8 @@ pub struct DataGridExportProps {
     pub file_name: String,
     /// Which rows to export. [`ExportScope::Filtered`], every row that passes
     /// the filters, is the default; [`ExportScope::View`] is the page on screen.
-    /// A grid that loads its rows from a server only has the page on screen, and
-    /// exports that.
+    /// A grid that loads its rows from a server fetches them all, a page at a
+    /// time, without its groups.
     #[props(default = ExportScope::Filtered)]
     pub scope: ExportScope,
     /// How the CSV is written: its delimiter, whether it starts with a byte
@@ -34,6 +37,10 @@ pub struct DataGridExportProps {
     /// header repeated on every sheet.
     #[props(default = true)]
     pub print: bool,
+    /// The most rows to take from a server. More than this and the export says
+    /// so instead of loading them; a grid with every row in memory is not asked.
+    #[props(default = DEFAULT_EXPORT_ROWS)]
+    pub max_rows: usize,
     #[props(extends = GlobalAttributes)]
     pub attributes: Vec<Attribute>,
 }
@@ -62,33 +69,63 @@ pub fn DataGridExport<T: GridRow + PartialEq + 'static>(props: DataGridExportPro
         )
     };
 
+    // What the user is told while an export is on its way, or after it failed.
+    let mut busy = use_signal(|| false);
+    let mut problem = use_signal(|| None::<String>);
+
     let file_name = props.file_name.clone();
     let scope = props.scope;
+    let max_rows = props.max_rows;
     let options = props.csv.clone();
-    // A grid that loads its rows from a server has no "every filtered row" to
-    // give, and exports the page on screen instead.
-    let table = move || {
-        grid.export_table(scope)
-            .or_else(|| grid.export_table(ExportScope::View))
-    };
+
+    // Runs `then` with the table, once there is one. A server's rows take a
+    // while to arrive, so this waits for them, and says what went wrong if they
+    // do not.
+    let export = Callback::new(move |then: Callback<ExportTable>| {
+        if busy() {
+            return;
+        }
+        busy.set(true);
+        problem.set(None);
+        spawn(async move {
+            let table = match scope {
+                ExportScope::Filtered => grid.export_all(max_rows).await,
+                _ => Ok(grid.export_table(scope).unwrap_or_default()),
+            };
+            match table {
+                Ok(table) => then.call(table),
+                Err(error) => {
+                    let locale = locale.read();
+                    problem.set(Some(match error {
+                        ExportError::TooMany { total, max } => locale.export_too_many(total, max),
+                        ExportError::Source(message) => locale.export_failed(&message),
+                    }));
+                }
+            }
+            busy.set(false);
+        });
+    });
+
     let export_csv = move |_| {
-        if let Some(table) = table() {
+        let file_name = file_name.clone();
+        let options = options.clone();
+        export.call(Callback::new(move |table: ExportTable| {
             save_file(
                 &format!("{file_name}.csv"),
                 "text/csv;charset=utf-8",
                 to_csv(&table, &options),
             );
-        }
+        }));
     };
 
     let print_table = move |_| {
-        if let Some(table) = table() {
+        export.call(Callback::new(|table: ExportTable| {
             let options = HtmlOptions {
                 style: true,
                 ..HtmlOptions::default()
             };
             print_html(to_html(&table, &options));
-        }
+        }));
     };
 
     // A `class` of the caller's joins this one rather than fighting it.
@@ -98,10 +135,35 @@ pub fn DataGridExport<T: GridRow + PartialEq + 'static>(props: DataGridExportPro
     rsx! {
         document::Link { rel: "stylesheet", href: STYLE }
 
-        div { class, role: "group", aria_label: label, ..attributes,
-            button { r#type: "button", "data-export": "csv", onclick: export_csv, "{csv_label}" }
+        div {
+            class,
+            role: "group",
+            aria_label: label,
+            aria_busy: busy().then_some("true"),
+            ..attributes,
+            button {
+                r#type: "button",
+                "data-export": "csv",
+                disabled: busy(),
+                onclick: export_csv,
+                "{csv_label}"
+            }
             if props.print {
-                button { r#type: "button", "data-export": "print", onclick: print_table, "{print_label}" }
+                button {
+                    r#type: "button",
+                    "data-export": "print",
+                    disabled: busy(),
+                    onclick: print_table,
+                    "{print_label}"
+                }
+            }
+            // Heard by a screen reader as it changes, and empty most of the time.
+            span { class: "dg-export-status", role: "status",
+                if busy() {
+                    "{locale.read().export_busy}"
+                } else if let Some(problem) = problem() {
+                    "{problem}"
+                }
             }
         }
     }

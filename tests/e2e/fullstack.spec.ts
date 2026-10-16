@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 
 // examples/fullstack: the grid querying SQLite through a Dioxus server function.
 // Real requests over HTTP, no simulation.
@@ -156,4 +157,68 @@ test("grouping runs in SQL, one page at a time", async ({ page }) => {
   await expect(status(page)).toHaveAttribute("data-state", "idle");
   await expect(rows.first()).toHaveAttribute("aria-rowindex", "22");
   await expect(rows.first()).toHaveAttribute("aria-level", "2");
+});
+
+// The rows of every page, fetched from the server a thousand at a time. The
+// grid shows twenty; the file holds what the filters leave.
+async function downloadCsv(page: Page) {
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Download CSV" }).click(),
+  ]);
+  const text = readFileSync(await download.path(), "utf-8");
+  const lines = text.split("\r\n").filter((line) => line !== "");
+  // The grid has totals under its columns, so the file ends with them: worked
+  // out over every row that was fetched, not over a page.
+  const totals = lines.filter((line) => line.startsWith("Totals"));
+  return {
+    name: download.suggestedFilename(),
+    header: lines[0],
+    rows: lines.slice(1).filter((line) => !line.startsWith("Totals")),
+    totals,
+  };
+}
+
+test.describe("export", () => {
+  test("downloads every row, not the page that is shown", async ({ page }) => {
+    const { name, header, rows, totals } = await downloadCsv(page);
+    expect(name).toBe("employees.csv");
+    expect(header).toBe("Name,Department,City,Salary");
+    // Five thousand rows came over HTTP in five requests, under one header.
+    expect(rows.length).toBe(5000);
+    expect(totals).toHaveLength(1);
+    await expect(page.getByRole("status").filter({ hasText: "Export failed" })).toHaveCount(0);
+  });
+
+  test("holds what the search and the filters leave", async ({ page }) => {
+    await page.getByRole("searchbox").fill("hans");
+    await expect(grid(page)).not.toHaveAttribute("aria-rowcount", "5001");
+    await settled(page);
+    const shown = Number(await grid(page).getAttribute("aria-rowcount")) - 1;
+
+    const { rows } = await downloadCsv(page);
+    expect(rows.length).toBe(shown);
+    expect(shown).toBeGreaterThan(20);
+    for (const row of rows) expect(row).toMatch(/hans/i);
+  });
+
+  test("keeps the sort the grid shows", async ({ page }) => {
+    await page.getByRole("columnheader", { name: "Salary", exact: true }).click();
+    await page.getByRole("columnheader", { name: "Salary", exact: true }).click();
+    await settled(page);
+
+    const { rows } = await downloadCsv(page);
+    // Raw values: the salary is the last field, a plain number.
+    const salaries = rows.map((row) => Number(row.split(",").at(-1)));
+    expect(salaries.every((value) => Number.isFinite(value))).toBe(true);
+    expect(salaries).toEqual([...salaries].sort((a, b) => b - a));
+  });
+
+  test("the grid is still usable after it", async ({ page }) => {
+    await downloadCsv(page);
+    await settled(page);
+    await page.getByRole("button", { name: "Next page" }).click();
+    await settled(page);
+    await expect(page.locator(".body [role='row']")).toHaveCount(20);
+  });
 });

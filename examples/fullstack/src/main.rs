@@ -12,14 +12,15 @@
 mod db;
 
 use datagrid_core::{ColumnId, DataSource, DistinctValues, GridQuery, GridRow, Page};
+use datagrid_export::{CsvOptions, to_csv};
 use dioxus::prelude::*;
 use dioxus_datagrid::primitives::{
     GridBody, GridColumnFilter, GridEditStatus, GridFilterMenu, GridGroupPanel, GridHeader,
     GridPagination, GridRoot, GridSearch, GridStatus,
 };
 use dioxus_datagrid::{
-    Aggregate, CellFormat, Column, ColumnWidth, EditMode, Editing, GridOptions, Save, ValueKind,
-    use_grid_remote,
+    Aggregate, CellFormat, Column, ColumnWidth, DEFAULT_EXPORT_ROWS, EditMode, Editing,
+    ExportError, GridOptions, Save, ValueKind, save_file, use_grid_remote,
 };
 use serde::{Deserialize, Serialize};
 
@@ -179,6 +180,31 @@ fn App() -> Element {
     });
     grid.set_editing(editing);
 
+    // Every row that passes the filters, not the twenty on the page: the grid
+    // asks the server for them a page at a time, with the sort and the search it
+    // shows. The server function is the one the grid itself uses.
+    let mut exporting = use_signal(|| false);
+    let mut export_problem = use_signal(|| None::<String>);
+    let download = move |_| async move {
+        if exporting() {
+            return;
+        }
+        exporting.set(true);
+        export_problem.set(None);
+        match grid.export_all(DEFAULT_EXPORT_ROWS).await {
+            Ok(table) => save_file(
+                "employees.csv",
+                "text/csv;charset=utf-8",
+                to_csv(&table, &CsvOptions::default()),
+            ),
+            Err(ExportError::TooMany { total, max }) => {
+                export_problem.set(Some(format!("{total} rows are too many (at most {max})")));
+            }
+            Err(error) => export_problem.set(Some(error.to_string())),
+        }
+        exporting.set(false);
+    };
+
     rsx! {
         document::Link { rel: "stylesheet", href: STYLE }
 
@@ -192,6 +218,20 @@ fn App() -> Element {
                 GridSearch { grid, placeholder: "Search name, department or city" }
                 GridStatus { grid, class: "status" }
                 GridEditStatus { grid, class: "edit-status" }
+                button {
+                    r#type: "button",
+                    "data-export": "csv",
+                    disabled: exporting(),
+                    onclick: download,
+                    "Download CSV"
+                }
+                span { class: "export-status", role: "status",
+                    if exporting() {
+                        "Exporting …"
+                    } else if let Some(problem) = export_problem() {
+                        "Export failed: {problem}"
+                    }
+                }
             }
             // The bar takes `>50000` or `40000..60000` as well as plain text;
             // the menus build conditions or value lists. Both go to the server.

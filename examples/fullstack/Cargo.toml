@@ -10,6 +10,8 @@ license.workspace = true
 dioxus = { workspace = true, features = ["fullstack"] }
 datagrid-core = { workspace = true, features = ["serde", "chrono"] }
 dioxus-datagrid = { workspace = true, features = ["serde"] }
+# Writes the rows an export fetched from the server as a file.
+datagrid-export.workspace = true
 serde = { workspace = true }
 # Server only: the database never reaches the client build.
 rusqlite = { version = "0.40", features = ["bundled"], optional = true }

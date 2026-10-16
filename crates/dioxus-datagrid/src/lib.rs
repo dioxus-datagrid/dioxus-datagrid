@@ -100,7 +100,7 @@ pub use edit::{
     Create, Delete, EditMode, EditMove, EditStatus, EditTarget, Editing, Save, SaveBatch,
 };
 pub use edit_ui::CellEditor;
-pub use export::{print_html, save_file};
+pub use export::{DEFAULT_EXPORT_ROWS, EXPORT_PAGE_SIZE, ExportError, print_html, save_file};
 pub use grid::{
     COLUMN_RESIZE_STEP, ColumnWindow, DEFAULT_DEBOUNCE, GridHandle, GridOptions, IntoReadSignal,
     Layout, use_grid,

@@ -7,7 +7,7 @@ use crate::row_drag::{RowDrag, RowMove};
 use datagrid_core::{
     CellFocus, CellRange, CellSelectionMode, ColumnFilter, ColumnId, ColumnSpec, ColumnWidth,
     DEFAULT_AUTO_COLUMN_WIDTH, DEFAULT_REMOTE_PAGE_SIZE, DistinctValues, GridLocale, GridQuery,
-    GridRow, GridState, GroupSpan, NavKey, Pinned, RowSpans, Selection, SelectionExtent,
+    GridRow, GridState, GroupSpan, NavKey, Page, Pinned, RowSpans, Selection, SelectionExtent,
     SelectionMode, SortDirection, ValueKind, View, ViewRow, column_offset,
     compute_view_with_details, distinct_values, group_header_rows, group_levels, layout_order,
     navigate, reveal_scroll_left, reveal_scroll_top, rows_per_viewport, visible_columns,
@@ -84,6 +84,13 @@ pub(crate) type DistinctSource = Rc<
         usize,
     ) -> Pin<Box<dyn Future<Output = Result<DistinctValues, String>>>>,
 >;
+
+/// Answers a remote grid's request for a page of rows: what
+/// [`DataSource::fetch`](datagrid_core::DataSource::fetch) does, with its error
+/// made into text and its type erased so the handle stays generic over the row
+/// type only.
+pub(crate) type FetchSource<T> =
+    Rc<dyn Fn(GridQuery) -> Pin<Box<dyn Future<Output = Result<Page<T>, String>>>>>;
 
 /// How a grid behaves, passed once to [`use_grid`].
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -320,6 +327,9 @@ pub struct GridHandle<T: GridRow + 'static> {
     /// Where a remote grid gets value lists from; `None` for a local grid,
     /// which computes them from its rows.
     distinct: CopyValue<Option<DistinctSource>>,
+    /// Where a remote grid gets pages of rows from, for an export that wants
+    /// every page; `None` for a local grid, which has every row.
+    pub(crate) fetch: CopyValue<Option<FetchSource<T>>>,
     reload_nonce: Signal<u64>,
     view: Memo<View>,
     /// Whether rows come from a server, which decides how saved edits show.
@@ -513,6 +523,7 @@ pub(crate) struct GridBase<T: GridRow + 'static> {
     pub(crate) reload_nonce: Signal<u64>,
     locale: Signal<GridLocale>,
     distinct: CopyValue<Option<DistinctSource>>,
+    fetch: CopyValue<Option<FetchSource<T>>>,
     remote: bool,
     detail_config: Signal<Option<DetailRows<T>>>,
     row_move: Signal<Option<Callback<RowMove<T>>>>,
@@ -536,7 +547,7 @@ pub(crate) fn use_grid_base<T>(
     data: ReadSignal<Vec<T>>,
     columns: ReadSignal<Vec<Column<T>>>,
     options: GridOptions,
-    distinct: Option<DistinctSource>,
+    sources: Option<(DistinctSource, FetchSource<T>)>,
 ) -> GridBase<T>
 where
     T: GridRow + PartialEq + 'static,
@@ -583,7 +594,11 @@ where
         virtual_columns.set(requested_virtual_columns);
     }
 
-    let remote = distinct.is_some();
+    let remote = sources.is_some();
+    let (distinct, fetch) = match sources {
+        Some((distinct, fetch)) => (Some(distinct), Some(fetch)),
+        None => (None, None),
+    };
     let edit_session = use_signal(|| None::<Session<T>>);
 
     GridBase {
@@ -620,6 +635,7 @@ where
         reload_nonce: use_signal(|| 0_u64),
         locale,
         distinct: use_hook(move || CopyValue::new(distinct)),
+        fetch: use_hook(move || CopyValue::new(fetch)),
         remote,
         detail_config: use_signal(|| None::<DetailRows<T>>),
         row_move: use_signal(|| None::<Callback<RowMove<T>>>),
@@ -739,6 +755,7 @@ impl<T: GridRow + PartialEq> GridBase<T> {
             reload_nonce: self.reload_nonce,
             locale: self.locale,
             distinct: self.distinct,
+            fetch: self.fetch,
             view,
             remote: self.remote,
             detail_config: self.detail_config,

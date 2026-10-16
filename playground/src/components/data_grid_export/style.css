@@ -30,3 +30,13 @@
   outline: none;
   box-shadow: 0 0 0 2px var(--focused-border-color);
 }
+
+.dg-export button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.dg-export-status {
+  align-self: center;
+  color: var(--secondary-color-3);
+}

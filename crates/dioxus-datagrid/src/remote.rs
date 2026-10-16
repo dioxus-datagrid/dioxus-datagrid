@@ -1,6 +1,8 @@
 //! The `use_grid_remote` hook: a grid whose rows come from a server.
 
-use crate::grid::{DistinctSource, GridHandle, GridOptions, IntoReadSignal, use_grid_base};
+use crate::grid::{
+    DistinctSource, FetchSource, GridHandle, GridOptions, IntoReadSignal, use_grid_base,
+};
 use crate::{Column, DEFAULT_DEBOUNCE, timer};
 use datagrid_core::{
     AggregateValue, ColumnSpec, DEFAULT_REMOTE_PAGE_SIZE, DataSource, GridQuery, GridRow, Group,
@@ -132,7 +134,16 @@ where
         });
         answer
     };
-    let base = use_grid_base(data, columns, options, Some(distinct));
+    // Pages are asked for the same way, for an export that wants every one.
+    let fetch = {
+        let source = Rc::clone(&source);
+        let fetch: FetchSource<T> = Rc::new(move |query| {
+            let source = Rc::clone(&source);
+            Box::pin(async move { source.fetch(query).await.map_err(|error| error.to_string()) })
+        });
+        fetch
+    };
+    let base = use_grid_base(data, columns, options, Some((distinct, fetch)));
     let mut state = base.state;
     let mut loading = base.loading;
     let mut load_error = base.load_error;

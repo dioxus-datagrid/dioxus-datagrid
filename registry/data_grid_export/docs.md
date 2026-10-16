@@ -26,11 +26,24 @@ left out; a column that draws a cell of its own markup but has no `value` writes
 |---|---|---|
 | `file_name` | `"export"` | The name of the file, without `.csv`. |
 | `scope` | `ExportScope::Filtered` | `Filtered` is every row that passes the filters, on every page, with every group open. `View` is the page on screen, groups as shown. |
+| `max_rows` | `100_000` | The most rows to take from a server. |
 | `csv` | `CsvOptions::default()` | How the CSV is written, see below. |
 | `print` | `true` | Shows the button that prints the rows. |
 
-A grid that loads its rows from a server only has the page on screen, so it exports that page, in the
-order the server sent it, whatever `scope` says.
+## A grid that loads its rows from a server
+
+`Filtered` fetches every row that passes the filters from the server, a thousand at a time, with the
+sort, the filters and the search the grid shows, and writes them as one file. The button says
+"Exporting …" meanwhile and cannot be pressed twice.
+
+- **A limit.** If more than `max_rows` rows match, nothing is loaded past the first page and the
+  export says so ("2,500 rows are too many to export (at most 2,000). Narrow the filter.").
+- **A failure is no file.** If any page fails, there is no download, and the message says why.
+- **Flat.** The rows come in the order of the sort, without the grid's groups; the totals are worked
+  out over all of them.
+- `View` is the page on screen, as the server sent it.
+
+`GridHandle::export_all(max_rows)` is the same thing for your own button.
 
 ## What the CSV holds
 

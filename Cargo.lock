@@ -1982,6 +1982,7 @@ name = "example-fullstack"
 version = "0.1.0"
 dependencies = [
  "datagrid-core",
+ "datagrid-export",
  "dioxus",
  "dioxus-datagrid",
  "rusqlite",
