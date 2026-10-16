@@ -9,8 +9,9 @@ use datagrid_core::{
     DEFAULT_AUTO_COLUMN_WIDTH, DEFAULT_REMOTE_PAGE_SIZE, DistinctValues, GridLocale, GridQuery,
     GridRow, GridState, GroupSpan, NavKey, Pinned, RowSpans, Selection, SelectionExtent,
     SelectionMode, SortDirection, ValueKind, View, ViewRow, column_offset,
-    compute_view_with_details, distinct_values, group_header_rows, group_levels, navigate,
-    reveal_scroll_left, reveal_scroll_top, rows_per_viewport, visible_columns, visible_range,
+    compute_view_with_details, distinct_values, group_header_rows, group_levels, layout_order,
+    navigate, reveal_scroll_left, reveal_scroll_top, rows_per_viewport, visible_columns,
+    visible_range,
 };
 use dioxus::html::ScrollBehavior;
 use dioxus::html::geometry::PixelsVector2D;
@@ -474,25 +475,10 @@ where
 /// The columns that are visible, in order, with the pinned ones gathered at
 /// their edges.
 fn shown_columns<T: GridRow>(state: &GridState, columns: &[Column<T>]) -> Vec<Column<T>> {
-    let declared: Vec<ColumnId> = columns.iter().map(|column| column.id().clone()).collect();
-
-    let mut shown: Vec<Column<T>> = state
-        .ordered_columns(&declared)
-        .iter()
-        .filter_map(|id| columns.iter().find(|column| column.id() == id))
-        .filter(|column| column.spec().is_visible(&state.hidden_columns))
-        .cloned()
-        .collect();
-
-    // Pinned columns are laid out as a block at their edge, so that one can
-    // never end up between two scrolling columns — the order within each
-    // block is the column order, which a stable sort keeps.
-    shown.sort_by_key(|column| match column.spec().effective_pin(state) {
-        Pinned::Start => 0,
-        Pinned::None => 1,
-        Pinned::End => 2,
-    });
-    shown
+    layout_order(columns.iter().map(Column::spec), state)
+        .into_iter()
+        .filter_map(|index| columns.get(index).cloned())
+        .collect()
 }
 
 /// Numbers the grids on a page, so that the ids two of them generate differ.
