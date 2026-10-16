@@ -205,7 +205,7 @@ im Treegrid-Muster; 100.000 Zeilen gruppiert und virtualisiert flüssig.
   Zwischenablage zuerst per Spike prüfen (Dioxus bietet keine eigene API; `document::eval` ist die
   Alternative, braucht dafür eine ADR).
 
-### Phase 13: Export und Druck → 0.11.0 (M)
+### Phase 13: Export und Druck → 0.12.0 (M)
 
 - `datagrid-export` (A4): CSV ohne Abhängigkeit; Excel mit Formatierung, Gruppen und Aggregaten;
   PDF.
@@ -214,7 +214,7 @@ im Treegrid-Muster; 100.000 Zeilen gruppiert und virtualisiert flüssig.
 - Download ohne `web-sys`: Web über eine Daten-URL oder `document::eval`, Desktop über einen
   Speicherdialog — Spike, ADR.
 
-### Phase 14: Bedienoberfläche rundherum → 0.12.0 (M)
+### Phase 14: Bedienoberfläche rundherum → 0.13.0 (M)
 
 - Toolbar-Komponente mit Standardaktionen (Hinzufügen, Bearbeiten, Löschen, Export, Suche,
   Spaltenauswahl) und eigenen Einträgen.
@@ -222,7 +222,7 @@ im Treegrid-Muster; 100.000 Zeilen gruppiert und virtualisiert flüssig.
 - Adaptives Layout: auf schmalen Bildschirmen Zeilen als Karten, Filter und Bearbeiten als Sheet.
 - RTL: Layout gespiegelt, Pfeiltasten gespiegelt, getestet.
 
-### Phase 15: Große Datenmengen, Live-Daten → 0.13.0 (L)
+### Phase 15: Große Datenmengen, Live-Daten → 0.14.0 (L)
 
 - Remote-Virtualisierung: Blöcke nachladen beim Scrollen, statt zu blättern; Endlos-Scrollen.
 - ~~Spaltenvirtualisierung für breite Tabellen (Spike: Verträglichkeit mit CSS-Subgrid).~~ Vorgezogen

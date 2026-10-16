@@ -1491,3 +1491,8 @@ schrumpfen. Sie tun es nur, wo es freien Platz gibt, und dort ist ohnehin jede S
   negativ melden; Phase 14 prüft es), Desktop- und Mobile-WebView (nur Web gemessen), und
   Spaltenvirtualisierung zusammen mit Detailzeilen und Gruppen: ihre Zeilen stehen über die ganze
   Breite und sind vom Fenster nicht betroffen, aber das ist hier gelesen, nicht gemessen.
+
+**Version.** Das ist 0.11.0, nicht Phase 13. Die Phasen 13 bis 15 rutschen je eine Nebenversion nach
+hinten (0.12.0, 0.13.0, 0.14.0); der Plan nennt Nummern, aber die Reihenfolge der Veröffentlichung
+bestimmt, welche Nummer wer bekommt. 0.11.0 ist eine Nebenversion, weil `GridOptions`, `Layout`,
+`PasteReport` und `GridLocale` öffentliche Felder bekommen haben — für 0.x der Platz für so etwas.

@@ -39,6 +39,7 @@ never done on someone's behalf.
 
 | Version | Phase |
 |---|---|
+| 0.11.0 | Wide grids: column virtualization; a paste says which rows did not fit; `class` merges, `SortState` and the rest re-exported, `Fraction` columns keep a floor |
 | 0.10.0 | Rows, selection, clipboard: detail rows, row reordering, a checkbox column, cell selection, copy and paste |
 | 0.9.0 | Column layout: order, pinning, multi-level headers, the column menu, cells over several columns |
 | 0.8.0 | Grouping and aggregates: multi-level groups, a group panel, the treegrid |

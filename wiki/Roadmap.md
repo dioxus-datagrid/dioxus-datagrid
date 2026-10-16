@@ -29,9 +29,9 @@ This page is a summary. The binding documents are
 
 | | | |
 |---|---|---|
-| Phase 13 | 0.11.0 (M) | **Export and print** — a separate `datagrid-export` crate: CSV, Excel with formatting and groups, PDF; a print stylesheet |
-| Phase 14 | 0.12.0 (M) | **The UI around it** — toolbar, context menu, an adaptive layout that turns rows into cards on narrow screens, RTL |
-| Phase 15 | 0.13.0 (L) | **Large and live data** — loading blocks while scrolling instead of paging, infinite scroll, variable row heights, live updates. Column virtualization was built ahead of its turn and is already in `main` |
+| Phase 13 | 0.12.0 (M) | **Export and print** — a separate `datagrid-export` crate: CSV, Excel with formatting and groups, PDF; a print stylesheet |
+| Phase 14 | 0.13.0 (M) | **The UI around it** — toolbar, context menu, an adaptive layout that turns rows into cards on narrow screens, RTL |
+| Phase 15 | 0.14.0 (L) | **Large and live data** — loading blocks while scrolling instead of paging, infinite scroll, variable row heights, live updates. Column virtualization was built ahead of its turn and is already in `main` |
 | | 1.0 | An API review, deprecations removed, a screen-reader field test with NVDA, JAWS and VoiceOver, a documentation site with a demo per feature, benchmarks against the target numbers |
 
 Roughly 20–30 sessions to 1.0, at the pace the phases so far have taken.

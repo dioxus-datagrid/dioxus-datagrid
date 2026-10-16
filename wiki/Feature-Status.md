@@ -1,7 +1,7 @@
 # Feature status
 
 What the grid does today, area by area, and what is not there yet. The state is the released
-**0.10.0**, which ended Phase 12 with rows, selection and the clipboard.
+**0.11.0**: Phase 12 (rows, selection, the clipboard) plus column virtualization, which was taken ahead of its turn.
 
 The comparison is against the Syncfusion Blazor DataGrid, which is the yardstick the
 [roadmap](Roadmap.md) uses. "Planned" names the phase that will close the gap;
