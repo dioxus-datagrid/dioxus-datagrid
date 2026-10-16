@@ -62,6 +62,7 @@
 #![forbid(unsafe_code)]
 
 mod column;
+mod direction;
 mod edit;
 mod export;
 mod filter;
@@ -85,6 +86,7 @@ pub use column::{
     ColumnId, ColumnSpec, ColumnWidth, DEFAULT_AUTO_COLUMN_WIDTH, DEFAULT_MIN_COLUMN_WIDTH,
     FilterTextFn, Pinned, SortKeyFn, SpanFn, ValueFn,
 };
+pub use direction::Direction;
 pub use edit::{Changes, EditError, FromValue, SetFn, ValidateFn, changed_columns};
 pub use export::{
     ExportAggregate, ExportCell, ExportColumn, ExportRow, ExportScope, ExportTable, export_table,

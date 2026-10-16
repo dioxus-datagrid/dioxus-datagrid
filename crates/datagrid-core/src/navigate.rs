@@ -31,9 +31,11 @@ pub enum NavKey {
     Up,
     /// One row down.
     Down,
-    /// One column left.
+    /// The left arrow: one column left on screen, which is the column before in
+    /// left to right text and the one after in right to left (see
+    /// [`NavKey::in_direction`]).
     Left,
-    /// One column right.
+    /// The right arrow: one column right on screen.
     Right,
     /// First column of the current row.
     Home,

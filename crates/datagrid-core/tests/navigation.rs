@@ -127,3 +127,46 @@ fn page_down_cannot_overflow() {
     let focus = navigate(CellFocus::new(5, 0), NavKey::PageDown, 10, 5, usize::MAX);
     assert_eq!(focus, CellFocus::new(9, 0));
 }
+
+mod direction {
+    use datagrid_core::{CellFocus, Direction, NavKey, navigate};
+
+    #[test]
+    fn the_arrows_swap_in_right_to_left_text_and_nothing_else_does() {
+        for key in [
+            NavKey::Up,
+            NavKey::Down,
+            NavKey::Home,
+            NavKey::End,
+            NavKey::PageUp,
+            NavKey::PageDown,
+            NavKey::CtrlHome,
+            NavKey::CtrlEnd,
+        ] {
+            assert_eq!(key.in_direction(Direction::Rtl), key);
+            assert_eq!(key.in_direction(Direction::Ltr), key);
+        }
+        assert_eq!(NavKey::Left.in_direction(Direction::Ltr), NavKey::Left);
+        assert_eq!(NavKey::Right.in_direction(Direction::Ltr), NavKey::Right);
+        assert_eq!(NavKey::Left.in_direction(Direction::Rtl), NavKey::Right);
+        assert_eq!(NavKey::Right.in_direction(Direction::Rtl), NavKey::Left);
+    }
+
+    #[test]
+    fn the_left_arrow_in_right_to_left_text_goes_on_to_the_next_column() {
+        let at = CellFocus::new(1, 2);
+        let next = navigate(at, NavKey::Left.in_direction(Direction::Rtl), 5, 6, 10);
+        assert_eq!(next, CellFocus::new(1, 3));
+        let before = navigate(at, NavKey::Right.in_direction(Direction::Rtl), 5, 6, 10);
+        assert_eq!(before, CellFocus::new(1, 1));
+    }
+
+    #[test]
+    fn the_default_is_left_to_right() {
+        assert_eq!(Direction::default(), Direction::Ltr);
+        assert_eq!(Direction::Ltr.sign(), 1.0);
+        assert_eq!(Direction::Rtl.sign(), -1.0);
+        assert_eq!(Direction::Rtl.as_str(), "rtl");
+        assert!(Direction::Rtl.is_rtl() && !Direction::Ltr.is_rtl());
+    }
+}
