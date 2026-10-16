@@ -87,6 +87,7 @@ fn Users() -> Element {
 | `row_height` | `None` | Virtualizes the grid: only rows in view are rendered, each exactly this many pixels tall. |
 | `height` | `None` | A CSS height, such as `"480px"`, that the grid scrolls within. |
 | `overscan` | `20` | With `row_height`: extra rows rendered above and below the visible ones. |
+| `direction` | `None` | `Some(Direction::Rtl)` for right-to-left text; see "Right to left". |
 | `virtual_columns` | `false` | Renders only the columns in view; see "Wide grids". |
 | `column_overscan` | `2` | With `virtual_columns`: extra columns rendered on each side of the visible ones. |
 | `resizable_columns` | `true` | Lets the user resize columns by dragging a header's edge. |
@@ -216,6 +217,23 @@ An automatic or fractional column only grows into free space, and a grid wide
 enough to need this has none; where it does, every column is in view anyway. A
 cell of your own in a row (not one `data_grid` renders) should put
 `grid.cell_placement(column, span)` in its `style`.
+
+## Right to left
+
+For Arabic, Hebrew and the like, pass `direction: Some(Direction::Rtl)`:
+
+```rust
+DataGrid { data: rows, columns, direction: Some(Direction::Rtl) }
+```
+
+The first column is then at the right edge, and the grid mirrors what it cannot read from the page: the
+arrow keys follow the screen (left goes on to the next column), left opens a group and right closes
+it, `Alt`+arrow on a header widens or moves the column the way the arrow points, dragging a column's
+edge to the left widens it, and the line at the edge of a pinned block is on the side that faces the
+other columns. `dir` is set on the whole component, so the toolbar and the filters go with it.
+
+Set it on the grid **and** let the page agree. A grid that is left without a direction follows the
+`dir` of the page for its layout, but keeps the keys and the mouse of left-to-right text.
 
 ## Resizing and hiding columns
 

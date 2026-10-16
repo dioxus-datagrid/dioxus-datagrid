@@ -19,7 +19,8 @@ use components::data_grid_reorder::DataGridReorder;
 use dioxus::prelude::*;
 use dioxus_datagrid::{
     Aggregate, CellFormat, CellSelectionMode, Column, ColumnId, ColumnWidth, Create, Delete,
-    EditMode, GridLocale, GridRow, GridState, Pinned, RowMove, Save, SaveBatch, SelectionMode,
+    Direction, EditMode, GridLocale, GridRow, GridState, Pinned, RowMove, Save, SaveBatch,
+    SelectionMode,
 };
 
 const STYLE: Asset = asset!("/assets/playground.css");
@@ -431,6 +432,7 @@ fn App() -> Element {
     let mut detail_rows = use_signal(|| false);
     let mut row_drag = use_signal(|| false);
     let mut export = use_signal(|| false);
+    let mut rtl = use_signal(|| false);
     let mut wide = use_signal(|| false);
     let mut virtual_columns = use_signal(|| false);
     let cols = use_memo(move || {
@@ -688,6 +690,16 @@ fn App() -> Element {
                 label { class: "toggle",
                     input {
                         r#type: "checkbox",
+                        "data-testid": "toggle-rtl",
+                        checked: rtl(),
+                        onchange: move |event| rtl.set(event.checked()),
+                    }
+                    "Right to left"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
                         "data-testid": "toggle-export",
                         checked: export(),
                         onchange: move |event| export.set(event.checked()),
@@ -843,6 +855,7 @@ fn App() -> Element {
                     row_height: virtualized().then_some(ROW_HEIGHT),
                     overscan: overscan(),
                     virtual_columns: virtual_columns(),
+                    direction: rtl().then_some(Direction::Rtl),
                     // A wide grid scrolls within a height of its own.
                     height: (virtualized() || wide()).then(|| "480px".to_owned()),
                     selection: selection(),

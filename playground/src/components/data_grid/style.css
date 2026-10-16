@@ -129,8 +129,21 @@
   box-shadow: 1px 0 0 var(--primary-color-6);
 }
 
+/* A shadow does not mirror with the direction, as a border does: in right to left
+ * text the line goes on the other side. The grid root carries `dir` when it is
+ * told to read right to left. Not `:dir(rtl)`: the stylesheet pipeline of `dx`
+ * rewrites that into a `:lang()` selector, which asks the language, not the
+ * direction (`docs/VERIFICATION.md` §23). */
+.dg[dir="rtl"] [data-pinned="start"]:has(+ :not([data-pinned="start"])) {
+  box-shadow: -1px 0 0 var(--primary-color-6);
+}
+
 .dg :not([data-pinned="end"]) + [data-pinned="end"] {
   box-shadow: -1px 0 0 var(--primary-color-6);
+}
+
+.dg[dir="rtl"] :not([data-pinned="end"]) + [data-pinned="end"] {
+  box-shadow: 1px 0 0 var(--primary-color-6);
 }
 
 /* Numbers align at the end so their digits line up; the header follows its
@@ -470,7 +483,7 @@
 .dg [data-resize-handle] {
   position: absolute;
   top: 0;
-  right: 0;
+  inset-inline-end: 0;
   bottom: 0;
   z-index: 2;
   width: 8px;
@@ -483,7 +496,7 @@
   position: absolute;
   top: 25%;
   bottom: 25%;
-  right: 3px;
+  inset-inline-end: 3px;
   width: 2px;
   border-radius: 1px;
   background: var(--primary-color-6);
@@ -535,7 +548,7 @@
 
 .dg-columns-menu {
   position: absolute;
-  right: 0;
+  inset-inline-end: 0;
   z-index: 3;
   display: flex;
   min-width: 10rem;

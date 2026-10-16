@@ -12,8 +12,8 @@ use dioxus_datagrid::primitives::{
     GridSearch, VirtualGridBody,
 };
 use dioxus_datagrid::{
-    CellSelectionMode, Column, GridLocale, GridOptions, GridRow, GridState, SelectionMode,
-    merge_class, use_grid,
+    CellSelectionMode, Column, Direction, GridLocale, GridOptions, GridRow, GridState,
+    SelectionMode, merge_class, use_grid,
 };
 
 const THEME: Asset = asset!("/assets/dx-components-theme.css");
@@ -78,6 +78,12 @@ pub struct DataGridProps<T: GridRow + PartialEq + 'static> {
     /// visible ones.
     #[props(default = 2)]
     pub column_overscan: usize,
+    /// Which way the grid reads. [`Direction::Rtl`] mirrors the arrow keys, the
+    /// edge a column is dragged by and the way the keyboard scrolls sideways, and
+    /// sets `dir` on the whole component so that the columns lie the same way.
+    /// Left out, the grid follows the page and behaves as in left to right text.
+    #[props(default)]
+    pub direction: Option<Direction>,
     /// A CSS height for the grid, such as `"480px"`. The grid scrolls within it.
     #[props(default)]
     pub height: Option<String>,
@@ -132,6 +138,7 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
     options.initial_state = props.initial_state.clone();
     options.locale = props.locale.clone();
     options.virtual_columns = props.virtual_columns.then_some(props.column_overscan);
+    options.direction = props.direction;
 
     let mut grid = use_grid(props.data, props.columns, options);
     use_context_provider(|| grid);
@@ -174,7 +181,7 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
         document::Link { rel: "stylesheet", href: THEME }
         document::Link { rel: "stylesheet", href: STYLE }
 
-        div { class, ..attributes,
+        div { class, dir: props.direction.map(Direction::as_str), ..attributes,
 
             if props.searchable || props.column_picker {
                 div { class: "dg-toolbar",
