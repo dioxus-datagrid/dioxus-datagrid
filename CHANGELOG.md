@@ -37,6 +37,13 @@ of its turn in Phase 15 (`docs/DECISIONS.md` ADR-0039), which is why 0.11.0 is n
   code that builds either with a struct literal rather than from `..Default::default()`. So have
   `GridOptions` (`virtual_columns`) and `Layout` (`viewport_width`).
 
+### Fixed
+
+- Under a multi-level header, the keyboard revealed the wrong row of a grid with `row_height`:
+  `reveal_focus` took the focused row minus one header row, where the header has two or more. A cell
+  moved to with the arrow keys could stay under the sticky header. It now counts the header rows the
+  grid has (`GridHandle::focus_data_row`); found while building column virtualization.
+
 ### Removed
 
 - The Phase 12 clipboard spike (`playground/src/clipboard_spike.rs`,
