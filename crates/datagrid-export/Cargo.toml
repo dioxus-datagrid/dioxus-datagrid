@@ -1,0 +1,25 @@
+[package]
+name = "datagrid-export"
+version = "0.11.0"
+description = "Writes a data grid's rows as CSV, and later as Excel and PDF, from the table datagrid-core builds."
+keywords = ["datagrid", "table", "export", "csv"]
+categories = ["data-structures", "encoding"]
+readme = "README.md"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+datagrid-core.workspace = true
+
+[features]
+default = ["csv"]
+# CSV needs no dependency at all.
+csv = []
+# Dates and times as cell values, written in ISO 8601.
+chrono = ["datagrid-core/chrono"]
+
+[lints]
+workspace = true

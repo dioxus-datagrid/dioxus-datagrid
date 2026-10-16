@@ -287,9 +287,15 @@ mod groups {
     #[test]
     fn end_with_the_totals_over_every_row() {
         let table = table(&columns(), &grouped(), ExportScope::Filtered);
-        let Some(ExportRow::Aggregates { level: None, cells }) = table.rows.last() else {
+        let Some(ExportRow::Aggregates {
+            level: None,
+            label,
+            cells,
+        }) = table.rows.last()
+        else {
             panic!("totals last");
         };
+        assert_eq!(label.as_deref(), Some("Totals"));
         assert_eq!(cells[2][0].value, Some(Value::Float(12300.5)));
     }
 

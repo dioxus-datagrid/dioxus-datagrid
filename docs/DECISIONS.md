@@ -1496,3 +1496,60 @@ schrumpfen. Sie tun es nur, wo es freien Platz gibt, und dort ist ohnehin jede S
 hinten (0.12.0, 0.13.0, 0.14.0); der Plan nennt Nummern, aber die Reihenfolge der Veröffentlichung
 bestimmt, welche Nummer wer bekommt. 0.11.0 ist eine Nebenversion, weil `GridOptions`, `Layout`,
 `PasteReport` und `GridLocale` öffentliche Felder bekommen haben — für 0.x der Platz für so etwas.
+
+---
+
+## ADR-0040 — Export: das Modell im Kern, die Formate in `datagrid-export`
+
+**Kontext.** Phase 13 verlangt CSV, Excel mit Formatierung, Gruppen und Aggregaten, PDF, Export von
+„aktueller Ansicht" oder „allen gefilterten Zeilen" und Drucken. Excel und PDF ziehen große
+Bibliotheken nach (ADR A4: eigene Crate, Features, vor dem Hinzufügen nachfragen).
+
+**Entscheidung.**
+
+1. **Was exportiert wird, steht im Kern**, nicht in der Format-Crate: `datagrid_core::export_table`
+   macht aus Zeilen, Spalten und Zustand einen `ExportTable` — die sichtbaren Spalten in der
+   Reihenfolge des Gitters, die Zeilen sortiert, gefiltert und gruppiert, jede Zelle als typisierter
+   `Value` **und** als der Text, den das Gitter zeigt, Gruppenzeilen, Gruppen- und Gesamt-Aggregate.
+   Der Kern bleibt frei von Abhängigkeiten; und weil das Modell dort entsteht, kann ein Server es aus
+   seinen Zeilen bauen, ohne Dioxus zu kennen — der Weg für den Remote-Export.
+2. **Eine Quelle für die Spaltenreihenfolge.** `layout_order` gab es nur als Schleife im
+   Dioxus-Teil. Jetzt steht sie im Kern, und `visible_columns` benutzt sie: eine Datei kann der
+   Anzeige nicht widersprechen, weil beide dieselbe Funktion fragen.
+3. **Zwei Reichweiten** (`ExportScope`): `View` ist, was auf dem Schirm steht (die Seite, Gruppen
+   offen oder zu wie gezeigt); `Filtered` ist jede Zeile, die den Filter passiert, mit allen Gruppen
+   offen. Eine geschlossene Gruppe trägt ihre Aggregate im Kopf, weil sie keine Fußzeile hat.
+   Detailzeilen werden nie exportiert: sie sind Markup, keine Werte. Summen über keine Zeile sind
+   eine Zeile leerer Zellen und entfallen.
+4. **Eine Spalte ohne `value` schreibt leere Zellen**, wie das Kopieren es tut: gerenderter Inhalt
+   ist Markup, und seinen Text zu raten wäre schlimmer als ihn wegzulassen.
+5. **CSV ohne Abhängigkeit**, mit den Entscheidungen, die eine Datei für Excel braucht:
+   - **Werte statt Text als Voreinstellung** (`CsvValues::Raw`): `4200.5`, `true`, `2026-10-16`,
+     Dezimalpunkt in jeder Sprache — eine CSV ist meist für ein Programm. `Shown` schreibt, was der
+     Schirm zeigt.
+   - **Formeln entschärfen** (`guard_formulas`, an): Text, der mit `=`, `+`, `-`, `@`, Tabulator oder
+     Wagenrücklauf beginnt, ist für Excel eine Formel, und ein Gitter zeigt, was Nutzer getippt haben
+     (CSV-Injection). Er bekommt ein `'` davor. **Nur Text**: eine negative Zahl bleibt `-5`, weil das
+     Modell weiß, was ein Wert ist und was Text.
+   - **Byte-Order-Mark nur auf Wunsch**: Excel liest eine Datei ohne sie in der Systemcodepage und
+     zerstört Umlaute, andere Leser stolpern über sie.
+   - Gruppen als Zeilen im Strom (Überschrift, Zeilen, Aggregate), Summen mit „Totals" in der ersten
+     Spalte; jede Zeile hat so viele Felder wie Spalten.
+
+**Verworfen.**
+
+- **Das Modell in `datagrid-export`.** Dann bräuchte jeder, der einen Server-Export baut, eine Crate
+  mit Format-Features, um an die Zellen zu kommen — und das Modell müsste `ColumnSpec` und die
+  View-Berechnung kennen, die im Kern wohnen.
+- **Exportieren, was die DOM-Zellen zeigen.** Gerenderte Zellen sind Markup; der Text einer
+  virtualisierten Tabelle fehlte für alle Zeilen außerhalb des Fensters.
+- **Eine CSV-Bibliothek** (`csv`). RFC 4180 sind 20 Zeilen; die Bibliothek bringt `serde` und
+  `csv-core` mit und liest, was wir nur schreiben.
+
+**Folgen.**
+
+- Neu: `datagrid-core` (`export_table`, `layout_order`, `Export*`) und `datagrid-export` mit dem
+  Feature `csv`. Die Crate steht im Workspace und ist noch nicht veröffentlicht.
+- **Offen, und vor dem Bauen mit dem Maintainer zu klären** (CLAUDE.md): die Excel-Bibliothek
+  (`rust_xlsxwriter`, wie in A4 vorgesehen), die PDF-Bibliothek (noch zu wählen), und wie ein Download
+  ohne `web-sys` aussieht (Spike).

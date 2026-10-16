@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Export, the first part of Phase 13. `datagrid_core::export_table` builds the table an export
+  writes — the visible columns in the grid's layout order, the rows as sorted, filtered and
+  grouped, every cell as a typed `Value` and as the text the grid shows, group headings, and the
+  aggregates — for the current view or for every filtered row (`ExportScope`). `layout_order` is
+  that column order, now the one place that knows it. The new crate `datagrid-export` writes it as
+  CSV (feature `csv`, no dependency): values or shown text, any delimiter, an opt-in byte order
+  mark for Excel, and text that a spreadsheet would run as a formula defused. Excel, PDF, the
+  download and printing follow (`docs/DECISIONS.md` ADR-0040).
+
 ## [0.11.0] - 2026-10-16
 
 Wide grids, and what a paste leaves out. Not a roadmap phase: column virtualization was taken ahead

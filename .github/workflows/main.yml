@@ -70,6 +70,8 @@ jobs:
       - run: cargo check -p dioxus-datagrid --no-default-features
       - run: cargo check -p dioxus-datagrid --features datagrid-core/chrono
       - run: cargo check -p dioxus-datagrid --features datagrid-core/serde
+      - run: cargo check -p datagrid-export --no-default-features
+      - run: cargo check -p datagrid-export --features datagrid-core/chrono
 
   # The MSRV is a published promise (`rust-version` in Cargo.toml), and only a
   # pinned toolchain can keep it. The two library crates are what the promise
@@ -83,7 +85,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.88.0
       - uses: Swatinem/rust-cache@v2
-      - run: cargo check -p datagrid-core -p dioxus-datagrid --all-features
+      - run: cargo check -p datagrid-core -p dioxus-datagrid -p datagrid-export --all-features
 
   platform-build:
     name: build (${{ matrix.os }})

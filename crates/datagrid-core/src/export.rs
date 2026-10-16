@@ -46,6 +46,23 @@ pub struct ExportColumn {
     pub kind: Option<ValueKind>,
 }
 
+impl ExportColumn {
+    /// A column with a heading and nothing else to say: no groups, the plain
+    /// format, aligned at the start. For a table built by hand rather than from
+    /// a grid.
+    #[must_use]
+    pub fn new(id: impl Into<ColumnId>, label: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            group_path: Vec::new(),
+            format: CellFormat::Plain,
+            align: CellAlign::Start,
+            kind: None,
+        }
+    }
+}
+
 /// One cell: the value, and the text the grid shows for it.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ExportCell {
@@ -93,6 +110,10 @@ pub enum ExportRow {
     Aggregates {
         /// The level of the group they belong to, or `None` for the totals.
         level: Option<usize>,
+        /// What to call the row where it has a name: the locale's "Totals" for
+        /// the totals, nothing for a group's aggregates, which sit under the
+        /// group they belong to.
+        label: Option<String>,
         /// Per column, that column's aggregates.
         cells: Vec<Vec<ExportAggregate>>,
     },
@@ -256,6 +277,7 @@ pub fn export_table<T>(
                 };
                 out.push(ExportRow::Aggregates {
                     level: Some(group.level),
+                    label: None,
                     cells: per_column(&group.aggregates),
                 });
             }
@@ -268,6 +290,7 @@ pub fn export_table<T>(
     if view.filtered_len > 0 && !view.totals.is_empty() {
         out.push(ExportRow::Aggregates {
             level: None,
+            label: Some(locale.totals.to_string()),
             cells: per_column(&view.totals),
         });
     }
