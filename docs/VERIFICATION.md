@@ -870,3 +870,23 @@ Datei absteigend nach Gehalt sortiert; danach lässt sich weiterblättern. Aufge
 Lauf, dass die Datei eine Zeile mehr hatte als erwartet: die Summenzeile, die der Export über alle
 geholten Zeilen rechnet, weil die Spalten Aggregate haben — gewollt, mein Test hatte sie als
 Datenzeile gezählt.
+
+## 22. `dx components add` schaltet die Default-Features ab
+
+Der Smoke-Test gegen crates.io, direkt nach dem Veröffentlichen von 0.12.0, scheiterte: die Komponente
+`data_grid_export` fand `CsvOptions`, `to_csv` und `to_html` in `datagrid-export` nicht, obwohl sie
+dort stehen. Ursache: `dx components add` trägt **jede** Abhängigkeit aus `cargoDependencies` mit
+`default-features = false` ein (nachgestellt im Konsumenten-Fixture:
+`datagrid-export = { version = "0.12", default-features = false }`). Bei `dioxus-datagrid` fiel das nie
+auf, weil dessen `default` leer ist; `datagrid-export` hat `csv` und `html` als Default-Features.
+
+Die Abhilfe steht im Manifest: `"features": ["csv", "html"]` am Eintrag in
+`registry/data_grid_export/component.json`. Danach schreibt `dx` `default-features = false,
+features = ["csv", "html"]`, und beide Smoke-Tests bestehen (gegen crates.io und gegen den
+Arbeitsbaum). Das Feldformat habe ich nicht aus der Quelle von `dx` gelesen, sondern am Ergebnis
+geprüft.
+
+**Folge für jede künftige Komponente:** eine Abhängigkeit, die ihre Funktion über Default-Features
+bekommt, muss diese im Manifest nennen. Der Smoke-Test gegen die veröffentlichten Crates ist der
+Alarm dafür, und der lokale Test hätte es nicht gezeigt, weil er über einen `path`-Patch läuft.
+Das ist ein Grund mehr für die Reihenfolge aus ADR-0019: veröffentlichen, prüfen, dann pushen.
