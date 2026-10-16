@@ -92,3 +92,71 @@ test("the grid is still usable after a download", async ({ page }) => {
   await page.getByRole("button", { name: "Next page" }).click();
   await expect(page.getByText(/Page 2 of/)).toBeVisible();
 });
+
+// Printing hands the browser a table made from the export, not the grid: a paged
+// grid has only a page of rows in the document. `window.print` is replaced, so the
+// test sees what would have gone to the printer without a dialog opening.
+test.describe("printing", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as { __prints: (string | null)[] };
+      w.__prints = [];
+      window.print = () => {
+        w.__prints.push(document.getElementById("datagrid-print")?.innerHTML ?? null);
+      };
+    });
+  });
+
+  const printed = (page: Page) =>
+    page.evaluate(() => (window as unknown as { __prints: (string | null)[] }).__prints);
+
+  test("prints every row as a table, not the page", async ({ page }) => {
+    await open(page);
+    await page.getByRole("button", { name: "Print" }).click();
+    await expect.poll(() => printed(page).then((prints) => prints.length)).toBe(1);
+
+    const html = (await printed(page))[0] ?? "";
+    expect(html).toContain('<table class="datagrid">');
+    expect(html).toContain('<th scope="col">Name</th>');
+    // The grid shows five rows; the table has more.
+    expect(html.match(/<tr>/g)?.length ?? 0).toBeGreaterThan(1 + 5);
+    // The header sits in a <thead>, which a printer repeats on every sheet.
+    expect(html).toContain("<thead>");
+  });
+
+  test("prints what the filters leave", async ({ page }) => {
+    await open(page);
+    await page.getByPlaceholder("Search all columns").fill("research");
+    await page.getByRole("button", { name: "Print" }).click();
+    await expect.poll(() => printed(page).then((prints) => prints.length)).toBe(1);
+
+    const html = (await printed(page))[0] ?? "";
+    const rows = (html.match(/<tr>/g)?.length ?? 0) - 1;
+    expect(rows).toBeGreaterThan(0);
+    expect(html).not.toContain("legal");
+  });
+
+  test("shows only the table to the printer, and nothing of it on screen", async ({ page }) => {
+    await open(page);
+    await page.getByRole("button", { name: "Print" }).click();
+    await expect(page.locator("#datagrid-print")).toHaveCount(1);
+
+    // On screen the container is not there to see.
+    await expect(page.locator("#datagrid-print")).toBeHidden();
+    await expect(grid(page)).toBeVisible();
+
+    // Under print rules, the page gives way to it.
+    await page.emulateMedia({ media: "print" });
+    await expect(page.locator("#datagrid-print")).toBeVisible();
+    await expect(grid(page)).toBeHidden();
+    await page.emulateMedia({ media: "screen" });
+    await expect(grid(page)).toBeVisible();
+  });
+
+  test("is named in the language of the grid", async ({ page }) => {
+    await open(page);
+    await expect(page.getByRole("button", { name: "Print" })).toBeVisible();
+    await page.getByRole("radio", { name: "Deutsch" }).check();
+    await expect(page.getByRole("button", { name: "Drucken" })).toBeVisible();
+  });
+});

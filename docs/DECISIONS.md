@@ -1604,3 +1604,53 @@ wird.
   Engine da (ungeprüft), und der Aufruf kommt aus dem Eval-Kanal, nicht aus der Geste des Klicks.
 - **Die Bytes in einen Server-Endpunkt legen** und dorthin verlinken. Ein Export muss ohne Server
   gehen; ein Server-Grid kann es selbst tun.
+
+---
+
+## ADR-0042 — Drucken: eine Tabelle aus dem Export, kein Stylesheet für das Gitter
+
+**Kontext.** Die Roadmap nennt für Phase 13 ein „eigenes Druck-Stylesheet, ganze Ansicht oder aktuelle
+Seite". Ein Stylesheet kann nur drucken, was im Dokument steht. Ein Gitter mit `page_size` hat eine
+Seite Zeilen im DOM, eines mit `row_height` nur die sichtbaren: „die ganze Ansicht" ist dort gar nicht
+da, wie auch immer man sie gestaltet.
+
+**Entscheidung.**
+
+1. **Gedruckt wird eine `<table>`, die aus dem Export entsteht** (`datagrid_export::to_html`), nicht das
+   Gitter. Dieselbe Tabelle wie beim CSV-Export, also dieselben Spalten, Zeilen, Gruppen und
+   Aggregate — und mit denselben Reichweiten: die Seite oder jede gefilterte Zeile. Eine echte
+   `<table>` hat `<thead>`, den ein Drucker auf jeder Seite wiederholt, und Zeilen, die sich nicht
+   mitten durchschneiden lassen (`break-inside: avoid`).
+2. **`dioxus_datagrid::print_html(html)`** setzt die Tabelle in einen Container am Ende von `body`, blendet
+   für den Druck alles andere aus und ruft `window.print()` auf, über `document::eval` (dritte Stelle
+   neben Zwischenablage und Download; ADR-0033, ADR-0041). Am Bildschirm ist der Container unsichtbar,
+   und nach dem Drucken wird er entfernt.
+3. **Alles, was eine Zelle sagt, wird maskiert.** Das HTML geht per `innerHTML` in die Seite, und ein
+   Gitter zeigt, was Nutzer getippt haben. `to_html` schreibt Text nur als Elementinhalt; die einzigen
+   Attribute sind feste Klassen und Zahlen. Ein Test schreibt `<script>`, `"><img onerror>` und
+   Verwandtes in Zellen, Überschriften, Titel und Sprache und prüft, dass jedes `<` im Ergebnis ein
+   Tag des Schreibers einleitet.
+4. **Der Text kommt über den Kanal**, nicht ins Skript.
+5. **Zusätzlich** ein Format `html` in `datagrid-export` (ohne Abhängigkeit), weil dieselbe Tabelle auch
+   als Seite oder zum Einfügen taugt.
+
+**Gemessen.** `tests/e2e/export.spec.ts`, mit ersetztem `window.print`: der Druckknopf löst genau einen
+Druck aus, die Tabelle hat mehr Zeilen als die fünf der Seite, folgt dem Filter, und unter
+`emulateMedia({ media: "print" })` ist der Container sichtbar und das Gitter nicht, am Bildschirm
+umgekehrt. Chromium und WebKit lokal, Firefox in CI.
+
+**Nicht geprüft.** Was der Drucker tatsächlich ausgibt: ob die Kopfzeile auf Folgeseiten wiederholt wird,
+wie die Seitenumbrüche fallen und wie breite Tabellen auf Papier aussehen, ist **nicht** gemessen. Dass
+ein `<thead>` das tut, ist Verhalten der Browser, das ich hier nicht ausgedruckt habe. Ebenso steht der
+Druck im Desktop-WebView aus. Ein Stück von Hand: Drucken → „Als PDF speichern" und ansehen.
+
+**Verworfen.**
+
+- **Ein `@media print` für das Gitter**, nur es. Es druckt, was im DOM ist, und das ist bei Seiten und
+  Virtualisierung nicht „die ganze Ansicht"; das Gitter zeigt außerdem seine Bedienelemente und
+  scrollt in einem Container fester Höhe.
+- **Das Gitter vorübergehend ohne Seiten und Virtualisierung rendern**, dann drucken. Zustandswechsel
+  im sichtbaren Gitter für eine Aktion, die es nicht braucht — und bei 100 000 Zeilen ein DOM, das
+  der Nutzer nie gewollt hat.
+- **Ein `iframe`.** Druck aus einem Rahmen verhält sich je Engine anders, und der Container im selben
+  Dokument ist mit einem ersetzten `window.print` prüfbar.

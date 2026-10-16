@@ -1,7 +1,7 @@
 [package]
 name = "datagrid-export"
 version = "0.11.0"
-description = "Writes a data grid's rows as CSV, and later as Excel and PDF, from the table datagrid-core builds."
+description = "Writes a data grid's rows as CSV or an HTML table to print, from the table datagrid-core builds."
 keywords = ["datagrid", "table", "export", "csv"]
 categories = ["data-structures", "encoding"]
 readme = "README.md"
@@ -15,9 +15,11 @@ authors.workspace = true
 datagrid-core.workspace = true
 
 [features]
-default = ["csv"]
+default = ["csv", "html"]
 # CSV needs no dependency at all.
 csv = []
+# An HTML table, for printing; no dependency either.
+html = []
 # Dates and times as cell values, written in ISO 8601.
 chrono = ["datagrid-core/chrono"]
 

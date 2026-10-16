@@ -8,9 +8,9 @@
 //! filtered and grouped — is worked out by `dioxus-datagrid`; how CSV is written
 //! is `datagrid-export`'s. This component only puts a button in front of them.
 
-use datagrid_export::{CsvOptions, to_csv};
+use datagrid_export::{CsvOptions, HtmlOptions, to_csv, to_html};
 use dioxus::prelude::*;
-use dioxus_datagrid::{ExportScope, GridHandle, GridRow, merge_class, save_file};
+use dioxus_datagrid::{ExportScope, GridHandle, GridRow, merge_class, print_html, save_file};
 
 const STYLE: Asset = asset!("/src/components/data_grid_export/style.css");
 
@@ -30,6 +30,10 @@ pub struct DataGridExportProps {
     /// order mark, whether it holds values or the text shown.
     #[props(default)]
     pub csv: CsvOptions,
+    /// Whether to show a button that prints the same rows as a table, with its
+    /// header repeated on every sheet.
+    #[props(default = true)]
+    pub print: bool,
     #[props(extends = GlobalAttributes)]
     pub attributes: Vec<Attribute>,
 }
@@ -49,24 +53,41 @@ pub fn DataGridExport<T: GridRow + PartialEq + 'static>(props: DataGridExportPro
     };
 
     let locale = grid.locale();
-    let (label, csv_label) = {
+    let (label, csv_label, print_label) = {
         let locale = locale.read();
         (
             locale.export_label.to_string(),
             locale.export_csv.to_string(),
+            locale.print.to_string(),
         )
     };
 
     let file_name = props.file_name.clone();
     let scope = props.scope;
     let options = props.csv.clone();
+    // A grid that loads its rows from a server has no "every filtered row" to
+    // give, and exports the page on screen instead.
+    let table = move || {
+        grid.export_table(scope)
+            .or_else(|| grid.export_table(ExportScope::View))
+    };
     let export_csv = move |_| {
-        if let Some(table) = grid.export_table(scope) {
+        if let Some(table) = table() {
             save_file(
                 &format!("{file_name}.csv"),
                 "text/csv;charset=utf-8",
                 to_csv(&table, &options),
             );
+        }
+    };
+
+    let print_table = move |_| {
+        if let Some(table) = table() {
+            let options = HtmlOptions {
+                style: true,
+                ..HtmlOptions::default()
+            };
+            print_html(to_html(&table, &options));
         }
     };
 
@@ -79,6 +100,9 @@ pub fn DataGridExport<T: GridRow + PartialEq + 'static>(props: DataGridExportPro
 
         div { class, role: "group", aria_label: label, ..attributes,
             button { r#type: "button", "data-export": "csv", onclick: export_csv, "{csv_label}" }
+            if props.print {
+                button { r#type: "button", "data-export": "print", onclick: print_table, "{print_label}" }
+            }
         }
     }
 }

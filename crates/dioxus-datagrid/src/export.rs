@@ -114,3 +114,45 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
         ))
     }
 }
+
+/// Puts `html` on a page of its own for the printer: the page's other content
+/// is hidden while printing, and `html` is shown in its place.
+///
+/// The grid itself is not what gets printed. A paged or virtualized grid has
+/// only some of its rows in the document, so what is printed is a table made
+/// from [`export_table`](GridHandle::export_table), which has them all, and
+/// whose header repeats on every sheet. `html` is a fragment such as
+/// `datagrid_export::to_html` writes, with its `style` option on.
+///
+/// The fragment is inserted as markup, so it must be markup the caller
+/// trusts: `to_html` escapes every cell, and that is the one to use. It
+/// travels over the eval channel rather than inside the script.
+///
+/// The container is removed once printing ends. Where a browser never reports
+/// it, the next print replaces it, and it is hidden on screen meanwhile.
+pub fn print_html(html: String) {
+    spawn(async move {
+        let eval = document::eval(PRINT_HTML);
+        if eval.send(html).is_ok() {
+            let _ = eval.join::<bool>().await;
+        }
+    });
+}
+
+const PRINT_HTML: &str = r#"
+    const html = await dioxus.recv();
+    const old = document.getElementById("datagrid-print");
+    if (old) old.remove();
+    const container = document.createElement("div");
+    container.id = "datagrid-print";
+    container.innerHTML = html;
+    const rules = document.createElement("style");
+    rules.textContent =
+        "@media screen { #datagrid-print { display: none; } }" +
+        "@media print { body > *:not(#datagrid-print) { display: none !important; } }";
+    container.prepend(rules);
+    document.body.appendChild(container);
+    window.addEventListener("afterprint", () => container.remove(), { once: true });
+    window.print();
+    return true;
+"#;

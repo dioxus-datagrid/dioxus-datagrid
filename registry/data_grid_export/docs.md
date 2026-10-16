@@ -1,7 +1,7 @@
 # data_grid_export
 
-Export for [`data_grid`](../data_grid/docs.md): a button that downloads the rows as a
-CSV file.
+Export for [`data_grid`](../data_grid/docs.md): buttons that download the rows as a CSV file and
+print them.
 
 ## Usage
 
@@ -27,6 +27,7 @@ left out; a column that draws a cell of its own markup but has no `value` writes
 | `file_name` | `"export"` | The name of the file, without `.csv`. |
 | `scope` | `ExportScope::Filtered` | `Filtered` is every row that passes the filters, on every page, with every group open. `View` is the page on screen, groups as shown. |
 | `csv` | `CsvOptions::default()` | How the CSV is written, see below. |
+| `print` | `true` | Shows the button that prints the rows. |
 
 A grid that loads its rows from a server only has the page on screen, so it exports that page, in the
 order the server sent it, whatever `scope` says.
@@ -44,6 +45,16 @@ order the server sent it, whatever `scope` says.
   decimal comma.
 - Groups are lines of their own: the heading, the rows, then the aggregates. The totals line starts
   with "Totals" (or the locale's word for it).
+
+## Printing
+
+The Print button prints a table, not the grid. A paged or virtualized grid has only some of its rows
+in the page, so what is printed is made from the same export as the CSV: the same columns, the same
+rows for `scope`, the groups and the aggregates, in a real `<table>` whose header the printer repeats
+on every sheet. The rest of the page is hidden while it prints.
+
+Whatever a cell says is escaped. `datagrid_export::to_html` writes the same table for a page of your
+own, and `dioxus_datagrid::print_html(html)` prints any markup you trust the way the button does.
 
 ## Saving without `web-sys`
 

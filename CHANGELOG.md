@@ -21,7 +21,12 @@ All notable changes to this project are documented here. The format follows
   table from the grid's own rows, columns and state — `None` where it cannot, for every filtered row
   of a grid that loads from a server. The registry component `data_grid_export` puts a button in
   front of both (`GridLocale` gains `export_label`, `export_csv` and `print`). Excel waits for
-  `rust_xlsxwriter` to move to `zip` 9, whose 8.x are all yanked; PDF is the print stylesheet.
+  `rust_xlsxwriter` to move to `zip` 9, whose 8.x are all yanked.
+- Printing. `datagrid_export::to_html` (feature `html`, no dependency) writes the export as an HTML
+  table whose header repeats on every sheet, with every cell escaped; `dioxus_datagrid::print_html`
+  prints it in place of the page; `data_grid_export` has a Print button for it. What is printed is
+  the export, not the grid, so a paged or virtualized grid prints every row for `ExportScope::Filtered`
+  (ADR-0042). Not checked: what a printer or a desktop webview does with it.
 
 ## [0.11.0] - 2026-10-16
 

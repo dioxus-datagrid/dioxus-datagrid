@@ -10,6 +10,7 @@ dependencies costs nothing to anyone who does not ask for it.
 | Feature | Format | Dependencies |
 |---|---|---|
 | `csv` (default) | CSV: RFC 4180, a semicolon or any delimiter, a byte order mark for Excel, text that would run as a formula defused | none |
+| `html` (default) | an HTML table to print or to put in a page, every cell escaped, the header repeated on every printed sheet | none |
 | `chrono` | dates and times written in ISO 8601 | `chrono`, through `datagrid-core` |
 
 Excel and PDF are planned (see the roadmap) and will be features of their own.

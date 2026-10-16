@@ -38,6 +38,11 @@
 
 #[cfg(feature = "csv")]
 mod csv;
+#[cfg(feature = "html")]
+mod html;
 
 #[cfg(feature = "csv")]
 pub use csv::{CsvOptions, CsvValues, LineEnding, to_csv};
+
+#[cfg(feature = "html")]
+pub use html::{HtmlOptions, PRINT_CSS, to_html};
