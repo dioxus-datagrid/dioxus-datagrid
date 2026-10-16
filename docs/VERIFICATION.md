@@ -856,7 +856,7 @@ Feature `xlsx`.
 - **Download im Desktop-Build, Windows (WebView2):** zeigt einen Dialog. Der Blob-Link über
   `document::eval` genügt dort; ein Speicherdialog des Betriebssystems ist nicht nötig. Nicht
   geprüft: WKWebView (kein Mac), WebKitGTK, Mobile.
-- **Drucken → „Als PDF speichern":** in Ordnung. Festgehalten ist nur der Haken, nicht welcher Browser
-  und wie viele Seiten; ob die Kopfzeile auf Folgeseiten wiederholt wird, ist damit nicht einzeln
-  belegt.
+- **Drucken → „Als PDF speichern":** in Ordnung; die Kopfzeile ist auf allen Seiten zu sehen, das
+  `<thead>` wiederholt sich also. Welcher Browser es war und wie viele Seiten, wurde nicht
+  festgehalten. Offen: Papierausdruck, Desktop-WebView.
 

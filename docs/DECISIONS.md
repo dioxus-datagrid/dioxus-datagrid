@@ -1642,12 +1642,12 @@ Druck aus, die Tabelle hat mehr Zeilen als die fünf der Seite, folgt dem Filter
 `emulateMedia({ media: "print" })` ist der Container sichtbar und das Gitter nicht, am Bildschirm
 umgekehrt. Chromium und WebKit lokal, Firefox in CI.
 
-**Nicht gemessen.** Was der Drucker tatsächlich ausgibt: ob die Kopfzeile auf Folgeseiten wiederholt wird,
-wie die Seitenumbrüche fallen und wie breite Tabellen auf Papier aussehen, ist **nicht** gemessen. Dass
+**Nicht gemessen.** Was der Drucker tatsächlich ausgibt: wie die Seitenumbrüche fallen und wie breite
+Tabellen auf Papier aussehen, ist **nicht** gemessen (die wiederholte Kopfzeile siehe unten). Dass
 ein `<thead>` das tut, ist Verhalten der Browser, das ich hier nicht ausgedruckt habe.
 
-**Von Hand geprüft (Maintainer, 16.10.2026).** Drucken → „Als PDF speichern": in Ordnung. Das Ergebnis
-steht hier nur als Haken; welcher Browser und wie viele Seiten, wurde nicht festgehalten. Offen
+**Von Hand geprüft (Maintainer, 16.10.2026).** Drucken → „Als PDF speichern": in Ordnung, und die
+Kopfzeile ist auf allen Seiten zu sehen. Welcher Browser es war, wurde nicht festgehalten. Offen
 bleiben der Druck im Desktop-WebView und ein Papierausdruck.
 
 **Verworfen.**
