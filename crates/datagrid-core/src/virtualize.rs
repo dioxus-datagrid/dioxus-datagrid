@@ -172,3 +172,160 @@ pub fn reveal_scroll_top(
         None
     }
 }
+
+/// Which columns a column-virtualized body should render.
+///
+/// `widths` are the columns' widths in layout order, in CSS pixels, and
+/// `scroll_left` is how far the container is scrolled from the start edge. The
+/// result is the columns intersecting the viewport, widened by `overscan`
+/// columns on each side. It always satisfies `start <= end <= widths.len()`,
+/// whatever the inputs.
+///
+/// A width that is not finite, or is negative, counts as zero: a column that
+/// has none takes no room, and guessing one would render the wrong columns.
+///
+/// This is the horizontal twin of [`visible_range`], except that columns, unlike
+/// fixed-height rows, differ in width and the position of a column is a sum.
+///
+/// # Examples
+///
+/// ```
+/// use datagrid_core::visible_columns;
+///
+/// // Ten columns of 100px, scrolled to 250px, a 300px viewport: columns 2..6
+/// // (x = 200..600) intersect 250..550.
+/// let widths = [100.0; 10];
+/// assert_eq!(visible_columns(&widths, 250.0, 300.0, 0), 2..6);
+/// assert_eq!(visible_columns(&widths, 250.0, 300.0, 1), 1..7);
+///
+/// // Widths may differ.
+/// assert_eq!(visible_columns(&[50.0, 400.0, 50.0], 100.0, 100.0, 0), 1..2);
+///
+/// // Overscroll cannot push the range out of bounds.
+/// assert_eq!(visible_columns(&widths, -40.0, 300.0, 0), 0..3);
+/// ```
+#[must_use]
+pub fn visible_columns(
+    widths: &[f64],
+    scroll_left: f64,
+    viewport_width: f64,
+    overscan: usize,
+) -> Range<usize> {
+    if widths.is_empty() {
+        return 0..0;
+    }
+    let scroll_left = clamp_coordinate(scroll_left);
+    let viewport_width = clamp_coordinate(viewport_width);
+    let right = scroll_left + viewport_width;
+
+    // A column is in view if it ends after the left edge and starts before the
+    // right one. Walk once, remembering where the first and last such column are.
+    let mut x = 0.0;
+    let mut first = None;
+    let mut last = None;
+    for (index, width) in widths
+        .iter()
+        .map(|width| clamp_coordinate(*width))
+        .enumerate()
+    {
+        let end = x + width;
+        if first.is_none() && end > scroll_left {
+            first = Some(index);
+        }
+        if x < right {
+            last = Some(index + 1);
+        }
+        x = end;
+    }
+
+    // Scrolled past the last column (or nothing in view): show the last ones
+    // rather than nothing, as a browser clamps the scroll position.
+    let first = first.unwrap_or(widths.len().saturating_sub(1));
+    let last = last.unwrap_or(0).max(first);
+
+    let start = first.saturating_sub(overscan);
+    let end = last.saturating_add(overscan).min(widths.len());
+    start..end.max(start)
+}
+
+/// A pixel quantity made safe to add up: non-finite and negative become zero.
+fn clamp_coordinate(value: f64) -> f64 {
+    if value.is_finite() {
+        value.max(0.0)
+    } else {
+        0.0
+    }
+}
+
+/// How far from the start edge column `index` begins: the widths before it.
+///
+/// An `index` past the end is the total width.
+///
+/// # Examples
+///
+/// ```
+/// use datagrid_core::column_offset;
+///
+/// assert_eq!(column_offset(&[100.0, 50.0, 80.0], 2), 150.0);
+/// assert_eq!(column_offset(&[100.0, 50.0, 80.0], 9), 230.0);
+/// ```
+#[must_use]
+pub fn column_offset(widths: &[f64], index: usize) -> f64 {
+    widths
+        .iter()
+        .take(index)
+        .map(|width| clamp_coordinate(*width))
+        .sum()
+}
+
+/// The horizontal scroll position that brings a column fully into view, or
+/// `None` when it already is.
+///
+/// Scrolls as little as possible, like [`reveal_scroll_top`]. `inset_start` and
+/// `inset_end` are the widths of the pinned blocks at either edge: they stay
+/// where they are and cover that much of the viewport, so a scrolling column
+/// has to clear them. A column wider than what is left shows its start.
+///
+/// # Examples
+///
+/// ```
+/// use datagrid_core::reveal_scroll_left;
+///
+/// // A 100px column at x = 500 in a 300px viewport scrolled to 0: scroll so
+/// // that it ends at the right edge.
+/// assert_eq!(reveal_scroll_left(500.0, 100.0, 300.0, 0.0, 0.0, 0.0), Some(300.0));
+/// // Already in view.
+/// assert_eq!(reveal_scroll_left(500.0, 100.0, 300.0, 400.0, 0.0, 0.0), None);
+/// // A 60px pinned block at the start covers the first 60px of the viewport.
+/// assert_eq!(reveal_scroll_left(500.0, 100.0, 300.0, 460.0, 60.0, 0.0), Some(440.0));
+/// ```
+#[must_use]
+pub fn reveal_scroll_left(
+    start: f64,
+    width: f64,
+    viewport_width: f64,
+    scroll_left: f64,
+    inset_start: f64,
+    inset_end: f64,
+) -> Option<f64> {
+    if !start.is_finite() || !width.is_finite() {
+        return None;
+    }
+    let scroll_left = clamp_coordinate(scroll_left);
+    let inset_start = clamp_coordinate(inset_start);
+    let inset_end = clamp_coordinate(inset_end);
+    let width = width.max(0.0);
+    // What the scrolling columns can use of the viewport.
+    let usable = (clamp_coordinate(viewport_width) - inset_start - inset_end).max(0.0);
+
+    let left = start - inset_start;
+    let right = start + width - inset_start;
+    // `left` and `right` are measured from where the scrolling area begins.
+    if left < scroll_left {
+        Some(left.max(0.0))
+    } else if right > scroll_left + usable {
+        Some((right - usable).max(0.0).min(left.max(0.0)))
+    } else {
+        None
+    }
+}

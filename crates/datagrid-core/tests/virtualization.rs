@@ -138,3 +138,93 @@ fn reveal_is_safe_with_degenerate_input() {
     assert_eq!(reveal_scroll_top(0, 20.0, 100.0, f64::NAN), None);
     assert_eq!(reveal_scroll_top(0, 20.0, 100.0, -50.0), None);
 }
+
+mod columns {
+    use datagrid_core::{column_offset, reveal_scroll_left, visible_columns};
+
+    #[test]
+    fn returns_the_columns_intersecting_the_viewport() {
+        let widths = [100.0; 10];
+        assert_eq!(visible_columns(&widths, 250.0, 300.0, 0), 2..6);
+    }
+
+    #[test]
+    fn columns_of_different_widths_are_summed() {
+        // x: 0..50, 50..450, 450..500. A 100px viewport at 100px sees only the wide one.
+        assert_eq!(visible_columns(&[50.0, 400.0, 50.0], 100.0, 100.0, 0), 1..2);
+    }
+
+    #[test]
+    fn a_column_ending_exactly_at_the_left_edge_is_out_of_view() {
+        assert_eq!(visible_columns(&[100.0; 4], 100.0, 100.0, 0), 1..2);
+    }
+
+    #[test]
+    fn scrolled_past_the_end_shows_the_last_column() {
+        assert_eq!(visible_columns(&[100.0; 4], 9_000.0, 300.0, 0), 3..4);
+    }
+
+    #[test]
+    fn overscan_does_not_escape_the_columns() {
+        assert_eq!(visible_columns(&[100.0; 4], 0.0, 100.0, 10), 0..4);
+    }
+
+    #[test]
+    fn no_columns_no_window() {
+        assert_eq!(visible_columns(&[], 0.0, 500.0, 3), 0..0);
+    }
+
+    #[test]
+    fn a_width_that_is_not_a_number_takes_no_room() {
+        let widths = [100.0, f64::NAN, 100.0];
+        // The nameless column sits at x = 100, where the first one ends: not in view.
+        assert_eq!(visible_columns(&widths, 100.0, 50.0, 0), 2..3);
+        assert_eq!(column_offset(&widths, 3), 200.0);
+    }
+
+    #[test]
+    fn reveal_asks_for_nothing_when_the_column_is_in_view() {
+        assert_eq!(
+            reveal_scroll_left(500.0, 100.0, 300.0, 400.0, 0.0, 0.0),
+            None
+        );
+    }
+
+    #[test]
+    fn reveal_scrolls_a_column_on_the_right_to_the_right_edge() {
+        assert_eq!(
+            reveal_scroll_left(500.0, 100.0, 300.0, 0.0, 0.0, 0.0),
+            Some(300.0)
+        );
+    }
+
+    #[test]
+    fn reveal_scrolls_a_column_on_the_left_to_the_left_edge() {
+        assert_eq!(
+            reveal_scroll_left(100.0, 100.0, 300.0, 400.0, 0.0, 0.0),
+            Some(100.0)
+        );
+    }
+
+    #[test]
+    fn reveal_clears_the_pinned_blocks() {
+        // 60px pinned at the start: the column must begin right of them.
+        assert_eq!(
+            reveal_scroll_left(500.0, 100.0, 300.0, 460.0, 60.0, 0.0),
+            Some(440.0)
+        );
+        // 80px pinned at the end: the column must end left of them.
+        assert_eq!(
+            reveal_scroll_left(500.0, 100.0, 300.0, 300.0, 0.0, 80.0),
+            Some(380.0)
+        );
+    }
+
+    #[test]
+    fn reveal_of_a_column_wider_than_the_viewport_shows_its_start() {
+        assert_eq!(
+            reveal_scroll_left(500.0, 900.0, 300.0, 0.0, 0.0, 0.0),
+            Some(500.0)
+        );
+    }
+}

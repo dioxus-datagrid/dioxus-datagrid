@@ -112,7 +112,8 @@ pub use view::{
     DistinctValues, View, ViewRow, compute_view, compute_view_with_details, distinct_values,
 };
 pub use virtualize::{
-    offset_of, reveal_scroll_top, rows_per_viewport, total_height, visible_range,
+    column_offset, offset_of, reveal_scroll_left, reveal_scroll_top, rows_per_viewport,
+    total_height, visible_columns, visible_range,
 };
 
 /// A row the grid can identify across sorting, filtering and paging.

@@ -8,7 +8,8 @@
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
 use datagrid_core::{
-    ColumnSpec, GridState, PageState, SortDirection, SortState, compute_view, visible_range,
+    ColumnSpec, GridState, PageState, SortDirection, SortState, column_offset, compute_view,
+    visible_columns, visible_range,
 };
 use proptest::prelude::*;
 use std::collections::HashSet;
@@ -276,6 +277,87 @@ proptest! {
         );
 
         let range = visible_range(scroll_top, viewport_height, row_height, 10_000, 0);
+        prop_assert!(range.contains(&index), "{index} not in rendered range {range:?}");
+    }
+}
+
+proptest! {
+    /// The columns window stays inside the columns, whatever the geometry and
+    /// whatever the widths — including ones that are not numbers.
+    #[test]
+    fn visible_columns_stays_in_bounds(
+        widths in prop::collection::vec(
+            prop_oneof![0.0_f64..800.0, Just(f64::NAN), Just(-5.0), Just(f64::INFINITY)],
+            0..300,
+        ),
+        scroll_left in -10_000.0_f64..1_000_000.0,
+        viewport_width in 0.0_f64..5_000.0,
+        overscan in 0_usize..10,
+    ) {
+        let range = visible_columns(&widths, scroll_left, viewport_width, overscan);
+
+        prop_assert!(range.start <= range.end);
+        prop_assert!(range.end <= widths.len());
+    }
+
+    /// The rendered columns must cover the viewport, or the user sees blank
+    /// space where columns should be.
+    #[test]
+    fn visible_columns_cover_the_viewport(
+        widths in prop::collection::vec(1.0_f64..400.0, 1..300),
+        scroll_left in 0.0_f64..50_000.0,
+        viewport_width in 1.0_f64..3_000.0,
+    ) {
+        let range = visible_columns(&widths, scroll_left, viewport_width, 0);
+        let total: f64 = widths.iter().sum();
+
+        if scroll_left < total && !range.is_empty() {
+            let from = column_offset(&widths, range.start);
+            let to = column_offset(&widths, range.end);
+            prop_assert!(from <= scroll_left, "gap before: rendered from {from}, scrolled to {scroll_left}");
+            prop_assert!(
+                to >= (scroll_left + viewport_width).min(total),
+                "gap after: rendered to {to}"
+            );
+        }
+    }
+
+    /// After scrolling to the position `reveal_scroll_left` asks for, the column
+    /// is clear of the pinned blocks and inside the window that is rendered.
+    #[test]
+    fn a_revealed_column_is_visible_and_rendered(
+        scrolling in prop::collection::vec(20.0_f64..300.0, 1..200),
+        pick in 0.0_f64..1.0,
+        viewport_width in 600.0_f64..2_000.0,
+        scroll_left in 0.0_f64..40_000.0,
+        inset_start in 0.0_f64..150.0,
+        inset_end in 0.0_f64..150.0,
+    ) {
+        // The layout: the pinned block at the start, the scrolling columns, the
+        // pinned block at the end. A scrolling column begins behind the first.
+        let mut widths = vec![inset_start];
+        widths.extend(&scrolling);
+        widths.push(inset_end);
+        let index = 1 + ((scrolling.len() - 1) as f64 * pick) as usize;
+        let start = column_offset(&widths, index);
+        let width = widths[index];
+        let total: f64 = widths.iter().sum();
+        let scroll_left = datagrid_core::reveal_scroll_left(
+            start, width, viewport_width, scroll_left, inset_start, inset_end,
+        )
+        .unwrap_or(scroll_left);
+
+        let usable = viewport_width - inset_start - inset_end;
+        prop_assert!(
+            start - inset_start >= scroll_left - 1e-6 || scroll_left >= total,
+            "column begins under the pinned block at the start"
+        );
+        prop_assert!(
+            start + width - inset_start <= scroll_left + usable + 1e-6 || width > usable,
+            "column ends under the pinned block at the end"
+        );
+
+        let range = visible_columns(&widths, scroll_left, viewport_width, 0);
         prop_assert!(range.contains(&index), "{index} not in rendered range {range:?}");
     }
 }
