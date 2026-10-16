@@ -69,6 +69,15 @@ pub struct DataGridProps<T: GridRow + PartialEq + 'static> {
     /// before the next render; lower it if rendering is expensive.
     #[props(default = 20)]
     pub overscan: usize,
+    /// Renders only the columns in view, for grids with more columns than a
+    /// screen holds. Give those columns widths: a fixed one is exact, an
+    /// automatic or fractional one counts as its `min_width`.
+    #[props(default)]
+    pub virtual_columns: bool,
+    /// With `virtual_columns`: extra columns rendered on each side of the
+    /// visible ones.
+    #[props(default = 2)]
+    pub column_overscan: usize,
     /// A CSS height for the grid, such as `"480px"`. The grid scrolls within it.
     #[props(default)]
     pub height: Option<String>,
@@ -122,6 +131,7 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
     options.page_size = props.page_size;
     options.initial_state = props.initial_state.clone();
     options.locale = props.locale.clone();
+    options.virtual_columns = props.virtual_columns.then_some(props.column_overscan);
 
     let mut grid = use_grid(props.data, props.columns, options);
     use_context_provider(|| grid);
@@ -154,7 +164,7 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
         .map_or_else(String::new, |height| format!("height: {height};"));
 
     // Every row is a CSS subgrid of this one track list.
-    let template = grid.column_template("minmax(6rem, auto)");
+    let template = grid.column_template(&grid.auto_track());
     // A `class` of the caller's joins this one rather than fighting it: two
     // `class` attributes on one element mean one of them loses.
     let mut attributes = props.attributes.clone();

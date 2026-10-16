@@ -167,6 +167,16 @@ struct ColumnSetup {
     checkbox: bool,
     details: bool,
     row_drag: bool,
+    wide: bool,
+}
+
+/// How many columns the wide setup adds after the five that are always there.
+const WIDE_COLUMNS: u32 = 195;
+
+/// The value in a wide grid's cell: deterministic, so a test can predict the
+/// text of any cell from its row and its column.
+fn metric(id: u32, number: u32) -> u32 {
+    id * (number + 2) % 997
 }
 
 /// The columns, in English or German, with totals under age and salary if
@@ -181,6 +191,7 @@ fn columns(setup: ColumnSetup) -> Vec<Column<Employee>> {
         checkbox,
         details,
         row_drag,
+        wide,
     } = setup;
     let label = |id| label(id, german);
     // Every column can be edited, once a `DataGridEditor` says how; without
@@ -330,6 +341,19 @@ fn columns(setup: ColumnSetup) -> Vec<Column<Employee>> {
     } else {
         columns
     };
+    let mut columns = columns;
+    if wide {
+        // Fixed widths: a grid that renders only the columns in view has to know
+        // them without laying the others out.
+        columns.extend((1..=WIDE_COLUMNS).map(|number| {
+            Column::new(format!("metric-{number}"), format!("Metric {number}"))
+                .width(ColumnWidth::Px(120.0))
+                .cell(move |row: &Employee| {
+                    let value = metric(row.id, number);
+                    rsx! { "{value}" }
+                })
+        }));
+    }
     if !totals {
         return columns;
     }
@@ -405,6 +429,8 @@ fn App() -> Element {
     let mut checkbox_column = use_signal(|| false);
     let mut detail_rows = use_signal(|| false);
     let mut row_drag = use_signal(|| false);
+    let mut wide = use_signal(|| false);
+    let mut virtual_columns = use_signal(|| false);
     let cols = use_memo(move || {
         columns(ColumnSetup {
             german: german(),
@@ -415,6 +441,7 @@ fn App() -> Element {
             checkbox: checkbox_column(),
             details: detail_rows(),
             row_drag: row_drag(),
+            wide: wide(),
         })
     });
 
@@ -709,6 +736,26 @@ fn App() -> Element {
                 label { class: "toggle",
                     input {
                         r#type: "checkbox",
+                        "data-testid": "toggle-wide",
+                        checked: wide(),
+                        onchange: move |event| wide.set(event.checked()),
+                    }
+                    "Wide (+{WIDE_COLUMNS} columns)"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
+                        "data-testid": "toggle-virtual-columns",
+                        checked: virtual_columns(),
+                        onchange: move |event| virtual_columns.set(event.checked()),
+                    }
+                    "Virtual columns"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
                         "data-testid": "toggle-totals",
                         checked: totals(),
                         onchange: move |event| totals.set(event.checked()),
@@ -783,7 +830,9 @@ fn App() -> Element {
                     page_size: (paged() && !virtualized()).then_some(5),
                     row_height: virtualized().then_some(ROW_HEIGHT),
                     overscan: overscan(),
-                    height: virtualized().then(|| "480px".to_owned()),
+                    virtual_columns: virtual_columns(),
+                    // A wide grid scrolls within a height of its own.
+                    height: (virtualized() || wide()).then(|| "480px".to_owned()),
                     selection: selection(),
                     cell_selection: cell_selection(),
                     column_filters: true,

@@ -87,6 +87,8 @@ fn Users() -> Element {
 | `row_height` | `None` | Virtualizes the grid: only rows in view are rendered, each exactly this many pixels tall. |
 | `height` | `None` | A CSS height, such as `"480px"`, that the grid scrolls within. |
 | `overscan` | `20` | With `row_height`: extra rows rendered above and below the visible ones. |
+| `virtual_columns` | `false` | Renders only the columns in view; see "Wide grids". |
+| `column_overscan` | `2` | With `virtual_columns`: extra columns rendered on each side of the visible ones. |
 | `resizable_columns` | `true` | Lets the user resize columns by dragging a header's edge. |
 | `column_picker` | `false` | Shows a menu for showing and hiding columns. |
 | `column_picker_label` | from `locale` | Label of that menu. |
@@ -182,6 +184,38 @@ line of text.
 On touch devices a fast fling can outrun rendering. The default `overscan` of 20
 keeps rows ready for that; on the Android emulator 5 showed blank rows and 40
 made scrolling sluggish. Lower it if your cells are expensive to render.
+
+## Wide grids
+
+A grid with a hundred columns or more, set `virtual_columns` and `height`:
+
+```rust
+DataGrid {
+    data: readings,
+    columns, // every column with a width, as below
+    virtual_columns: true,
+    height: "70vh",
+}
+```
+
+Only the columns in view are rendered, with `column_overscan` more on each side,
+and the pinned ones, which stay at their edge however far the grid is scrolled.
+The scrollbar and `aria-colcount` still cover every column, and the keyboard
+reaches them: `ArrowRight` scrolls the next one into view, clear of the pinned
+columns.
+
+The grid has to know where each column is without laying it out, so give the
+columns widths:
+
+- `ColumnWidth::Px(n)` is exact.
+- An automatic or fractional column counts as its `min_width`, which is also
+  what it is as soon as the grid is wider than the screen. An automatic column
+  with no `min_width` counts as 96px.
+
+An automatic or fractional column only grows into free space, and a grid wide
+enough to need this has none; where it does, every column is in view anyway. A
+cell of your own in a row (not one `data_grid` renders) should put
+`grid.cell_placement(column, span)` in its `style`.
 
 ## Resizing and hiding columns
 
