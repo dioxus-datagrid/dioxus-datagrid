@@ -117,6 +117,7 @@ fn Users() -> Element {
 For large data sets, set `row_height` and `height` instead of `page_size`: only the rows in view
 are rendered, while the scrollbar, keyboard navigation and `aria-rowcount` still cover every row.
 [`examples/virtualized`](examples/virtualized) shows 100,000 rows built directly on the primitives.
+[`examples/export`](examples/export) downloads and prints a grouped grid, with two dependencies and the CSV it would write shown beside it.
 
 Columns can be resized by dragging a header's edge, and `column_picker` adds a menu to show and
 hide them. With the `serde` feature the whole grid state — sort, filters, page, widths, hidden

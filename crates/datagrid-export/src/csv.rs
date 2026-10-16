@@ -69,7 +69,7 @@ impl Default for CsvOptions {
 ///
 /// One line per data row, under a line of the column labels. A group's heading
 /// is a line of its own with the caption in the first field, and its aggregates
-/// follow its rows as a line with each in its column's field: `Sum 7300.5`, or
+/// follow its rows as a line with each in its column's field: `Sum €7,300.50`, or
 /// several of them joined with `; `. The totals line starts with the locale's
 /// "Totals". Where the table has no groups, none of that shows.
 ///
@@ -196,7 +196,7 @@ impl Writer<'_> {
         }
     }
 
-    /// The text of one column's aggregates: `Sum 7300.5; Count 2`.
+    /// The text of one column's aggregates: `Sum €7,300.50; Count 2`.
     fn aggregate_fields(&self, columns: &[Vec<ExportAggregate>]) -> Vec<String> {
         columns
             .iter()
@@ -205,8 +205,9 @@ impl Writer<'_> {
                     .iter()
                     .filter(|aggregate| aggregate.value.is_some())
                     .map(|aggregate| {
-                        let value = self.value_text(aggregate.value.as_ref(), &aggregate.text);
-                        format!("{} {value}", aggregate.name)
+                        // The text shown, whatever `values` says: an aggregate line is
+                        // a caption for a reader (`Average 29.33`), not a cell of data.
+                        format!("{} {}", aggregate.name, aggregate.text)
                     })
                     .collect::<Vec<_>>()
                     .join("; ")

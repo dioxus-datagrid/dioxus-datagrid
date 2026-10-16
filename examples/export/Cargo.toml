@@ -1,0 +1,23 @@
+[package]
+name = "example-export"
+version = "0.1.0"
+publish = false
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+dioxus.workspace = true
+# Two dependencies, as an application needs: the grid, and what writes its rows
+# as a file. `dioxus-datagrid` re-exports the core crate's types.
+dioxus-datagrid.workspace = true
+datagrid-export.workspace = true
+
+[features]
+default = ["web"]
+web = ["dioxus/web"]
+desktop = ["dioxus/desktop"]
+mobile = ["dioxus/mobile"]
+
+[lints.rust]
+unsafe_code = "forbid"

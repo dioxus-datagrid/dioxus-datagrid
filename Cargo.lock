@@ -1969,6 +1969,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "example-export"
+version = "0.1.0"
+dependencies = [
+ "datagrid-export",
+ "dioxus",
+ "dioxus-datagrid",
+]
+
+[[package]]
 name = "example-fullstack"
 version = "0.1.0"
 dependencies = [

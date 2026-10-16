@@ -97,7 +97,7 @@ fn writes_a_header_and_a_line_per_row_with_values_not_text() {
          Zoe,Berlin,4200.5,31\r\n\
          Adi,Hamburg,,-27\r\n\
          Max,Berlin,3100,45\r\n\
-         Totals,,Sum 7300.5,\r\n"
+         Totals,,\"Sum €7,300.50\",\r\n"
     );
 }
 
@@ -155,7 +155,7 @@ fn line_ending_and_header_are_choices() {
         ..CsvOptions::default()
     };
     let csv = csv_of(&rows()[..1], &GridState::new(), &options);
-    assert_eq!(csv, "Zoe,Berlin,4200.5,31\nTotals,,Sum 4200.5,\n");
+    assert_eq!(csv, "Zoe,Berlin,4200.5,31\nTotals,,\"Sum €4,200.50\",\n");
 }
 
 #[test]
@@ -223,11 +223,11 @@ mod groups {
              city: Berlin,,,\r\n\
              Zoe,Berlin,4200.5,31\r\n\
              Max,Berlin,3100,45\r\n\
-             ,,Sum 7300.5,\r\n\
+             ,,\"Sum €7,300.50\",\r\n\
              city: Hamburg,,,\r\n\
              Adi,Hamburg,,-27\r\n\
              ,,,\r\n\
-             Totals,,Sum 7300.5,\r\n"
+             Totals,,\"Sum €7,300.50\",\r\n"
         );
     }
 }
@@ -236,7 +236,9 @@ mod groups {
 fn every_line_has_a_field_per_column() {
     let csv = csv_of(&rows(), &GridState::new(), &CsvOptions::default());
     for line in csv.lines() {
-        assert_eq!(line.matches(',').count(), 3, "{line}");
+        // Commas inside quotes belong to a field; only the others separate.
+        let outside: String = line.split('"').step_by(2).collect();
+        assert_eq!(outside.matches(',').count(), 3, "{line}");
     }
 }
 

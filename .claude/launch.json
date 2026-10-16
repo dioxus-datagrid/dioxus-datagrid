@@ -6,6 +6,12 @@
       "runtimeExecutable": "dx",
       "runtimeArgs": ["serve", "--web", "--package", "playground", "--port", "8080", "--open", "false"],
       "port": 8080
+    },
+    {
+      "name": "example-export",
+      "runtimeExecutable": "dx",
+      "runtimeArgs": ["serve", "--web", "--package", "example-export", "--port", "8086", "--open", "false"],
+      "port": 8086
     }
   ]
 }

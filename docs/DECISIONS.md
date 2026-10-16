@@ -1535,6 +1535,10 @@ Bibliotheken nach (ADR A4: eigene Crate, Features, vor dem Hinzufügen nachfrage
      zerstört Umlaute, andere Leser stolpern über sie.
    - Gruppen als Zeilen im Strom (Überschrift, Zeilen, Aggregate), Summen mit „Totals" in der ersten
      Spalte; jede Zeile hat so viele Felder wie Spalten.
+   - **Aggregatzeilen tragen immer den angezeigten Text** (`Average 29.33`, `Sum €16,001.50`), auch bei
+     `CsvValues::Raw`. Eine erste Fassung schrieb dort den Wert (`Average 29.333333333333332`); das fiel
+     erst auf, als `examples/export` eine echte Datei zeigte. Eine Aggregatzeile ist eine Beschriftung
+     für Leser, keine Datenzelle.
 
 **Verworfen.**
 
