@@ -210,3 +210,28 @@ test.describe("keyboard across the viewport edge", () => {
     expect(await focusedCellIsVisible(page)).toBe(true);
   });
 });
+
+test.describe("under a header of two levels", () => {
+  // The body starts one row lower, so the row the keyboard has to reveal is the
+  // focus row minus the two header rows, not minus one.
+  test("arrowing past the bottom keeps the focused row in view", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTestId("toggle-header-groups").check();
+    await page.getByTestId("toggle-virtualized").check();
+    await expect(grid(page)).toHaveAttribute("aria-rowcount", String(TOTAL + 2));
+
+    await grid(page).locator("[tabindex='0']").focus();
+    for (let i = 0; i < 31; i++) await page.keyboard.press("ArrowDown");
+
+    // Wherever the focus started, it is on a body row far below the first screen.
+    const row = async () => Number((await active(page)).row);
+    await expect.poll(row).toBeGreaterThan(30);
+    expect(await focusedCellIsVisible(page)).toBe(true);
+    const reached = await row();
+
+    // And back up, to the edge of the body at the top of the viewport.
+    for (let i = 0; i < 25; i++) await page.keyboard.press("ArrowUp");
+    await expect.poll(row).toBe(reached - 25);
+    expect(await focusedCellIsVisible(page)).toBe(true);
+  });
+});
