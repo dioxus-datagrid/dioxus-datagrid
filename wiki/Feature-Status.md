@@ -1,7 +1,7 @@
 # Feature status
 
 What the grid does today, area by area, and what is not there yet. The state is the released
-**0.11.0**: Phase 12 (rows, selection, the clipboard) plus column virtualization, which was taken ahead of its turn.
+**0.12.0**: Phase 12 (rows, selection, the clipboard), column virtualization taken ahead of its turn, and most of Phase 13: export and print.
 
 The comparison is against the Syncfusion Blazor DataGrid, which is the yardstick the
 [roadmap](Roadmap.md) uses. "Planned" names the phase that will close the gap;
@@ -58,7 +58,7 @@ The comparison is against the Syncfusion Blazor DataGrid, which is the yardstick
 | State | The whole grid state — sort, filters, search, page, widths, hidden columns, grouping, collapsed groups — round trips through `initial_state` and `on_state_change` with the `serde` feature. | — |
 | Accessibility | A single tab stop with a roving tabindex, the full WAI-ARIA grid pattern, and a treegrid when grouped. axe finds nothing, in light and dark. | RTL — **Phase 14**. A screen-reader field test with NVDA, JAWS and VoiceOver — **before 1.0**. |
 | Toolbar, context menu | — | **Phase 14**. |
-| Export, print | — | CSV, Excel and PDF in a separate `datagrid-export` crate, plus a print stylesheet — **Phase 13**. |
+| Excel export | — | `rust_xlsxwriter` as an optional feature of `datagrid-export`, once it can be resolved again — **Phase 13**. |
 
 ## Deliberately not a goal
 

@@ -10,8 +10,8 @@ against rows in memory or against a server.
 
 | | |
 |---|---|
-| Latest release | **0.11.0** — wide grids: column virtualization (crates.io, docs.rs) |
-| Next | Phase 13 — export and print: a separate `datagrid-export` crate with CSV, Excel and PDF, and a print stylesheet |
+| Latest release | **0.12.0** — export and print: CSV, an HTML table to print, the rows of a server grid (crates.io, docs.rs) |
+| Next | Phase 14 — the UI around it: toolbar, context menu, an adaptive layout, RTL. Excel export follows once `rust_xlsxwriter` can be resolved again |
 | Long game | [Roadmap to 1.0](Roadmap.md) — parity with the Syncfusion Blazor DataGrid on the features people actually use |
 
 Every phase ends in a release, so you can stop on any version and have something whole.

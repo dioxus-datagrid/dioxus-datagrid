@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-16
+
+Export and print: most of Phase 13. Excel is not in it: `rust_xlsxwriter` needs `zip` 8, every 7.x and
+8.x of which is yanked, so it cannot be resolved today (`docs/DECISIONS.md` ADR-0040); it follows when
+upstream moves to `zip` 9. PDF is the browser's "Save as PDF" on the printed table (ADR-0042).
+
 ### Added
 
 - Export, the first part of Phase 13. `datagrid_core::export_table` builds the table an export
@@ -478,7 +484,8 @@ The first release.
 - The `data_grid` component, installable with `dx components add data_grid`, styled entirely with
   the dx-components theme variables, with optional search, per-column filters and paging.
 
-[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.8.0...v0.9.0
