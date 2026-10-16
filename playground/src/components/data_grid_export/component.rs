@@ -8,8 +8,8 @@
 //! filtered and grouped — is worked out by `dioxus-datagrid`; how CSV is written
 //! is `datagrid-export`'s. This component only puts a button in front of them.
 
-use dioxus::prelude::*;
 use datagrid_export::{CsvOptions, to_csv};
+use dioxus::prelude::*;
 use dioxus_datagrid::{ExportScope, GridHandle, GridRow, merge_class, save_file};
 
 const STYLE: Asset = asset!("/src/components/data_grid_export/style.css");
@@ -51,7 +51,10 @@ pub fn DataGridExport<T: GridRow + PartialEq + 'static>(props: DataGridExportPro
     let locale = grid.locale();
     let (label, csv_label) = {
         let locale = locale.read();
-        (locale.export_label.to_string(), locale.export_csv.to_string())
+        (
+            locale.export_label.to_string(),
+            locale.export_csv.to_string(),
+        )
     };
 
     let file_name = props.file_name.clone();
