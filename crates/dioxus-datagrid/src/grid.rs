@@ -6,9 +6,9 @@ use crate::edit::{EditRows, EditStatus, EditTarget, Editing, Session};
 use crate::row_drag::{RowDrag, RowMove};
 use datagrid_core::{
     CellFocus, CellRange, CellSelectionMode, ColumnFilter, ColumnId, ColumnSpec, ColumnWidth,
-    DEFAULT_AUTO_COLUMN_WIDTH, DEFAULT_REMOTE_PAGE_SIZE, DistinctValues, GridLocale, GridQuery,
-    GridRow, GridState, GroupSpan, NavKey, Page, Pinned, RowSpans, Selection, SelectionExtent,
-    SelectionMode, SortDirection, ValueKind, View, ViewRow, column_offset,
+    DEFAULT_AUTO_COLUMN_WIDTH, DEFAULT_REMOTE_PAGE_SIZE, Direction, DistinctValues, GridLocale,
+    GridQuery, GridRow, GridState, GroupSpan, NavKey, Page, Pinned, RowSpans, Selection,
+    SelectionExtent, SelectionMode, SortDirection, ValueKind, View, ViewRow, column_offset,
     compute_view_with_details, distinct_values, group_header_rows, group_levels, layout_order,
     navigate, reveal_scroll_left, reveal_scroll_top, rows_per_viewport, visible_columns,
     visible_range,
@@ -123,6 +123,16 @@ pub struct GridOptions {
     /// [`ColumnSpec::floor_width`](datagrid_core::ColumnSpec::floor_width).
     /// Changing it on a later render switches the grid over.
     pub virtual_columns: Option<usize>,
+    /// Which way the grid reads, or `None` to leave it to the page: the layout
+    /// follows whatever `dir` the page has, and the keys and the mouse behave as
+    /// in left to right text.
+    ///
+    /// [`Direction::Rtl`] mirrors what a grid cannot read from the page: the
+    /// arrow keys, the group keys, the edge a column is dragged by and the way
+    /// the keyboard scrolls sideways. It also sets `dir` on the grid's root, so
+    /// that the columns lie the same way. Set it on the grid and on the page
+    /// together; changing it on a later render switches the grid over.
+    pub direction: Option<Direction>,
 }
 
 /// How long a remote grid waits for typing to pause before it sends a request.
@@ -175,6 +185,13 @@ impl GridOptions {
     #[must_use]
     pub fn virtual_columns(mut self, overscan: usize) -> Self {
         self.virtual_columns = Some(overscan);
+        self
+    }
+
+    /// Sets which way the grid reads; see [`direction`](GridOptions::direction).
+    #[must_use]
+    pub fn direction(mut self, direction: Direction) -> Self {
+        self.direction = Some(direction);
         self
     }
 
@@ -297,6 +314,8 @@ pub struct GridHandle<T: GridRow + 'static> {
     /// Overscan of a grid that virtualizes its columns; see
     /// [`GridOptions::virtual_columns`].
     virtual_columns: Signal<Option<usize>>,
+    /// Which way the grid reads; see [`GridOptions::direction`].
+    direction: Signal<Option<Direction>>,
     /// The columns to render, derived from the scroll position and the columns'
     /// widths. A memo, so that a scroll which moves no column in or out re-renders
     /// nobody: the scroll position changes with every pixel, this only when a
@@ -513,6 +532,7 @@ pub(crate) struct GridBase<T: GridRow + 'static> {
     layout: Signal<Layout>,
     virtual_body: Signal<Option<(f64, usize)>>,
     virtual_columns: Signal<Option<usize>>,
+    direction: Signal<Option<Direction>>,
     measured_widths: Signal<Vec<(ColumnId, f64)>>,
     column_elements: Signal<Vec<(ColumnId, Rc<MountedData>)>>,
     resize: Signal<Option<ColumnResize>>,
@@ -557,6 +577,7 @@ where
     let requested_page_size = options.page_size;
     let requested_locale = options.locale.clone();
     let requested_virtual_columns = options.virtual_columns;
+    let requested_direction = options.direction;
 
     let mut mode = use_signal(|| requested_mode);
     let mut cell_mode = use_signal(|| requested_cell_mode);
@@ -566,6 +587,7 @@ where
     let mut selection = use_signal(Selection::new);
     let mut locale = use_signal(|| requested_locale.clone());
     let mut virtual_columns = use_signal(|| requested_virtual_columns);
+    let mut direction = use_signal(|| requested_direction);
 
     // Options are plain values, so a component re-rendering with different ones
     // would otherwise be ignored after the first render. This is the pattern
@@ -592,6 +614,9 @@ where
     }
     if *virtual_columns.peek() != requested_virtual_columns {
         virtual_columns.set(requested_virtual_columns);
+    }
+    if *direction.peek() != requested_direction {
+        direction.set(requested_direction);
     }
 
     let remote = sources.is_some();
@@ -625,6 +650,7 @@ where
         layout: use_signal(Layout::default),
         virtual_body: use_signal(|| None::<(f64, usize)>),
         virtual_columns,
+        direction,
         measured_widths: use_signal(Vec::new),
         column_elements: use_signal(Vec::new),
         resize: use_signal(|| None::<ColumnResize>),
@@ -744,6 +770,7 @@ impl<T: GridRow + PartialEq> GridBase<T> {
             layout: self.layout,
             virtual_body: self.virtual_body,
             virtual_columns: self.virtual_columns,
+            direction: self.direction,
             column_window,
             measured_widths: self.measured_widths,
             column_elements: self.column_elements,
@@ -1556,7 +1583,10 @@ impl<T: GridRow> GridHandle<T> {
         {
             active.moved = true;
         }
-        let width = resize.start_width + (client_x - resize.start_x);
+        // Dragging towards the end of the line widens a column: to the left in
+        // right to left text, where the column's edge is.
+        let sign = self.direction.peek().unwrap_or_default().sign();
+        let width = resize.start_width + sign * (client_x - resize.start_x);
         #[allow(clippy::cast_possible_truncation)]
         self.set_column_width(&resize.column, width as f32);
     }
@@ -1983,6 +2013,19 @@ impl<T: GridRow> GridHandle<T> {
         Some(self.virtual_range(row_height, overscan))
     }
 
+    /// Which way the grid was told to read, or `None` where it leaves that to the
+    /// page. See [`GridOptions::direction`].
+    #[must_use]
+    pub fn direction(&self) -> Option<Direction> {
+        *self.direction.read()
+    }
+
+    /// Whether the grid reads right to left because it was told so.
+    #[must_use]
+    pub fn is_rtl(&self) -> bool {
+        self.direction().is_some_and(Direction::is_rtl)
+    }
+
     /// The columns in the DOM, or `None` when every column is rendered.
     ///
     /// Derived from the scroll position, and only changes when a column crosses
@@ -2136,9 +2179,16 @@ impl<T: GridRow> GridHandle<T> {
                 .sum()
         };
 
-        // The scroll position is negative in right-to-left text; the arithmetic
-        // runs along the distance from the start edge and the sign goes back on.
-        let sign = if layout.scroll_left < 0.0 { -1.0 } else { 1.0 };
+        // The scroll position is negative in right-to-left text, and a positive
+        // one does nothing there (`docs/VERIFICATION.md` §23): the arithmetic runs
+        // along the distance from the start edge and the sign goes back on. It
+        // comes from the direction the grid was told, because the position says
+        // it only once the grid has been scrolled; without one, from the position.
+        let sign = match *self.direction.peek() {
+            Some(direction) => direction.sign(),
+            None if layout.scroll_left < 0.0 => -1.0,
+            None => 1.0,
+        };
         reveal_scroll_left(
             column_offset(&widths, index),
             *widths.get(index)?,

@@ -29,22 +29,31 @@ use datagrid_core::{
 use dioxus::prelude::*;
 use std::rc::Rc;
 
-/// Translates a key press into a navigation key, if it is one.
-fn nav_key(event: &KeyboardData) -> Option<NavKey> {
+/// Translates a key press into a navigation key, if it is one. The arrows point
+/// where they do on screen, so in right to left text the left arrow goes on to the
+/// next column.
+fn nav_key(event: &KeyboardData, rtl: bool) -> Option<NavKey> {
     let ctrl = event.modifiers().ctrl() || event.modifiers().meta();
-    Some(match event.key() {
-        Key::ArrowUp => NavKey::Up,
-        Key::ArrowDown => NavKey::Down,
-        Key::ArrowLeft => NavKey::Left,
-        Key::ArrowRight => NavKey::Right,
-        Key::Home if ctrl => NavKey::CtrlHome,
-        Key::End if ctrl => NavKey::CtrlEnd,
-        Key::Home => NavKey::Home,
-        Key::End => NavKey::End,
-        Key::PageUp => NavKey::PageUp,
-        Key::PageDown => NavKey::PageDown,
-        _ => return None,
-    })
+    Some(
+        match event.key() {
+            Key::ArrowUp => NavKey::Up,
+            Key::ArrowDown => NavKey::Down,
+            Key::ArrowLeft => NavKey::Left,
+            Key::ArrowRight => NavKey::Right,
+            Key::Home if ctrl => NavKey::CtrlHome,
+            Key::End if ctrl => NavKey::CtrlEnd,
+            Key::Home => NavKey::Home,
+            Key::End => NavKey::End,
+            Key::PageUp => NavKey::PageUp,
+            Key::PageDown => NavKey::PageDown,
+            _ => return None,
+        }
+        .in_direction(if rtl {
+            datagrid_core::Direction::Rtl
+        } else {
+            datagrid_core::Direction::Ltr
+        }),
+    )
 }
 
 /// The grid container: `role="grid"` plus the keyboard handling.
@@ -110,9 +119,15 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
 
         // On a group's header, the arrows across expand and collapse it.
         let plain = !shift && !data.modifiers().ctrl() && !data.modifiers().alt();
+        // Opening is going on, as it is in a tree: right in left to right text.
+        let (opens, closes) = if grid.is_rtl() {
+            (Key::ArrowLeft, Key::ArrowRight)
+        } else {
+            (Key::ArrowRight, Key::ArrowLeft)
+        };
         let group_press = match data.key() {
-            Key::ArrowRight if plain => Some(GroupKeyPress::Expand),
-            Key::ArrowLeft if plain => Some(GroupKeyPress::Collapse),
+            key if plain && key == opens => Some(GroupKeyPress::Expand),
+            key if plain && key == closes => Some(GroupKeyPress::Collapse),
             Key::Enter if plain => Some(GroupKeyPress::Toggle),
             Key::Character(ref character) if plain && character == " " => {
                 Some(GroupKeyPress::Toggle)
@@ -124,7 +139,7 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
             return;
         }
 
-        if let Some(key) = nav_key(&data) {
+        if let Some(key) = nav_key(&data, grid.is_rtl()) {
             let cells = grid.cell_selection_mode();
             grid.move_focus(key);
             let in_body = !grid.focus_is_header();
@@ -265,6 +280,9 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
     rsx! {
         div {
             role,
+            // Said outright, so that the columns lie the way the keys and the mouse
+            // are mirrored; left alone where the grid was not told.
+            dir: grid.direction().map(datagrid_core::Direction::as_str),
             aria_rowcount: "{row_count}",
             aria_colcount: "{column_count}",
             aria_multiselectable: (matches!(grid.selection_mode(), SelectionMode::Multi)
@@ -580,7 +598,10 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
             return;
         }
 
+        // The arrow points where it does on screen: in right to left text the left
+        // arrow widens a column and moves it on to a later place.
         let step = if data.key() == Key::ArrowLeft { -1 } else { 1 };
+        let step = if grid.is_rtl() { -step } else { step };
 
         // Shift moves the column, Alt alone resizes it. Reordering is checked
         // first: it is the more specific gesture, and a column can be movable
