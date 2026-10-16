@@ -757,3 +757,48 @@ nächsten Desktop-Prüfung.
 **Für Anwendungen, die eigene Zellen bauen:** nicht im `onmounted` messen. Das `MountedData`
 aufbewahren und aus einem Effekt oder aus `onresize` messen; `GridHandle::measure_columns` macht
 genau das und ist der Weg, den die Primitives anbieten.
+
+## 20. Phase 15 (vorgezogen): Spaltenvirtualisierung neben CSS-Subgrid
+
+Die Roadmap verlangt dafür einen Spike. Er ist eine Seite ohne Framework je Fall
+(`tests/e2e/colvirt-layout.spec.ts`, Teil der Suite und damit in CI in allen drei Engines): ein
+Wurzelraster mit 300 Spuren, Zeilen als `grid-template-columns: subgrid`, und nur ein Teil der
+Zellen im DOM, jede mit `grid-column: N` auf ihre eigene Spur.
+
+**Messung** (Chromium und WebKit lokal; Firefox startet hier nicht und läuft erst in CI):
+
+```
+feste Spuren, 20 von 300 Zellen   scrollWidth 30000 = 300 x 100    Zeile 30000 breit
+Spalte 150 liegt bei               15000 px, wo 150 Spuren sie hinlegen
+fixiert, scrollLeft 14000          Abstand am Startrand 0, am Endrand 0
+fr-Spuren mit Boden                14400 mit allen Zellen, 14400 mit 20
+Zelle über drei Spalten            grid-column: 11 / span 3  ->  300 px
+```
+
+Was daraus folgt:
+
+- **Subgrid verträgt fehlende Zellen**, solange jede vorhandene Zelle ihre Spur ausdrücklich nennt.
+  Die Spuren stehen im Wurzelraster; ob eine Zelle darin liegt, ändert ihre Breite nicht. Das
+  Scrollmaß stimmt also von selbst, ohne Platzhalter links und rechts.
+- **Die automatische Platzierung muss weg.** Heute sind Zellen `span n` ohne Startspalte; fehlt eine
+  davor, rutschen alle nach. Mit Virtualisierung bekommt jede Zelle, jede Kopfzelle und jede
+  Gruppenzelle ein `grid-column: <start + 1> / span <n>`.
+- **Fixierte Zellen bleiben `position: sticky`** und kleben am Rand, auch wenn die Spalten
+  dazwischen fehlen. Sie müssen aber immer gerendert sein; sie gehören nicht ins Fenster, sie
+  kommen zu ihm.
+- **`auto`-Spuren sind kein Hindernis — im überlaufenden Raster.** Meine Vermutung vor der
+  Messung war das Gegenteil: dass eine `minmax(40px, auto)`-Spur ohne ihre Zellen schrumpft und
+  das Scrollmaß springt. Gemessen: 300 × 40 = 12000, mit allen Zellen wie mit zwanzig. `auto` als
+  Maximum lässt eine Spur nur in *freien* Platz hineinwachsen; ein Raster, das Spaltenvirtualisierung
+  braucht, hat keinen. Seine Spalten sind so breit wie ihr Boden.
+- **Im Raster mit freiem Platz hängen `auto`-Spuren an ihren Zellen** (4 Spuren in 800 px:
+  `[40, 192, 284, 284]` mit allen Zellen, `[84, 236, 396]` ohne die vierte). Das ist der Fall, in dem
+  das Fenster ohnehin jede Spalte enthält — die Summe der Böden ist dann kleiner als der Viewport.
+
+**Daraus folgt für den Entwurf:** die Breite jeder Spalte lässt sich im überlaufenden Raster ohne
+Rendern angeben — `Px` ist seine Breite, `Auto` und `Fraction` sind ihr Boden. Das Fenster rechnet
+mit diesen Böden; wo der Viewport breiter ist als ihre Summe, ist es jede Spalte.
+
+**Nicht gemessen:** Spalten, deren Boden eine `rem`-Angabe ist (`auto_track` ist ein freier String,
+der Standard `minmax(6rem, auto)`). Ihre Pixelbreite kennt nur der Browser; der Entwurf muss
+dafür eine Zahl in Pixeln verlangen oder messen.
