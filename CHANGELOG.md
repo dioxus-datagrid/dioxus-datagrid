@@ -26,7 +26,7 @@ All notable changes to this project are documented here. The format follows
   table whose header repeats on every sheet, with every cell escaped; `dioxus_datagrid::print_html`
   prints it in place of the page; `data_grid_export` has a Print button for it. What is printed is
   the export, not the grid, so a paged or virtualized grid prints every row for `ExportScope::Filtered`
-  (ADR-0042). Not checked: what a printer or a desktop webview does with it.
+  (ADR-0042). Checked by hand: "Save as PDF" in a browser, and the download in a Windows desktop build, which shows a dialog. Not checked: a printer, macOS and Linux webviews.
 
 ## [0.11.0] - 2026-10-16
 

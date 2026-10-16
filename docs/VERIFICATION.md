@@ -850,3 +850,13 @@ Version 7.x und 8.x von `zip` ist auf crates.io zurückgezogen, nutzbar sind nur
 Versionen zurückgezogen wurden; die Ursache steht nicht in den Metadaten, und ich habe keine erraten.
 Der Stand ist in ADR-0040 festgehalten; sobald ein `rust_xlsxwriter` mit `zip 9` erscheint, kommt das
 Feature `xlsx`.
+
+### Nachtrag: von Hand geprüft (Maintainer, 16.10.2026)
+
+- **Download im Desktop-Build, Windows (WebView2):** zeigt einen Dialog. Der Blob-Link über
+  `document::eval` genügt dort; ein Speicherdialog des Betriebssystems ist nicht nötig. Nicht
+  geprüft: WKWebView (kein Mac), WebKitGTK, Mobile.
+- **Drucken → „Als PDF speichern":** in Ordnung. Festgehalten ist nur der Haken, nicht welcher Browser
+  und wie viele Seiten; ob die Kopfzeile auf Folgeseiten wiederholt wird, ist damit nicht einzeln
+  belegt.
+

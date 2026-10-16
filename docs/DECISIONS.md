@@ -1592,11 +1592,14 @@ ein Download-Ereignis mit dem vorgeschlagenen Namen aus, und der Inhalt ist die 
 erwartet — alle gefilterten Zeilen, in der Sortierung, ohne ausgeblendete Spalten, mit den
 Überschriften in der Sprache der Anwendung. Firefox läuft in CI.
 
-**Nicht geprüft.** Desktop (WebView2, WKWebView, WebKitGTK) und Mobile: ein `<a download>` auf einen
-Blob-Link ist dort Sache des WebViews, und ob er einen Speicherdialog zeigt, die Datei still ablegt
-oder nichts tut, ist von Hand zu prüfen (Windows geht, ein Mac fehlt). Tut er nichts, bleibt der Weg
-der Roadmap: ein Speicherdialog des Betriebssystems, was eine Abhängigkeit hieße und vorher gefragt
-wird.
+**Von Hand geprüft (Maintainer, 16.10.2026).** Im Desktop-Build unter Windows (WebView2) zeigt der
+Download einen Dialog; der Weg über `document::eval` genügt dort, ein Speicherdialog des
+Betriebssystems samt neuer Abhängigkeit ist nicht nötig.
+
+**Nicht geprüft.** WKWebView und WebKitGTK (ein Mac fehlt, Linux-Desktop wurde nicht gefahren) und
+Mobile: dort ist ein `<a download>` auf einen Blob-Link Sache des WebViews. Tut es nichts, bleibt der
+Weg der Roadmap, ein Speicherdialog des Betriebssystems, was eine Abhängigkeit hieße und vorher
+gefragt wird.
 
 **Verworfen.**
 
@@ -1639,10 +1642,13 @@ Druck aus, die Tabelle hat mehr Zeilen als die fünf der Seite, folgt dem Filter
 `emulateMedia({ media: "print" })` ist der Container sichtbar und das Gitter nicht, am Bildschirm
 umgekehrt. Chromium und WebKit lokal, Firefox in CI.
 
-**Nicht geprüft.** Was der Drucker tatsächlich ausgibt: ob die Kopfzeile auf Folgeseiten wiederholt wird,
+**Nicht gemessen.** Was der Drucker tatsächlich ausgibt: ob die Kopfzeile auf Folgeseiten wiederholt wird,
 wie die Seitenumbrüche fallen und wie breite Tabellen auf Papier aussehen, ist **nicht** gemessen. Dass
-ein `<thead>` das tut, ist Verhalten der Browser, das ich hier nicht ausgedruckt habe. Ebenso steht der
-Druck im Desktop-WebView aus. Ein Stück von Hand: Drucken → „Als PDF speichern" und ansehen.
+ein `<thead>` das tut, ist Verhalten der Browser, das ich hier nicht ausgedruckt habe.
+
+**Von Hand geprüft (Maintainer, 16.10.2026).** Drucken → „Als PDF speichern": in Ordnung. Das Ergebnis
+steht hier nur als Haken; welcher Browser und wie viele Seiten, wurde nicht festgehalten. Offen
+bleiben der Druck im Desktop-WebView und ein Papierausdruck.
 
 **Verworfen.**
 
