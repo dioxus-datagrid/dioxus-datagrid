@@ -1329,6 +1329,12 @@ für Zeilen fällt sie anders, und das ist begründungspflichtig.
    Lücke schlimmer: Umsortieren ist eine Kernfunktion, kein Zusatzweg neben einer Liste. Mit
    `pointerdown`/`pointermove`/`pointerup` läuft der Test in **Chromium und WebKit**.
 
+   *Nachtrag 2026-10-16: die Prämisse war falsch.* WebKit treibt HTML-Drag-and-Drop sehr wohl, mit
+   `dragTo` und mit der Maus Schritt für Schritt (VERIFICATION §12, Korrektur). Die Entscheidung
+   bleibt trotzdem: die Geste läuft, ist in beiden Engines getestet, und Touch trägt bei
+   HTML-Drag-and-Drop genauso wenig wie bei Pointer-Events. Was sich ändert, ist nur, dass
+   HTML-Drag-and-Drop für Zeilen keine ausgeschlossene Option mehr wäre.
+
 2. **Die Zeile unter dem Zeiger meldet sich selbst.** Es gibt keine Zeigererfassung ohne `web-sys`
    (ADR-0018), also hat jede Zeile ein `onpointermove`, das dem Gitter sagt, dass der Zeiger über
    ihr ist. Ein Loslassen außerhalb des Gitters merkt das Wurzelelement daran, dass keine Taste

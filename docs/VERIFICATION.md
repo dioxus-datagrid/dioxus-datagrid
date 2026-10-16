@@ -356,6 +356,29 @@ Geprüft gegen `dioxus-html` 0.7.10 (`src/events/drag.rs`, `src/data_transfer.rs
 - **Playwright:** `dragTo` löst unter Chromium und Firefox echte HTML-Drags aus, unter WebKit
   nicht. Der Drag-Test läuft deshalb ohne WebKit; der Tastaturweg (Liste in der Leiste) läuft
   überall.
+
+**Korrektur (2026-10-16): WebKit kann es doch.** Nachgemessen mit Playwright 1.63 — erst an einer
+Minimalseite ohne Framework (`tests/e2e/webkit-dnd/`, läuft mit
+`npx playwright test --config webkit-dnd/repro.config.ts`): eine ziehbare Box, ein Ziel, jedes
+Drag-Ereignis protokolliert.
+
+```
+Chromium   dragTo          dragstart, dragover, drop:payload, dragend
+Chromium   Maus schrittw.  dragstart, dragover, drop:payload, dragend
+WebKit     dragTo          dragstart, dragover, drop:payload, dragend
+WebKit     Maus schrittw.  dragstart, dragover, drop:payload, dragend
+Firefox    —               startet auf dieser Maschine nicht (spawn UNKNOWN); CI fährt es
+```
+
+Dann im Gitter selbst: die beiden Tests, die seit Phase 10 ein `test.skip` für WebKit trugen —
+„a header dragged onto another one takes its place" und „a header dragged onto the panel groups by
+its column" — laufen dort **grün**, einzeln nachgefahren und im ganzen Durchlauf (22 Tests in
+WebKit). Die `test.skip` sind entfernt; WebKit deckt den Spalten- und den Leisten-Drag jetzt mit ab.
+
+Warum es in Phase 10 nicht lief, ist nicht mehr feststellbar — damals eine andere
+Playwright-Fassung, und die Behauptung stand ohne Minimalreproduktion da. Genau das war der Fehler:
+eine Engine-Eigenschaft ohne Repro notiert, und dann vier Wochen danach gehandelt. **Kein Bugreport
+an Playwright**, es gibt nichts zu melden.
 - **Generische Komponenten ohne typisierte Props:** `DataGridGroupPanel::<User> {}` — der Turbofish
   funktioniert in `rsx!`. Nötig, weil nichts sonst den Zeilentyp verrät, unter dem `DataGrid` sein
   Handle in den Context legt.
@@ -632,11 +655,13 @@ den Zustand aus den Eigenschaften ab; das Attribut würde ignoriert. Deshalb tr�
 Geprüft am 2026-09-30 in Playwright-Chromium und -WebKit (`tests/e2e/row-drag.spec.ts`), getrieben
 mit `page.mouse.move/down/up` statt mit `dragTo`.
 
-**Der Befund von §12 gilt weiter, und er gilt hier andersherum:** `dragTo` löst in WebKit keinen
-echten HTML-Drag aus, der Spalten-Drag-Test läuft deshalb ohne WebKit. Ein Zeilen-Drag aus
-Pointer-Events läuft **in beiden** — neun Tests, gleiche Ergebnisse: ziehen nach unten und nach
-oben, Loslassen am Ausgangspunkt, `Escape` mittendrin, Tastaturweg, gesperrt bei Sortierung, und
-axe ohne Befund.
+**Der Zeilen-Drag läuft in beiden Engines** — neun Tests, gleiche Ergebnisse: ziehen nach unten und
+nach oben, Loslassen am Ausgangspunkt, `Escape` mittendrin, Tastaturweg, gesperrt bei Sortierung,
+und axe ohne Befund.
+
+*(Hier stand, der Befund von §12 gelte andersherum: WebKit löse keinen echten HTML-Drag aus. Das ist
+seit der Korrektur in §12 vom 2026-10-16 widerlegt — WebKit kann beides. Der Zeilen-Drag bleibt bei
+Pointer-Events, siehe ADR-0037.)*
 
 **Was Pointer-Events kosten:** keine Zeigererfassung ohne `web-sys` (ADR-0018). Für die Maus trägt
 das, weil jede Zeile selbst meldet, dass der Zeiger über ihr ist, und das Wurzelelement ein

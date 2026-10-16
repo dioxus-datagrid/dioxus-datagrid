@@ -55,9 +55,7 @@ test("a column picked from the panel groups the rows under headers", async ({ pa
   await expect(groupRows(page)).toHaveCount(0);
 });
 
-test("a header dragged onto the panel groups by its column", async ({ page, browserName }) => {
-  // WebKit in Playwright starts no HTML drag from a mouse drag.
-  test.skip(browserName === "webkit", "no HTML drag and drop under WebKit automation");
+test("a header dragged onto the panel groups by its column", async ({ page }) => {
   await open(page);
   await expect(header(page, "Department")).toHaveAttribute("draggable", "true");
   await header(page, "Department").dragTo(panel(page));

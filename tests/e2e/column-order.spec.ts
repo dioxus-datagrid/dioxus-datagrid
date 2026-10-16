@@ -47,9 +47,7 @@ test("without the switch a header is neither draggable nor movable", async ({ pa
   expect(await headerOrder(page)).toEqual(["Name", "Email", "Department", "Age"]);
 });
 
-test("a header dragged onto another one takes its place", async ({ page, browserName }) => {
-  // WebKit in Playwright starts no HTML drag from a mouse drag.
-  test.skip(browserName === "webkit", "no HTML drag and drop under WebKit automation");
+test("a header dragged onto another one takes its place", async ({ page }) => {
   await open(page);
 
   await expect(header(page, "Age")).toHaveAttribute("draggable", "true");
