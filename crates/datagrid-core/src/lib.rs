@@ -81,8 +81,8 @@ mod view;
 mod virtualize;
 
 pub use column::{
-    ColumnId, ColumnSpec, ColumnWidth, DEFAULT_MIN_COLUMN_WIDTH, FilterTextFn, Pinned, SortKeyFn,
-    SpanFn, ValueFn,
+    ColumnId, ColumnSpec, ColumnWidth, DEFAULT_AUTO_COLUMN_WIDTH, DEFAULT_MIN_COLUMN_WIDTH,
+    FilterTextFn, Pinned, SortKeyFn, SpanFn, ValueFn,
 };
 pub use edit::{Changes, EditError, FromValue, SetFn, ValidateFn, changed_columns};
 pub use filter::{ColumnFilter, Condition, FilterOp, Value, ValueKind};

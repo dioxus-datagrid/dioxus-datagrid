@@ -85,6 +85,12 @@ pub type SortKeyFn<T> = ValueFn<T>;
 /// label and the resize handle.
 pub const DEFAULT_MIN_COLUMN_WIDTH: f32 = 48.0;
 
+/// The width of an automatically sized column that sets no
+/// [`min_width`](ColumnSpec::min_width), in CSS pixels, where the grid has to
+/// know a width without laying the column out: `6rem` at the browser's default
+/// font size.
+pub const DEFAULT_AUTO_COLUMN_WIDTH: f32 = 96.0;
+
 /// Extracts the text a column filters and searches on.
 pub type FilterTextFn<T> = Rc<dyn Fn(&T) -> String>;
 
@@ -710,6 +716,28 @@ impl<T> ColumnSpec<T> {
         state
             .column_width(&self.id)
             .map_or(self.width, |width| ColumnWidth::Px(self.clamp_width(width)))
+    }
+
+    /// The width this column has in a grid too wide to fit, in CSS pixels: the
+    /// one that can be given without laying anything out.
+    ///
+    /// A fixed width is itself. An automatic or fractional column only grows
+    /// into free space, and a grid wide enough to scroll has none, so it keeps
+    /// its floor — [`min_width`](ColumnSpec::min_width), or
+    /// [`DEFAULT_AUTO_COLUMN_WIDTH`] for an automatic one without, or
+    /// [`DEFAULT_MIN_COLUMN_WIDTH`] for a fractional one. That is what lets a
+    /// grid decide which columns are in view without rendering the others
+    /// (`docs/VERIFICATION.md` §20).
+    #[must_use]
+    pub fn floor_width(&self, state: &GridState) -> f32 {
+        match self.effective_width(state) {
+            ColumnWidth::Px(width) => width,
+            ColumnWidth::Auto => match self.min_width {
+                Some(min) if min.is_finite() && min >= 0.0 => min,
+                _ => DEFAULT_AUTO_COLUMN_WIDTH,
+            },
+            ColumnWidth::Fraction(_) => self.resize_min_width(),
+        }
     }
 
     /// Whether this column can be filtered: by its

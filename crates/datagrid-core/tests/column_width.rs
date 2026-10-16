@@ -91,3 +91,36 @@ fn resetting_a_width_falls_back_to_the_column_width() {
     assert_eq!(column.effective_width(&state), ColumnWidth::Px(100.0));
     assert!(state.column_widths.is_empty());
 }
+
+mod floor {
+    use super::*;
+    use datagrid_core::DEFAULT_AUTO_COLUMN_WIDTH;
+
+    #[test]
+    fn a_fixed_column_is_its_width() {
+        let column = column().width(ColumnWidth::Px(140.0));
+        assert_eq!(column.floor_width(&GridState::new()), 140.0);
+    }
+
+    #[test]
+    fn an_automatic_column_is_its_minimum_or_the_default() {
+        let state = GridState::new();
+        assert_eq!(column().floor_width(&state), DEFAULT_AUTO_COLUMN_WIDTH);
+        assert_eq!(column().min_width(120.0).floor_width(&state), 120.0);
+    }
+
+    #[test]
+    fn a_fractional_column_is_what_it_cannot_be_dragged_below() {
+        let state = GridState::new();
+        let column = column().width(ColumnWidth::Fraction(2.0));
+        assert_eq!(column.floor_width(&state), DEFAULT_MIN_COLUMN_WIDTH);
+        assert_eq!(column.min_width(70.0).floor_width(&state), 70.0);
+    }
+
+    #[test]
+    fn a_dragged_width_wins_over_the_definition() {
+        let mut state = GridState::new();
+        state.set_column_width("name", 210.0);
+        assert_eq!(column().floor_width(&state), 210.0);
+    }
+}
