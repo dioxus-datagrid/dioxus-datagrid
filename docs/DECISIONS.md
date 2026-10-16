@@ -1550,6 +1550,14 @@ Bibliotheken nach (ADR A4: eigene Crate, Features, vor dem Hinzufügen nachfrage
 
 - Neu: `datagrid-core` (`export_table`, `layout_order`, `Export*`) und `datagrid-export` mit dem
   Feature `csv`. Die Crate steht im Workspace und ist noch nicht veröffentlicht.
-- **Offen, und vor dem Bauen mit dem Maintainer zu klären** (CLAUDE.md): die Excel-Bibliothek
-  (`rust_xlsxwriter`, wie in A4 vorgesehen), die PDF-Bibliothek (noch zu wählen), und wie ein Download
-  ohne `web-sys` aussieht (Spike).
+- **Mit dem Maintainer geklärt** (CLAUDE.md): Excel über `rust_xlsxwriter` als optionales Feature
+  `xlsx`, wie in A4 vorgesehen; **PDF ohne PDF-Crate**: im Browser deckt das Druck-Stylesheet es ab
+  (Drucken, Als PDF speichern), Server und Desktop ohne Druckdialog bekommen später eines, wenn jemand
+  es braucht. Geprüft wurden `printpdf` (niedrig, Layout selbst zu schreiben, viele Abhängigkeiten),
+  `krilla` (MSRV 1.92 gegen unsere 1.88) und `genpdf` (seit 2021 nicht angefasst).
+- **Excel ist blockiert, nicht verworfen.** `rust_xlsxwriter` 0.99.1 und jede Version ab 0.97
+  verlangen `zip ^8.3`, und **jede** 7.x- und 8.x-Version von `zip` ist auf crates.io zurückgezogen;
+  nutzbar ist erst 9.0.3. Eine frische `Cargo.lock` löst sich deshalb nicht auf („version 8.3.0 is
+  yanked"). Upstream weiß es: `jmcnamara/rust_xlsxwriter#205`, am 16.10.2026 eröffnet, offen. Wir
+  warten darauf, statt `zip` selbst zu schreiben oder eine Gabel zu hängen, die sich nicht
+  veröffentlichen ließe. Die Abhängigkeit steht deshalb **nicht** in `Cargo.toml`.
