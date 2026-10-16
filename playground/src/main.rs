@@ -13,6 +13,7 @@ use components::data_grid::DataGrid;
 use components::data_grid_column_menu::DataGridColumnMenu;
 use components::data_grid_detail::DataGridDetail;
 use components::data_grid_editor::DataGridEditor;
+use components::data_grid_export::DataGridExport;
 use components::data_grid_group_panel::DataGridGroupPanel;
 use components::data_grid_reorder::DataGridReorder;
 use dioxus::prelude::*;
@@ -429,6 +430,7 @@ fn App() -> Element {
     let mut checkbox_column = use_signal(|| false);
     let mut detail_rows = use_signal(|| false);
     let mut row_drag = use_signal(|| false);
+    let mut export = use_signal(|| false);
     let mut wide = use_signal(|| false);
     let mut virtual_columns = use_signal(|| false);
     let cols = use_memo(move || {
@@ -686,6 +688,16 @@ fn App() -> Element {
                 label { class: "toggle",
                     input {
                         r#type: "checkbox",
+                        "data-testid": "toggle-export",
+                        checked: export(),
+                        onchange: move |event| export.set(event.checked()),
+                    }
+                    "Export"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
                         "data-testid": "toggle-row-drag",
                         checked: row_drag(),
                         onchange: move |event| row_drag.set(event.checked()),
@@ -858,6 +870,9 @@ fn App() -> Element {
                     }
                     if detail_rows() {
                         DataGridDetail { render: detail, has_detail }
+                    }
+                    if export() {
+                        DataGridExport::<Employee> { file_name: "employees" }
                     }
                     if row_drag() {
                         DataGridReorder { on_move: move_row }

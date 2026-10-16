@@ -80,6 +80,7 @@ mod copy;
 mod detail;
 mod edit;
 mod edit_ui;
+mod export;
 mod filter_menu;
 mod grid;
 mod group;
@@ -99,6 +100,7 @@ pub use edit::{
     Create, Delete, EditMode, EditMove, EditStatus, EditTarget, Editing, Save, SaveBatch,
 };
 pub use edit_ui::CellEditor;
+pub use export::save_file;
 pub use grid::{
     COLUMN_RESIZE_STEP, ColumnWindow, DEFAULT_DEBOUNCE, GridHandle, GridOptions, IntoReadSignal,
     Layout, use_grid,

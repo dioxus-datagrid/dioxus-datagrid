@@ -1,0 +1,30 @@
+/* Styling for the data_grid_export component, on top of data_grid's.
+ *
+ * Every colour comes from the dx-components theme variables, as in data_grid.
+ */
+
+.dg-export {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.dg-export button {
+  min-height: 2.25rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--primary-color-6);
+  border-radius: 0.5rem;
+  background: var(--primary-color-2);
+  color: var(--secondary-color-4);
+  cursor: pointer;
+  font: inherit;
+}
+
+.dg-export button:hover {
+  background: var(--primary-color-4);
+}
+
+.dg-export button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--focused-border-color);
+}

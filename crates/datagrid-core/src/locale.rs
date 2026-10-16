@@ -244,6 +244,12 @@ pub struct GridLocale {
     pub group_caption: Cow<'static, str>,
     /// Accessible name of the footer with the aggregates of every row.
     pub totals: Cow<'static, str>,
+    /// Accessible name of the group of export buttons.
+    pub export_label: Cow<'static, str>,
+    /// The button that downloads the rows as a CSV file.
+    pub export_csv: Cow<'static, str>,
+    /// The button that prints the grid.
+    pub print: Cow<'static, str>,
     /// Labels a sum.
     pub aggregate_sum: Cow<'static, str>,
     /// Labels a mean.
@@ -374,6 +380,9 @@ impl GridLocale {
             group_collapse_all: Cow::Borrowed("Collapse all"),
             group_caption: Cow::Borrowed("{column}: {value}"),
             totals: Cow::Borrowed("Totals"),
+            export_label: Cow::Borrowed("Export"),
+            export_csv: Cow::Borrowed("Export as CSV"),
+            print: Cow::Borrowed("Print"),
             aggregate_sum: Cow::Borrowed("Sum"),
             aggregate_average: Cow::Borrowed("Average"),
             aggregate_min: Cow::Borrowed("Min"),
@@ -491,6 +500,9 @@ impl GridLocale {
             group_collapse_all: Cow::Borrowed("Alle zuklappen"),
             group_caption: Cow::Borrowed("{column}: {value}"),
             totals: Cow::Borrowed("Gesamt"),
+            export_label: Cow::Borrowed("Export"),
+            export_csv: Cow::Borrowed("Als CSV exportieren"),
+            print: Cow::Borrowed("Drucken"),
             aggregate_sum: Cow::Borrowed("Summe"),
             aggregate_average: Cow::Borrowed("Mittelwert"),
             aggregate_min: Cow::Borrowed("Min."),

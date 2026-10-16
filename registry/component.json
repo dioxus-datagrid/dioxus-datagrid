@@ -7,6 +7,7 @@
     "data_grid_group_panel",
     "data_grid_column_menu",
     "data_grid_detail",
-    "data_grid_reorder"
+    "data_grid_reorder",
+    "data_grid_export"
   ]
 }

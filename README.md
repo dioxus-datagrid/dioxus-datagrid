@@ -29,6 +29,7 @@ project by `dx components add` and is yours to change from then on.
 | [`registry/data_grid_column_menu`](registry/data_grid_column_menu) | A menu at every header: sort, group, pin, hide, fit the width. |
 | [`registry/data_grid_detail`](registry/data_grid_detail) | Detail rows: a row opens a second one under itself, holding anything you render. |
 | [`registry/data_grid_reorder`](registry/data_grid_reorder) | Row reordering: drag a row by its handle, or move it with `Alt+Shift+Arrow`. |
+| [`registry/data_grid_export`](registry/data_grid_export) | Export: download the rows as CSV, with the columns and the order the grid shows. |
 
 ## Installation
 

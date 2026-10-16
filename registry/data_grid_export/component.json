@@ -1,0 +1,21 @@
+{
+  "name": "data_grid_export",
+  "description": "Export for data_grid: download the rows as a CSV file.",
+  "authors": [
+    "Marius Linnartz"
+  ],
+  "exclude": [
+    "docs.md",
+    "component.json"
+  ],
+  "cargoDependencies": [
+    {
+      "name": "dioxus-datagrid",
+      "version": "0.11"
+    },
+    {
+      "name": "datagrid-export",
+      "version": "0.11"
+    }
+  ]
+}

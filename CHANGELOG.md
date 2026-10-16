@@ -14,8 +14,14 @@ All notable changes to this project are documented here. The format follows
   aggregates — for the current view or for every filtered row (`ExportScope`). `layout_order` is
   that column order, now the one place that knows it. The new crate `datagrid-export` writes it as
   CSV (feature `csv`, no dependency): values or shown text, any delimiter, an opt-in byte order
-  mark for Excel, and text that a spreadsheet would run as a formula defused. Excel, PDF, the
-  download and printing follow (`docs/DECISIONS.md` ADR-0040).
+  mark for Excel, and text that a spreadsheet would run as a formula defused (`docs/DECISIONS.md`
+  ADR-0040).
+- Saving a file: `dioxus_datagrid::save_file(name, mime, text)` hands text to the browser as a
+  download, through `document::eval` (ADR-0041), and `GridHandle::export_table(scope)` builds the
+  table from the grid's own rows, columns and state — `None` where it cannot, for every filtered row
+  of a grid that loads from a server. The registry component `data_grid_export` puts a button in
+  front of both (`GridLocale` gains `export_label`, `export_csv` and `print`). Excel waits for
+  `rust_xlsxwriter` to move to `zip` 9, whose 8.x are all yanked; PDF is the print stylesheet.
 
 ## [0.11.0] - 2026-10-16
 

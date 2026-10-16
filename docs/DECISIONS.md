@@ -1561,3 +1561,46 @@ Bibliotheken nach (ADR A4: eigene Crate, Features, vor dem Hinzufügen nachfrage
   yanked"). Upstream weiß es: `jmcnamara/rust_xlsxwriter#205`, am 16.10.2026 eröffnet, offen. Wir
   warten darauf, statt `zip` selbst zu schreiben oder eine Gabel zu hängen, die sich nicht
   veröffentlichen ließe. Die Abhängigkeit steht deshalb **nicht** in `Cargo.toml`.
+
+---
+
+## ADR-0041 — Dateien speichern: ein `Blob` und ein Link über `document::eval`
+
+**Kontext.** Ein Export ist erst einer, wenn der Nutzer die Datei bekommt. Dioxus 0.7 hat dafür keine
+API, wie bei der Zwischenablage (ADR-0033); `web-sys` ist in `dioxus-datagrid` ausgeschlossen. Die
+Roadmap sieht „Web über eine Daten-URL oder `document::eval`, Desktop über einen Speicherdialog" vor,
+als Spike mit ADR.
+
+**Entscheidung.**
+
+1. **`dioxus_datagrid::save_file(name, mime, text)`** legt einen `Blob` an, hängt einen Link mit
+   `download` daran und klickt ihn, über `document::eval`. Das ist der zweite Fall, in dem das erlaubt
+   ist (der erste: die Zwischenablage); eine dritte Stelle braucht wieder eine ADR.
+2. **Der Inhalt reist über den Kanal** (`eval.send((name, mime, text))`), nicht im Skript: eine Zelle
+   mit Anführungszeichen darf nie Code werden, und eine Datei hat beliebigen Inhalt.
+3. **Ein `Blob`, keine Daten-URL.** Eine `data:`-URL trägt den ganzen Inhalt im Link und müsste
+   base64-kodiert werden; wie lang sie sein darf, ist je Engine verschieden und **nicht von mir
+   gemessen** — ein Blob umgeht die Frage. Die Blob-URL wird erst nach 60 Sekunden freigegeben, damit
+   ein Browser, der den Blob nach dem Klick liest, ihn noch findet (Vorsicht, nicht gemessen).
+4. **Der Weg ist ein reiner Dateiname-Vorschlag.** Wohin die Datei geht und ob gefragt wird, entscheidet
+   der Browser; die Anwendung erfährt es nicht und soll es nicht.
+5. **Zeichensatz:** UTF-8; die Byte-Order-Mark, wenn gewünscht, steht im Text selbst (`CsvOptions::bom`)
+   und übersteht den `Blob` (geprüft).
+
+**Gemessen.** `tests/e2e/export.spec.ts`: ein Klick auf den Export-Knopf löst in Chromium **und** WebKit
+ein Download-Ereignis mit dem vorgeschlagenen Namen aus, und der Inhalt ist die Datei, die der Test
+erwartet — alle gefilterten Zeilen, in der Sortierung, ohne ausgeblendete Spalten, mit den
+Überschriften in der Sprache der Anwendung. Firefox läuft in CI.
+
+**Nicht geprüft.** Desktop (WebView2, WKWebView, WebKitGTK) und Mobile: ein `<a download>` auf einen
+Blob-Link ist dort Sache des WebViews, und ob er einen Speicherdialog zeigt, die Datei still ablegt
+oder nichts tut, ist von Hand zu prüfen (Windows geht, ein Mac fehlt). Tut er nichts, bleibt der Weg
+der Roadmap: ein Speicherdialog des Betriebssystems, was eine Abhängigkeit hieße und vorher gefragt
+wird.
+
+**Verworfen.**
+
+- **`window.showSaveFilePicker`.** Es wäre der Weg mit Dialog, ist aber meines Wissens nicht in jeder
+  Engine da (ungeprüft), und der Aufruf kommt aus dem Eval-Kanal, nicht aus der Geste des Klicks.
+- **Die Bytes in einen Server-Endpunkt legen** und dorthin verlinken. Ein Export muss ohne Server
+  gehen; ein Server-Grid kann es selbst tun.

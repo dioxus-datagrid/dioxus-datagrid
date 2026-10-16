@@ -39,6 +39,7 @@ dx components add data_grid_group_panel --path "$registry"
 dx components add data_grid_column_menu --path "$registry"
 dx components add data_grid_detail --path "$registry"
 dx components add data_grid_reorder --path "$registry"
+dx components add data_grid_export --path "$registry"
 
 echo "==> Verifying the expected files were produced"
 expected=(
@@ -60,6 +61,9 @@ expected=(
   "src/components/data_grid_detail/component.rs"
   "src/components/data_grid_reorder/mod.rs"
   "src/components/data_grid_reorder/component.rs"
+  "src/components/data_grid_export/mod.rs"
+  "src/components/data_grid_export/component.rs"
+  "src/components/data_grid_export/style.css"
   "assets/dx-components-theme.css"
 )
 for file in "${expected[@]}"; do
@@ -70,7 +74,7 @@ for file in "${expected[@]}"; do
 done
 
 # Files listed under "exclude" in the manifest must not leak into user projects.
-for file in src/components/data_grid{,_editor,_group_panel,_column_menu,_detail,_reorder}/{component.json,docs.md}; do
+for file in src/components/data_grid{,_editor,_group_panel,_column_menu,_detail,_reorder,_export}/{component.json,docs.md}; do
   if [[ -f "$fixture/$file" ]]; then
     echo "FAIL: $file is excluded in the manifest but was copied anyway" >&2
     exit 1
@@ -78,7 +82,7 @@ for file in src/components/data_grid{,_editor,_group_panel,_column_menu,_detail,
 done
 
 for module in data_grid data_grid_editor data_grid_group_panel data_grid_column_menu \
-              data_grid_detail data_grid_reorder; do
+              data_grid_detail data_grid_reorder data_grid_export; do
   if ! grep -q "pub mod $module;" "$fixture/src/components/mod.rs"; then
     echo "FAIL: $module was not registered in src/components/mod.rs" >&2
     exit 1
@@ -110,6 +114,7 @@ cat >> "$fixture/Cargo.toml" <<EOF
 # Windows cannot read. Relative paths in [patch] resolve against this file.
 dioxus-datagrid = { path = "../../../crates/dioxus-datagrid" }
 datagrid-core = { path = "../../../crates/datagrid-core" }
+datagrid-export = { path = "../../../crates/datagrid-export" }
 EOF
 
 echo "==> Compiling the consumer app"

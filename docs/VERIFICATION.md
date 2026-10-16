@@ -830,3 +830,23 @@ mehrstufigen Kopf (Phase 11) ist es eine falsche Zeile. Jetzt `focus_data_row()`
 Kopfzeilen kennt. Der Test in `virtualization.spec.ts` (31 mal nach unten, 25 zurück, die Fokuszeile
 muss im Körper sichtbar sein) schlägt mit der alten Rechnung fehl und besteht mit der neuen — beides
 in Chromium gefahren, nicht nur gelesen.
+
+## 21. Phase 13: Dateien speichern, und was `zip` nicht hergibt
+
+**Download.** Ein `Blob`, ein Link mit `download`, ein Klick, ausgelöst über `document::eval`
+(ADR-0041). `tests/e2e/export.spec.ts` fährt das in Chromium und WebKit: das Download-Ereignis kommt
+mit dem Namen `employees.csv`, und die Datei, die der Browser abgelegt hat, wird gelesen und mit
+dem verglichen, was das Gitter zeigt — Überschriften `Name,Email,Department,Age` (die zwei
+ausgeblendeten Spalten fehlen), jede gefilterte Zeile statt der fünf der Seite, die Sortierung, und
+deutsche Überschriften unter dem deutschen Gitter. Ein Test fing dabei einen Fehler: die Komponente
+exportierte zunächst nur die Seite, weil `ExportScope::default()` die Ansicht ist und die
+Komponente ihre Standardreichweite nicht ausdrücklich setzte. Jetzt steht `Filtered` dort.
+
+**`rust_xlsxwriter` ist heute nicht auflösbar.** 0.97 bis 0.99.1 verlangen `zip ^8.3`; **jede**
+Version 7.x und 8.x von `zip` ist auf crates.io zurückgezogen, nutzbar sind nur 9.0.3 und 9.0.4
+(Stand 16.10.2026, abgefragt über die crates.io-API). Eine frische `Cargo.lock` bricht mit
+„version 8.3.0 is yanked" ab, was ich mit `cargo fetch` bestätigt habe. Upstream:
+`jmcnamara/rust_xlsxwriter#205`, am selben Tag eröffnet, offen. Was ich **nicht** weiß: warum die
+Versionen zurückgezogen wurden; die Ursache steht nicht in den Metadaten, und ich habe keine erraten.
+Der Stand ist in ADR-0040 festgehalten; sobald ein `rust_xlsxwriter` mit `zip 9` erscheint, kommt das
+Feature `xlsx`.
