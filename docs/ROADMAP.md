@@ -225,7 +225,8 @@ im Treegrid-Muster; 100.000 Zeilen gruppiert und virtualisiert flüssig.
 ### Phase 15: Große Datenmengen, Live-Daten → 0.13.0 (L)
 
 - Remote-Virtualisierung: Blöcke nachladen beim Scrollen, statt zu blättern; Endlos-Scrollen.
-- Spaltenvirtualisierung für breite Tabellen (Spike: Verträglichkeit mit CSS-Subgrid).
+- ~~Spaltenvirtualisierung für breite Tabellen (Spike: Verträglichkeit mit CSS-Subgrid).~~ Vorgezogen
+  und gebaut, vor Phase 13: ADR-0039, VERIFICATION §20. Offen davon: RTL, Desktop-WebView.
 - Variable Zeilenhöhen (heute Nicht-Ziel): gemessen, mit geschätzter Höhe für nicht gerenderte
   Zeilen.
 - Live-Updates: Zeilen einfügen, ändern, entfernen ohne Neuladen; Fokus und Auswahl bleiben stabil.

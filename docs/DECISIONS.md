@@ -1432,3 +1432,62 @@ also nie gegangen.
   erzeugten Template verlässt, muss nachziehen; im Layout ändert sich nur, dass die Spalte bleibt.
 - Für jede künftige Lücke dieser Art ist die Frage nicht „ist es ein Fehler", sondern „geht ein
   Beispiel diesen Weg" — und wenn nicht, geht von jetzt an eines.
+
+## ADR-0039 — Spaltenvirtualisierung: das Fenster rechnet mit Böden, und jede Zelle nennt ihre Spur
+
+**Kontext.** Ein Gitter mit hundert oder mehr Spalten hat bei Zeilenvirtualisierung trotzdem
+`Zeilen × Spalten` Zellen im DOM. Die Roadmap sieht dafür in Phase 15 einen Spike zur
+Verträglichkeit mit CSS-Subgrid vor. **Abweichung vom Plan:** sie wird vor Phase 13 und 14 gebaut,
+weil sie gewünscht wurde; die Reihenfolge der Phasen ist eine Abhängigkeitsordnung, und diese hängt
+von keiner der beiden ab.
+
+**Der Spike** (VERIFICATION §20, `tests/e2e/colvirt-layout.spec.ts`, in allen drei Engines in CI)
+beantwortet die Frage der Roadmap: Subgrid verträgt fehlende Zellen, wenn jede vorhandene ihre Spur
+mit `grid-column` nennt. Die Spuren stehen im Wurzelraster, ob eine Zelle darin liegt, ändert sie
+nicht. Dabei hat die Messung eine Annahme widerlegt: dass `auto`-Spuren ohne ihre Zellen
+schrumpfen. Sie tun es nur, wo es freien Platz gibt, und dort ist ohnehin jede Spalte im Fenster.
+
+**Entscheidung.**
+
+1. **Das Fenster rechnet mit Böden, nicht mit Messungen.** `ColumnSpec::floor_width`: `Px(n)` ist
+   `n`, eine automatische oder anteilige Spalte ist ihr `min_width` (eine automatische ohne:
+   `DEFAULT_AUTO_COLUMN_WIDTH`, 96 px, die `6rem` des Standards in Pixeln). Das stimmt genau dort, wo
+   Virtualisierung nötig ist — ein überlaufendes Raster hat keinen freien Platz, in den eine Spur
+   wachsen könnte. Wo die Böden zusammen kleiner sind als der Viewport, enthält das Fenster alle
+   Spalten, und die Rechnung ist gleichgültig. Eine Messung wäre genau die, die nicht geht: eine
+   Spalte außerhalb des Fensters hat kein Element.
+2. **Jede Zelle nennt ihre Spur**, solange `virtual_columns` an ist: `grid-column: <n> / span <m>`
+   an Kopf-, Gruppen-, Körper- und Fußzellen. Ohne `virtual_columns` bleibt alles wie es war — keine
+   Änderung am Markup eines Gitters, das das Feature nicht benutzt. Die Zeilen bleiben Subgrids.
+3. **Fixierte Spalten sind immer gerendert**, außerhalb des Fensters. Sie kleben mit `sticky` am
+   Rand und sind deshalb nie aus dem Bild; das Fenster rechnet über alle Spalten, die fixierten
+   kommen dazu (`ColumnWindow::renders`).
+4. **Das Fenster ist ein `Memo`.** Die Scrollposition ändert sich mit jedem Pixel, das Fenster nur,
+   wenn eine Spalte die Kante kreuzt; so rendert ein Pixel Scrollen niemanden neu.
+5. **Fokus.** `reveal_focus` rollt auch seitwärts (`reveal_scroll_left`, mit den fixierten Blöcken
+   als Einzug), und `focus_is_rendered` fragt auch die Spalte — sonst hätte eine weggescrollte
+   Fokuszelle keinen Tabstopp mehr. Die Kopfzelle einer weggescrollten Spalte meldet ihr Element ab:
+   ein abgehängtes Element misst als null.
+6. **Opt-in, an den Optionen** (`GridOptions::virtual_columns`, wie `locale` bei jedem Rendern
+   nachgezogen) und nicht an einem Körper wie die Zeilenvirtualisierung: Kopf, Körper und Fuß
+   brauchen alle dasselbe Fenster, und das Template muss schon im ersten Rendern das richtige sein.
+
+**Verworfen.**
+
+- **Platzhalter links und rechts** statt Spuren. Das Wurzelraster hat die Spuren ohnehin; ein
+  Platzhalter müsste ihre Summe nachrechnen und damit genau das, was CSS schon kann.
+- **Gemessene Breiten fürs Fenster.** Siehe 1; außerdem ein Sprung des Scrollmaßes bei jeder
+  neu sichtbaren Spalte.
+- **Immer virtualisieren** und `grid-column` überall. Ein Gitter mit zehn Spalten bekäme ein
+  Fenster, das es nie braucht, und jeder Test des bisherigen Markups müsste mit.
+
+**Folgen.**
+
+- Neue öffentliche Teile in beiden Crates (siehe CHANGELOG); `Layout` und `GridOptions` bekommen ein
+  Feld, was nur Aufrufer trifft, die sie als Struct-Literal bauen.
+- Wer eigene Zellen in eine Zeile setzt, setzt `grid.cell_placement(..)` in den `style` und fragt
+  `grid.renders_cell(..)`, bevor er rendert.
+- **Nicht geprüft:** RTL (die Rechnung nimmt den Betrag der Scrollposition, weil Browser sie dort
+  negativ melden; Phase 14 prüft es), Desktop- und Mobile-WebView (nur Web gemessen), und
+  Spaltenvirtualisierung zusammen mit Detailzeilen und Gruppen: ihre Zeilen stehen über die ganze
+  Breite und sind vom Fenster nicht betroffen, aber das ist hier gelesen, nicht gemessen.

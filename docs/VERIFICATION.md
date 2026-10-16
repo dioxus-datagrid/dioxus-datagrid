@@ -802,3 +802,31 @@ mit diesen Böden; wo der Viewport breiter ist als ihre Summe, ist es jede Spalt
 **Nicht gemessen:** Spalten, deren Boden eine `rem`-Angabe ist (`auto_track` ist ein freier String,
 der Standard `minmax(6rem, auto)`). Ihre Pixelbreite kennt nur der Browser; der Entwurf muss
 dafür eine Zahl in Pixeln verlangen oder messen.
+
+### Nachtrag: im gebauten Gitter
+
+`tests/e2e/column-virtualization.spec.ts` fährt den Playground mit 199 Spalten (vier der fünf
+gewohnten, dazu 195 feste „Metric n" zu 120 px; jede Zelle zeigt `id * (n + 2) % 997`, also
+vorhersagbar):
+
+```
+mit virtual_columns          10 von 199 Kopfzellen im DOM, die Zellen der Zeile in denselben Spalten
+ohne                         alle 199
+Scrollmaß                    199 Spuren, scrollWidth > 190 x 120 — der Balken kennt jede Spalte
+nach 12000 px Scroll         Metric 100 gerendert, Metric 1 nicht; jede Kopfzelle deckt sich
+                             in Rand und Breite mit der Zelle darunter
+Metric 100                   liegt bei (Breite der ersten vier) + 99 x 120 px, wie die Spuren sagen
+```
+
+Tastatur: 60 mal `ArrowRight` von der ersten Spalte endet auf `aria-colindex="61"`, die Zelle
+ganz im sichtbaren Teil; `End` erreicht die letzte Spalte. Mit fixierten Spalten (Name und E-Mail
+am Anfang, Alter am Ende) liegt die angesteuerte Spalte frei von beiden Blöcken, und die fixierten
+bleiben im DOM und am Rand (Abstand 0 und 0 bei `scrollLeft` 18000). Scrollt die Fokuszelle weg,
+bleibt genau ein Tabstopp: das Gitter.
+
+Beim Lesen von `reveal_focus` für die Spalten fiel etwas anderes auf: die Zeile, die sichtbar
+gemacht wird, war als `focus.row - 1` gerechnet, also mit **einer** Kopfzeile. Unter einem
+mehrstufigen Kopf (Phase 11) ist es eine falsche Zeile. Jetzt `focus_data_row()`, das die
+Kopfzeilen kennt. Der Test in `virtualization.spec.ts` (31 mal nach unten, 25 zurück, die Fokuszeile
+muss im Körper sichtbar sein) schlägt mit der alten Rechnung fehl und besteht mit der neuen — beides
+in Chromium gefahren, nicht nur gelesen.

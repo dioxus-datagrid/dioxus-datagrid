@@ -8,6 +8,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Column virtualization, for grids with more columns than a screen holds.
+  `GridOptions::virtual_columns(overscan)` — or `virtual_columns` and `column_overscan` on
+  `data_grid` — renders only the columns in view, the overscan beside them and the pinned ones; the
+  scrollbar, `aria-colcount` and the keyboard still cover every column. Every cell, header and
+  footer cell then names its own track with `grid-column`, because the rows are CSS subgrids and a
+  missing cell would otherwise shift the ones after it (`docs/VERIFICATION.md` §20). New:
+  `ColumnWindow`, `GridHandle::column_window`, `renders_cell`, `cell_placement`, `auto_track` and
+  `record_viewport_width`, `Layout::viewport_width`, `ColumnSpec::floor_width`,
+  `DEFAULT_AUTO_COLUMN_WIDTH`, and in `datagrid-core` `visible_columns`, `column_offset` and
+  `reveal_scroll_left`. Columns need widths the grid can know without laying them out: a fixed one
+  is itself, an automatic or fractional one counts as its `min_width` (96px for an automatic one
+  with none). Taken ahead of its turn in Phase 15 (`docs/DECISIONS.md` ADR-0039).
 - A paste says what did not fit. `PasteReport` has a new field, `dropped`: the rows of a pasted
   block that found no row to land on, because a paste never adds rows and never reaches onto the
   next page. The status line names them, from the new `GridLocale::paste_dropped` and
@@ -17,7 +29,8 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 
 - `PasteReport` has a new public field and `GridLocale` two, which is a breaking change only for
-  code that builds either with a struct literal rather than from `..Default::default()`.
+  code that builds either with a struct literal rather than from `..Default::default()`. So have
+  `GridOptions` (`virtual_columns`) and `Layout` (`viewport_width`).
 
 ### Removed
 
