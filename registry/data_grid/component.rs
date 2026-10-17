@@ -8,8 +8,8 @@
 
 use dioxus::prelude::*;
 use dioxus_datagrid::primitives::{
-    GridBody, GridColumnFilter, GridColumnPicker, GridCompactSheet, GridCount, GridFilterMenu, GridFooter, GridHeader, GridPagination, GridRoot,
-    GridSearch, VirtualGridBody,
+    GridBody, GridColumnFilter, GridColumnPicker, GridCompactSheet, GridCount, GridFilterMenu,
+    GridFooter, GridHeader, GridPagination, GridRoot, GridSearch, VirtualGridBody,
 };
 use dioxus_datagrid::{
     CellSelectionMode, Column, Direction, GridLocale, GridOptions, GridRow, GridState,
