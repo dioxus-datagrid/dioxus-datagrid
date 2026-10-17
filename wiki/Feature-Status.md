@@ -1,7 +1,7 @@
 # Feature status
 
 What the grid does today, area by area, and what is not there yet. The state is the released
-**0.12.0**: Phase 12 (rows, selection, the clipboard), column virtualization taken ahead of its turn, and most of Phase 13: export and print.
+**0.13.0**: Phase 14, the UI around the grid (a context menu, a toolbar, right-to-left text, a layout for narrow screens), on top of 0.12.0's export and print.
 
 The comparison is against the Syncfusion Blazor DataGrid, which is the yardstick the
 [roadmap](Roadmap.md) uses. "Planned" names the phase that will close the gap;

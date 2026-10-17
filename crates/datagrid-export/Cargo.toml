@@ -1,6 +1,6 @@
 [package]
 name = "datagrid-export"
-version = "0.12.0"
+version = "0.13.0"
 description = "Writes a data grid's rows as CSV or an HTML table to print, from the table datagrid-core builds."
 keywords = ["datagrid", "table", "export", "csv"]
 categories = ["data-structures", "encoding"]

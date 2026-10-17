@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-17
+
+The UI around the grid: Phase 14. A context menu, a toolbar, right-to-left text and a layout for narrow
+screens. Excel export, the rest of Phase 13, follows in a later minor release, once `rust_xlsxwriter` can be
+resolved again (`docs/DECISIONS.md` ADR-0040).
+
+`data_grid_toolbar` and `data_grid_context_menu` are new registry components, and every registry component
+now requires 0.13: they use the new `dioxus-datagrid` APIs, so none resolves until the crates are on
+crates.io. One change to what you may have styled: the list the column picker opens is
+`[data-columns-menu]` inside `.dg-columns`, not `.dg-columns-menu`.
+
 ### Added
 
 - A layout for narrow screens. `GridOptions::compact_below(width)`, or the `compact_below` prop of `data_grid`,
@@ -523,7 +534,8 @@ The first release.
 - The `data_grid` component, installable with `dx components add data_grid`, styled entirely with
   the dx-components theme variables, with optional search, per-column filters and paging.
 
-[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.9.0...v0.10.0

@@ -30,7 +30,7 @@ This page is a summary. The binding documents are
 | | | |
 |---|---|---|
 | Phase 13 | 0.12.0 | **Export and print** — released without Excel: CSV, an HTML table to print (so "Save as PDF" in the browser), the rows of a server grid, a download without `web-sys`. Excel waits for `rust_xlsxwriter` to move to `zip` 9 |
-| Phase 14 | 0.13.0 (M) | **The UI around it** — toolbar, context menu, an adaptive layout that turns rows into cards on narrow screens, RTL |
+| Phase 14 | 0.13.0 | **The UI around it** — released: a toolbar, a context menu, an adaptive layout that turns rows into cards on narrow screens, RTL |
 | Phase 15 | 0.14.0 (L) | **Large and live data** — loading blocks while scrolling instead of paging, infinite scroll, variable row heights, live updates. Column virtualization was built ahead of its turn and is already in `main` |
 | | 1.0 | An API review, deprecations removed, a screen-reader field test with NVDA, JAWS and VoiceOver, a documentation site with a demo per feature, benchmarks against the target numbers |
 
