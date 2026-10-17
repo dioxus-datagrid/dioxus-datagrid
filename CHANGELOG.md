@@ -8,6 +8,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- A context menu: a right click, `Shift+F10` or the menu key on a cell or a column header.
+  `GridContextMenu` in `dioxus-datagrid` and the registry component `data_grid_context_menu`. A header
+  offers what the column menu offers; a cell offers Copy, Copy row and, where the grid can, Select or
+  Deselect row, Show or Hide details, Edit and Delete; an application adds entries of its own with
+  `ContextEntry::new` and a callback. It follows the WAI-ARIA menu pattern, opens at the pointer or under
+  the focused cell, and moves back inside the window on either axis. Where a target has nothing on
+  offer, or no menu is mounted, the browser keeps its own (`docs/DECISIONS.md` ADR-0045). New:
+  `ContextTarget`, `ContextEntry`, `ContextMenuState`, `GridHandle::context_menu_entries`,
+  `open_context_menu`, `close_context_menu`, `run_context_entry`; `GridLocale` gains `context_menu`,
+  `context_copy`, `context_copy_row` and `context_deselect_row`.
 - Right-to-left text. `GridOptions::direction(Direction::Rtl)` — or the `direction` prop on `data_grid`,
   which also sets `dir` on the whole component — tells the grid which way it reads, which it cannot read
   from the page (`docs/DECISIONS.md` ADR-0044). It mirrors the arrow keys (`NavKey::in_direction`), the

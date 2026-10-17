@@ -221,6 +221,9 @@ was der Browser aus dem Druck macht. Die Phase ist erst mit Excel abgeschlossen.
 
 ### Phase 14: Bedienoberfläche rundherum → 0.13.0 (M)
 
+**Stand:** RTL (ADR-0044) und das Kontextmenü (ADR-0045) sind gebaut, ungepusht bis zum Release (ADR-0019).
+Offen: die Toolbar-Komponente und das adaptive Layout.
+
 - Toolbar-Komponente mit Standardaktionen (Hinzufügen, Bearbeiten, Löschen, Export, Suche,
   Spaltenauswahl) und eigenen Einträgen.
 - Kontextmenü auf Zeilen und Köpfen (dx-components `context_menu`), auch per Tastatur (Umschalt+F10).

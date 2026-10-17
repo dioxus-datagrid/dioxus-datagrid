@@ -962,3 +962,20 @@ nutzten `.dg:dir(rtl) …`. Gemessen: das ausgelieferte Stylesheet (`style-dxh�
 `:lang(` und kein `:dir(`; unter `dir="rtl"` stand an den Zellen weiter der LTR-Wert (`1px`, erwartet `-1px`).
 Mit `.dg[dir="rtl"] …` greifen die Regeln. Was ich **nicht** gelesen habe, ist der Quelltext der Pipeline;
 dass sie `:dir()` in `:lang()` umschreibt, ist aus dem Ergebnis geschlossen, nicht belegt.
+
+## 24. Phase 14: das Kontextmenü
+
+`tests/e2e/context-menu.spec.ts` (ADR-0045), Chromium und WebKit. Zwei Dinge fielen beim Bauen auf, beide
+gemessen und nicht vorhergesehen:
+
+- **Der Fokus gehört der Zelle, bis man ihn ihr nimmt.** Das Menü öffnete sich, aber `Escape` schloss nichts:
+  der Fokus lag nicht im Menü. `open_context_menu` setzte den Fokus der Zelle mit `set_focus`, das den
+  DOM-Fokus zurückfordert, und die Zelle holte ihn sich, nachdem das Menü ihn genommen hatte. Mit
+  `set_focus_quietly` liegt er im Menü; beim Schließen wird er wieder angefordert.
+- **Das Einpassen ist echt.** Das Menü unter einer Zelle weit unten im Fenster steht 8 px höher als die
+  Zelle verlangt, weil es sonst den Rand von 8 px unterschreitet; ein Test, der „direkt unter der Zelle"
+  prüfte, schlug in WebKit damit fehl (8,6 px), nicht in Chromium, wo mehr Platz war. Der Test gibt dem
+  Fenster jetzt Platz, und das Einpassen hat einen eigenen.
+
+Die Sortier-Einträge im Menü eines Kopfes sind `menuitemradio`, nicht `menuitem` (wie im Spaltenmenü): sie
+sind eine Auswahl. Ein Test, der `menuitem` suchte, fand sie nicht.

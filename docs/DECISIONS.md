@@ -1775,3 +1775,57 @@ erst, wenn gescrollt wurde.
   `GridOptions::direction` und der Komponente: beides zusammen setzen.
 - Die Detailzeile, die Gruppeneinrückung, der Editor-Dialog und echter arabischer oder hebräischer Text
   sind nicht geprüft; Firefox läuft über CI.
+
+---
+
+## ADR-0045 — Das Kontextmenü: das Gitter bietet an, die Anwendung ergänzt
+
+**Kontext.** Phase 14 verlangt ein Kontextmenü auf Zeilen und Köpfen, auch per Tastatur
+(`Umschalt+F10`). Die Roadmap nennt das `context_menu` der dx-components; ADR-0025 hat das
+ausgeschlossen (`componentDependencies` scheitern an dx), und Popups sind eigene schlichte Bausteine.
+
+**Entscheidung.**
+
+1. **`GridContextMenu`** als Primitive in `dioxus-datagrid`, `data_grid_context_menu` als Registry-Komponente
+   mit Stil. Muster wie beim Spaltenmenü: `menu` aus `menuitem`s (`menuitemradio` bei einer Auswahl),
+   Pfeiltasten mit Umlauf, `Home`/`End`, `Escape`, `Tab` oder ein Klick daneben schließen und geben den
+   Fokus an die Zelle zurück; die Ebene dahinter ist `position: fixed` (kein `web-sys`).
+2. **Was angeboten wird, entscheidet das Gitter** (`GridHandle::context_menu_entries`):
+   - Kopf: die Einträge des Spaltenmenüs (Sortieren, Gruppieren, Fixieren, Ausblenden, Breite), unverändert
+     aus `column_menu_entries`; eine Quelle für beide.
+   - Zelle: Kopieren (der angezeigte Wert, nur bei einer Spalte mit `value`), Zeile kopieren, und wo das
+     Gitter es kann: Zeile (ab)wählen, Details zeigen oder verbergen, Bearbeiten, Löschen. Löschen wirkt
+     auf die Auswahl, wenn die Zeile darin ist, sonst auf die Zeile allein (`delete_candidates`).
+   - Ein Eintrag, der nichts täte, fehlt; ein Ziel ohne Einträge lässt dem Browser sein Menü.
+3. **Die Anwendung ergänzt** über einen Callback `ContextTarget -> Vec<ContextEntry>`, hinter einer Linie.
+   `ContextEntry::new(id, label, Callback<ContextTarget>)`; die Standardeinträge sind keine öffentliche Art
+   von Einträgen, damit niemand auf deren Aufbau baut.
+4. **Öffnen:** Rechtsklick (`contextmenu`) an der Zeigerstelle; `Umschalt+F10` oder die Menütaste am
+   fokussierten Feld, unter der Zelle (`get_client_rect` des Elements). Das Menü ist nur da, wo
+   `GridContextMenu` eingehängt ist; ohne bleibt der Rechtsklick dem Browser. Eine Zelle mit
+   offenem Editor behält das Browsermenü (Einfügen, Rechtschreibung).
+5. **Der Fokus wird still gesetzt** (`set_focus_quietly`), wenn das Menü aufgeht: ein Fokuswunsch an die
+   Zelle holte sich den DOM-Fokus sonst zurück, den das Menü gerade genommen hat (gemessen: `Escape` schloss
+   nichts, weil der Fokus nicht im Menü lag). Beim Schließen wird er wieder angefordert.
+6. **Einpassen ins Fenster** auf beiden Achsen mit derselben Funktion wie das Filtermenü (`fit_shift`),
+   gemessen am Rechteck der Ebene dahinter; richtungsunabhängig, also auch unter RTL.
+
+**Verworfen.**
+
+- **`dx-components context_menu`:** siehe ADR-0025.
+- **Das Menü an die Zelle zu hängen:** die Zellen verbergen ihren Überlauf, ein Menü darin würde
+  abgeschnitten; `position: fixed` an Koordinaten ist die Alternative.
+- **Standardeinträge der Anwendung zu überlassen:** jedes Gitter bräuchte dasselbe Kopieren, Auswählen und
+  Löschen noch einmal, und die Regeln, wann etwas wirkt (Auswahl oder Zeile), stünden dann dutzendfach.
+
+**Gemessen.** `tests/e2e/context-menu.spec.ts` (14 Tests, Chromium und WebKit): Öffnen an der Zeigerstelle
+(auf 3 px genau), Fokus auf dem ersten Eintrag, `Escape` und Klick daneben, Pfeiltasten mit Umlauf,
+`Umschalt+F10` und die Menütaste (Position unter der Zelle, `Enter` wählt, der eigene Eintrag bekommt die
+Zeile), Zeile wählen und abwählen, ein Kopf mit den Einträgen des Spaltenmenüs, Bearbeiten und Löschen bei
+eingeschaltetem Bearbeiten, Einpassen an der unteren rechten Ecke, RTL, axe ohne Verstöße. Firefox läuft
+in CI.
+
+**Nicht geprüft.** Das Kopieren in die Zwischenablage selbst (sie ist im Test nicht lesbar; der Weg ist der
+von `Strg+C`, ADR-0033), Gruppenzeilen und Detailzeilen (sie haben kein Menü), ein Kontextmenü, das beim
+Scrollen offen bleibt (die Ebene dahinter fängt den Klick, nicht das Rad), Touch (langes Drücken) und
+echte Screenreader.
