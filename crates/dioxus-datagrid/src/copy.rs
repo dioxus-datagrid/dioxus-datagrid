@@ -43,6 +43,16 @@ const WRITE_CLIPBOARD: &str = r#"
     }
 "#;
 
+/// Puts `text` on the clipboard in the background.
+pub(crate) fn write_clipboard(text: String) {
+    spawn(async move {
+        let eval = document::eval(WRITE_CLIPBOARD);
+        if eval.send(text).is_ok() {
+            let _ = eval.join::<bool>().await;
+        }
+    });
+}
+
 impl<T: GridRow + PartialEq> GridHandle<T> {
     /// The text one cell copies: its column's value, formatted as the grid
     /// shows it.
@@ -131,12 +141,7 @@ impl<T: GridRow + PartialEq> GridHandle<T> {
         let Some(text) = self.copy_text() else {
             return;
         };
-        spawn(async move {
-            let eval = document::eval(WRITE_CLIPBOARD);
-            if eval.send(text).is_ok() {
-                let _ = eval.join::<bool>().await;
-            }
-        });
+        write_clipboard(text);
     }
 
     /// Whether a copy would put anything on the clipboard, for a menu entry or

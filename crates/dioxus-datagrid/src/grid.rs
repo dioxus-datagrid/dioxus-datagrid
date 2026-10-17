@@ -387,6 +387,16 @@ pub struct GridHandle<T: GridRow + 'static> {
     pub(crate) group_panel: Signal<bool>,
     /// Whether a column menu add-on is mounted, so headers show its button.
     pub(crate) column_menu: Signal<bool>,
+    /// Whether a context menu is mounted, so cells and headers open it.
+    pub(crate) context_mounted: Signal<bool>,
+    /// The context menu that is open, if one is.
+    pub(crate) context_menu: Signal<Option<crate::context_menu::ContextMenuState>>,
+    /// Entries of the application's for a context menu.
+    pub(crate) context_extras: Signal<
+        Option<
+            Callback<crate::context_menu::ContextTarget, Vec<crate::context_menu::ContextEntry>>,
+        >,
+    >,
     /// Which column's menu is open, if any. In the handle so a header cell can
     /// open the menu it contains without reaching into it.
     pub(crate) open_column_menu: Signal<Option<ColumnId>>,
@@ -559,6 +569,13 @@ pub(crate) struct GridBase<T: GridRow + 'static> {
     footer: Signal<bool>,
     group_panel: Signal<bool>,
     column_menu: Signal<bool>,
+    context_mounted: Signal<bool>,
+    context_menu: Signal<Option<crate::context_menu::ContextMenuState>>,
+    context_extras: Signal<
+        Option<
+            Callback<crate::context_menu::ContextTarget, Vec<crate::context_menu::ContextEntry>>,
+        >,
+    >,
     open_column_menu: Signal<Option<ColumnId>>,
 }
 
@@ -680,6 +697,9 @@ where
         footer: use_signal(|| false),
         group_panel: use_signal(|| false),
         column_menu: use_signal(|| false),
+        context_mounted: use_signal(|| false),
+        context_menu: use_signal(|| None),
+        context_extras: use_signal(|| None),
         open_column_menu: use_signal(|| None),
     }
 }
@@ -800,6 +820,9 @@ impl<T: GridRow + PartialEq> GridBase<T> {
             footer: self.footer,
             group_panel: self.group_panel,
             column_menu: self.column_menu,
+            context_mounted: self.context_mounted,
+            context_menu: self.context_menu,
+            context_extras: self.context_extras,
             open_column_menu: self.open_column_menu,
         }
     }

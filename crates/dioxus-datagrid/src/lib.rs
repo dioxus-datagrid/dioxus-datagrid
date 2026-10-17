@@ -76,6 +76,7 @@
 mod attrs;
 mod column;
 mod column_menu;
+mod context_menu;
 mod copy;
 mod detail;
 mod edit;
@@ -95,6 +96,7 @@ mod timer;
 pub use attrs::merge_class;
 pub use column::{CellRenderer, Column, EditorRenderer, HeaderRenderer};
 pub use column_menu::{ColumnAction, ColumnMenuEntry};
+pub use context_menu::{ContextEntry, ContextMenuState, ContextTarget};
 pub use detail::DetailRows;
 pub use edit::{
     Create, Delete, EditMode, EditMove, EditStatus, EditTarget, Editing, Save, SaveBatch,

@@ -189,7 +189,7 @@ const VIEWPORT_MARGIN: f64 = 8.0;
 /// How far to move a panel sideways from where it sits unmoved, so it stays
 /// inside the viewport: left if it sticks out on the right, right if it sticks
 /// out on the left. A panel wider than the viewport keeps its start visible.
-fn fit_shift(left: f64, width: f64, viewport_left: f64, viewport_right: f64) -> f64 {
+pub(crate) fn fit_shift(left: f64, width: f64, viewport_left: f64, viewport_right: f64) -> f64 {
     let overflow = left + width - (viewport_right - VIEWPORT_MARGIN);
     let shift = if overflow > 0.0 { -overflow } else { 0.0 };
     let min_left = viewport_left + VIEWPORT_MARGIN;

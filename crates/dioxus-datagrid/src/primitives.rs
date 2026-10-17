@@ -9,6 +9,7 @@
 //! [`GridRow`](datagrid_core::GridRow) trait you implement on your row type.
 
 pub use crate::column_menu::{GridColumnMenu, column_menu_entries};
+pub use crate::context_menu::GridContextMenu;
 pub use crate::detail::{GridDetailRow, GridDetailToggle};
 pub use crate::edit_ui::{
     GridCellEditor, GridDeleteConfirm, GridEditDialog, GridEditStatus, GridEditToolbar,
@@ -518,6 +519,8 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
         return rsx! {};
     };
 
+    // The element, so a menu opened from the keyboard can open at the header.
+    let mut element = use_signal(|| None::<Rc<MountedData>>);
     let id = column.id().clone();
     let sortable = column.is_sortable();
     // A checkbox column's header holds the "select all" instead of a label, and
@@ -571,6 +574,15 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
     // bubbling so the root does not also treat the arrow as navigation.
     let onkeydown = move |event: KeyboardEvent| {
         let data = event.data();
+        // The context menu key, or Shift+F10, opens the menu at this header.
+        if crate::context_menu::is_context_key(&data) {
+            let target = crate::context_menu::ContextTarget::Header { column_index };
+            if crate::context_menu::open_from_keyboard(grid, target, element.peek().clone()) {
+                event.prevent_default();
+                event.stop_propagation();
+            }
+            return;
+        }
         if !data.modifiers().alt() {
             return;
         }
@@ -653,6 +665,7 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
         // may not have been applied, so the header still spans the container.
         // The grid measures it once its own resize fires, after layout.
         grid.register_column_element(&measured_id, event.data());
+        element.set(Some(event.data()));
         pull_focus(event);
     };
 
@@ -724,6 +737,16 @@ pub fn GridHeaderCell<T: GridRowKey + PartialEq + 'static>(
             ondrop,
             onmounted,
             onclick,
+            oncontextmenu: move |event: MouseEvent| {
+                if !grid.has_context_menu() {
+                    return;
+                }
+                let at = event.client_coordinates();
+                let target = crate::context_menu::ContextTarget::Header { column_index };
+                if grid.open_context_menu(target, at.x, at.y) {
+                    event.prevent_default();
+                }
+            },
             onkeydown,
             ..attributes,
             if checkbox {
@@ -1038,7 +1061,13 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
         focus.row == focus_row && focus.col >= column_index && focus.col < column_index + span
     };
     let focused = covers(grid.focus());
-    let onmounted = use_focus_pull_where(grid, covers);
+    let mut pull_focus = use_focus_pull_where(grid, covers);
+    // The element, so a menu opened from the keyboard can open at the cell.
+    let mut element = use_signal(|| None::<Rc<MountedData>>);
+    let onmounted = move |event: MountedEvent| {
+        element.set(Some(event.data()));
+        pull_focus(event);
+    };
 
     let editable = column.is_editable();
     let editing = editable
@@ -1188,6 +1217,27 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
             title: tooltip,
             onmounted,
             onclick,
+            oncontextmenu: move |event: MouseEvent| {
+                // An editor in the cell has the browser's own menu: paste, spelling.
+                if editing || !grid.has_context_menu() {
+                    return;
+                }
+                let at = event.client_coordinates();
+                let target = crate::context_menu::ContextTarget::Cell { row_index, column_index };
+                if grid.open_context_menu(target, at.x, at.y) {
+                    event.prevent_default();
+                }
+            },
+            onkeydown: move |event: KeyboardEvent| {
+                if editing || !crate::context_menu::is_context_key(&event.data()) {
+                    return;
+                }
+                let target = crate::context_menu::ContextTarget::Cell { row_index, column_index };
+                if crate::context_menu::open_from_keyboard(grid, target, element.peek().clone()) {
+                    event.prevent_default();
+                    event.stop_propagation();
+                }
+            },
             ondoubleclick: move |_| {
                 if !grid.is_editing() {
                     grid.start_edit(row_index, column_index);

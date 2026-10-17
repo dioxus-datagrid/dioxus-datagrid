@@ -250,6 +250,14 @@ pub struct GridLocale {
     pub export_csv: Cow<'static, str>,
     /// The button that prints the grid.
     pub print: Cow<'static, str>,
+    /// Accessible name of the context menu.
+    pub context_menu: Cow<'static, str>,
+    /// The context menu entry that copies a cell.
+    pub context_copy: Cow<'static, str>,
+    /// The context menu entry that copies a whole row.
+    pub context_copy_row: Cow<'static, str>,
+    /// The context menu entry that takes a row out of the selection.
+    pub context_deselect_row: Cow<'static, str>,
     /// Shown while an export loads its rows from a server.
     pub export_busy: Cow<'static, str>,
     /// An export that failed: `{message}` is what went wrong.
@@ -389,6 +397,10 @@ impl GridLocale {
             export_label: Cow::Borrowed("Export"),
             export_csv: Cow::Borrowed("Export as CSV"),
             print: Cow::Borrowed("Print"),
+            context_menu: Cow::Borrowed("Context menu"),
+            context_copy: Cow::Borrowed("Copy"),
+            context_copy_row: Cow::Borrowed("Copy row"),
+            context_deselect_row: Cow::Borrowed("Deselect row"),
             export_busy: Cow::Borrowed("Exporting …"),
             export_failed: Cow::Borrowed("Export failed: {message}"),
             export_too_many: Cow::Borrowed(
@@ -514,6 +526,10 @@ impl GridLocale {
             export_label: Cow::Borrowed("Export"),
             export_csv: Cow::Borrowed("Als CSV exportieren"),
             print: Cow::Borrowed("Drucken"),
+            context_menu: Cow::Borrowed("Kontextmenü"),
+            context_copy: Cow::Borrowed("Kopieren"),
+            context_copy_row: Cow::Borrowed("Zeile kopieren"),
+            context_deselect_row: Cow::Borrowed("Zeile abwählen"),
             export_busy: Cow::Borrowed("Exportiere …"),
             export_failed: Cow::Borrowed("Export fehlgeschlagen: {message}"),
             export_too_many: Cow::Borrowed(
