@@ -979,3 +979,17 @@ gemessen und nicht vorhergesehen:
 
 Die Sortier-Einträge im Menü eines Kopfes sind `menuitemradio`, nicht `menuitem` (wie im Spaltenmenü): sie
 sind eine Auswahl. Ein Test, der `menuitem` suchte, fand sie nicht.
+
+## 25. Phase 14: die Toolbar
+
+`tests/e2e/toolbar.spec.ts` (ADR-0046), Chromium und WebKit. Was beim Bauen auffiel:
+
+- **Die Seite ist bei 360 px schon ohne die Toolbar zu breit.** Der erste Test fragte nach
+  `document.documentElement.scrollWidth` und schlug fehl (372 px). Gemessen, welche Elemente über den Rand
+  reichen: ohne Toolbar 407 px (die Spaltenwahl des Gitters, die Kästchen des Spielplatzes, das Fieldset der
+  Schalter), mit Toolbar 372 px (nur noch das Fieldset der Schalter, des Spielplatzes). Die Toolbar ist
+  nicht die Ursache, sie macht es kleiner. Der Test prüft jetzt, was er behauptet: jedes Bedienelement der
+  Toolbar liegt im Fenster.
+- **Zeilen in einer Tabelle mit Seiten zählen nicht.** Der Test „Löschen wirkt auf die Zeile" zählte
+  `.dg-body [role='row']` und fand vorher wie nachher fünf, weil die Seite fünf Zeilen hat, bei zwölf und bei
+  elf. Er liest jetzt den Zähler („12 rows" → „11 rows").

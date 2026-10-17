@@ -8,6 +8,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- A toolbar: the registry component `data_grid_toolbar` puts the search box, the add, edit and delete buttons,
+  entries of your own and, at the end, the row count and the column picker in one row above the table. Your
+  entries are its `children`, so a `DataGridExport` or a plain button stands in it; every part has a prop to
+  switch it off. It is a `group`, not a `toolbar`, so a search box inside it keeps its arrow keys
+  (`docs/DECISIONS.md` ADR-0046). New in `dioxus-datagrid`: the primitives `GridCount` and
+  `GridColumnPicker`; `GridLocale` gains `toolbar`. `data_grid` now builds its own count and picker from
+  them, and the list the picker opens is `[data-columns-menu]` instead of `.dg-columns-menu`. The grid's own
+  `searchable` and `column_picker` and the editor's `toolbar` stay; turn them off when you use the component.
 - A context menu: a right click, `Shift+F10` or the menu key on a cell or a column header.
   `GridContextMenu` in `dioxus-datagrid` and the registry component `data_grid_context_menu`. A header
   offers what the column menu offers; a cell offers Copy, Copy row and, where the grid can, Select or

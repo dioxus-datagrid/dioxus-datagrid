@@ -1829,3 +1829,52 @@ in CI.
 von `Strg+C`, ADR-0033), Gruppenzeilen und Detailzeilen (sie haben kein Menü), ein Kontextmenü, das beim
 Scrollen offen bleibt (die Ebene dahinter fängt den Klick, nicht das Rad), Touch (langes Drücken) und
 echte Screenreader.
+
+---
+
+## ADR-0046 — Die Toolbar: eine Zeile aus Bausteinen der Crate, nicht ein weiteres Gitter-Prop
+
+**Kontext.** Phase 14 verlangt eine Toolbar mit Standardaktionen (Hinzufügen, Bearbeiten, Löschen, Export,
+Suche, Spaltenauswahl) und eigenen Einträgen. Schon da waren: Suche, Zähler und Spaltenwahl fest in
+`data_grid/component.rs` (`searchable`, `column_picker`), die Knöpfe zum Hinzufügen, Bearbeiten und Löschen
+in `data_grid_editor` (`GridEditToolbar`), die Export-Knöpfe in `data_grid_export`. Eine Komponente darf
+keine andere voraussetzen (ADR-0025), also kann die Toolbar `DataGridExport` nicht selbst einbauen.
+
+**Entscheidung.**
+
+1. **Zwei neue Primitive** in `dioxus-datagrid`: `GridCount` (Zeilen und Auswahl als Text) und
+   `GridColumnPicker` (ein `details` mit einem Kästchen je Spalte). Beides stand als Markup in
+   `component.rs`; dort ersetzt es 30 Zeilen (284 → 265, unter der Richtlinie von ~250 näher als vorher).
+   Der Zeiger auf das Aufklappmenü heißt jetzt `[data-columns-menu]` statt `.dg-columns-menu`, weil ein
+   Primitive keine Klasse für ein inneres Element vergibt.
+2. **`data_grid_toolbar`** setzt zusammen: Suche, die Knöpfe des Editors (`GridEditToolbar`, nur wo ein
+   `DataGridEditor` das Gitter bearbeitbar gemacht hat), `children` für Einträge der Anwendung, am Ende
+   Zähler und Spaltenwahl. Jedes Teil lässt sich mit einem Prop abschalten.
+3. **Eigene Einträge sind `children`**, nicht eine Liste von Beschreibungen. Ein `DataGridExport`, ein
+   Knopf oder ein Link stehen einfach darin; ein bloßer `button` bekommt den Stil der anderen. Damit ist
+   „Export" in der Toolbar möglich, ohne dass sie das Export-Crate kennt.
+4. **Die Zeile ist eine `group`, keine `toolbar`.** Die Rolle `toolbar` verspricht Pfeiltasten zwischen den
+   Bedienelementen (eine Tabstopp-Stelle für das Ganze); ein Suchfeld und ein `details` darin brauchen die
+   Pfeiltasten selbst. Jedes Element bleibt ein eigener Tabstopp. Der Name kommt aus der Locale
+   (`GridLocale::toolbar`, „Table actions" / „Tabellenaktionen").
+5. **Das Eingebaute bleibt.** `searchable`, `column_picker` und `DataGridEditor { toolbar }` gelten weiter,
+   damit ein Gitter ohne Toolbar-Komponente bleibt, wie es war. Wer die Komponente nimmt, schaltet sie ab,
+   sonst steht alles zweimal da; das steht in der Doku beider Seiten.
+
+**Verworfen.**
+
+- **Alles in `data_grid` selbst:** die Komponente soll dünn bleiben (CLAUDE.md), und jede Anwendung mit einer
+  eigenen Zeile müsste die Props abschalten und neu bauen.
+- **`role="toolbar"` mit Pfeiltasten:** siehe 4. Es gibt keine Pfeiltasten-Behandlung für ein Suchfeld, die
+  nicht entweder das Cursorverhalten bricht oder die Rolle verfehlt.
+- **Ein Einträge-Prop (`Vec<ToolbarItem>`):** eine zweite Beschreibungssprache neben RSX für das, was RSX
+  schon kann.
+- **Die eingebauten Props zu streichen:** ein Bruch ohne Not, auch wenn 0.x ihn erlaubt.
+
+**Gemessen.** `tests/e2e/toolbar.spec.ts` (10 Tests, Chromium und WebKit): alle Teile da; Suche und Zähler
+laufen zusammen; die Spaltenwahl blendet eine Spalte aus und wieder ein; ein eigener Knopf wird aufgerufen;
+die Bearbeiten-Knöpfe erscheinen mit dem Editor, genau einmal; Löschen wirkt auf die fokussierte Zeile
+(mit Rückfrage); bei 360 px bricht die Zeile um; deutscher Name; axe ohne Verstöße.
+
+**Nicht geprüft.** Eine Toolbar mit `DataGridEditor` im Batch-Modus (Speichern und Verwerfen stehen darin,
+sind aber nicht getestet), RTL, Firefox (CI), echte Screenreader.

@@ -58,7 +58,7 @@ The comparison is against the Syncfusion Blazor DataGrid, which is the yardstick
 | State | The whole grid state — sort, filters, search, page, widths, hidden columns, grouping, collapsed groups — round trips through `initial_state` and `on_state_change` with the `serde` feature. | — |
 | Accessibility | A single tab stop with a roving tabindex, the full WAI-ARIA grid pattern, and a treegrid when grouped. axe finds nothing, in light and dark. | RTL — **Phase 14**. A screen-reader field test with NVDA, JAWS and VoiceOver — **before 1.0**. |
 | Context menu | A right click or `Shift+F10` on a cell or a header: the column menu's actions on a header, copy, select, details, edit and delete on a cell, and entries of your own (`data_grid_context_menu`). | Touch (long press) — **Phase 14**. |
-| Toolbar | — | **Phase 14**. |
+| Toolbar | One row above the table: search, add, edit and delete, the row count, the column picker, and entries of your own (`data_grid_toolbar`). | A toolbar for a narrow screen — **Phase 14**. |
 | Excel export | — | `rust_xlsxwriter` as an optional feature of `datagrid-export`, once it can be resolved again — **Phase 13**. |
 
 ## Deliberately not a goal
