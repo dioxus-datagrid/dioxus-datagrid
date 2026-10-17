@@ -254,6 +254,10 @@ pub struct GridLocale {
     pub context_menu: Cow<'static, str>,
     /// The name of the group of actions above the table, for a screen reader.
     pub toolbar: Cow<'static, str>,
+    /// The button that opens the column filters on a narrow screen, and the name of the sheet.
+    pub filters: Cow<'static, str>,
+    /// The button that closes a sheet.
+    pub close: Cow<'static, str>,
     /// The context menu entry that copies a cell.
     pub context_copy: Cow<'static, str>,
     /// The context menu entry that copies a whole row.
@@ -401,6 +405,8 @@ impl GridLocale {
             print: Cow::Borrowed("Print"),
             context_menu: Cow::Borrowed("Context menu"),
             toolbar: Cow::Borrowed("Table actions"),
+            filters: Cow::Borrowed("Filters"),
+            close: Cow::Borrowed("Close"),
             context_copy: Cow::Borrowed("Copy"),
             context_copy_row: Cow::Borrowed("Copy row"),
             context_deselect_row: Cow::Borrowed("Deselect row"),
@@ -531,6 +537,8 @@ impl GridLocale {
             print: Cow::Borrowed("Drucken"),
             context_menu: Cow::Borrowed("Kontextmenü"),
             toolbar: Cow::Borrowed("Tabellenaktionen"),
+            filters: Cow::Borrowed("Filter"),
+            close: Cow::Borrowed("Schließen"),
             context_copy: Cow::Borrowed("Kopieren"),
             context_copy_row: Cow::Borrowed("Zeile kopieren"),
             context_deselect_row: Cow::Borrowed("Zeile abwählen"),
