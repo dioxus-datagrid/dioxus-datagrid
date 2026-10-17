@@ -1,0 +1,17 @@
+{
+  "name": "data_grid_context_menu",
+  "description": "A context menu for data_grid: right click or Shift+F10 on a cell or a column header.",
+  "authors": [
+    "Marius Linnartz"
+  ],
+  "exclude": [
+    "docs.md",
+    "component.json"
+  ],
+  "cargoDependencies": [
+    {
+      "name": "dioxus-datagrid",
+      "version": "0.12"
+    }
+  ]
+}

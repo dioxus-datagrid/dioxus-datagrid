@@ -11,6 +11,7 @@ mod components;
 
 use components::data_grid::DataGrid;
 use components::data_grid_column_menu::DataGridColumnMenu;
+use components::data_grid_context_menu::DataGridContextMenu;
 use components::data_grid_detail::DataGridDetail;
 use components::data_grid_editor::DataGridEditor;
 use components::data_grid_export::DataGridExport;
@@ -87,6 +88,7 @@ fn App() -> Element {
             DataGridGroupPanel::<User> {}
             DataGridColumnMenu::<User> {}
             DataGridExport::<User> { file_name: "users" }
+            DataGridContextMenu::<User> {}
             DataGridDetail {
                 render: move |user: User| rsx! {
                     div { "{user.name} is {user.age}" }

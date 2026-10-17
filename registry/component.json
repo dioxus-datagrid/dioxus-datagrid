@@ -8,6 +8,7 @@
     "data_grid_column_menu",
     "data_grid_detail",
     "data_grid_reorder",
-    "data_grid_export"
+    "data_grid_export",
+    "data_grid_context_menu"
   ]
 }

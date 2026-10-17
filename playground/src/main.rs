@@ -11,6 +11,7 @@ mod components;
 use chrono::NaiveDate;
 use components::data_grid::DataGrid;
 use components::data_grid_column_menu::DataGridColumnMenu;
+use components::data_grid_context_menu::DataGridContextMenu;
 use components::data_grid_detail::DataGridDetail;
 use components::data_grid_editor::DataGridEditor;
 use components::data_grid_export::DataGridExport;
@@ -18,9 +19,9 @@ use components::data_grid_group_panel::DataGridGroupPanel;
 use components::data_grid_reorder::DataGridReorder;
 use dioxus::prelude::*;
 use dioxus_datagrid::{
-    Aggregate, CellFormat, CellSelectionMode, Column, ColumnId, ColumnWidth, Create, Delete,
-    Direction, EditMode, GridLocale, GridRow, GridState, Pinned, RowMove, Save, SaveBatch,
-    SelectionMode,
+    Aggregate, CellFormat, CellSelectionMode, Column, ColumnId, ColumnWidth, ContextEntry,
+    ContextTarget, Create, Delete, Direction, EditMode, GridLocale, GridRow, GridState, Pinned,
+    RowMove, Save, SaveBatch, SelectionMode,
 };
 
 const STYLE: Asset = asset!("/assets/playground.css");
@@ -432,6 +433,8 @@ fn App() -> Element {
     let mut detail_rows = use_signal(|| false);
     let mut row_drag = use_signal(|| false);
     let mut export = use_signal(|| false);
+    let mut context_menu = use_signal(|| false);
+    let mut context_log = use_signal(Vec::<usize>::new);
     let mut rtl = use_signal(|| false);
     let mut wide = use_signal(|| false);
     let mut virtual_columns = use_signal(|| false);
@@ -700,6 +703,16 @@ fn App() -> Element {
                 label { class: "toggle",
                     input {
                         r#type: "checkbox",
+                        "data-testid": "toggle-context-menu",
+                        checked: context_menu(),
+                        onchange: move |event| context_menu.set(event.checked()),
+                    }
+                    "Context menu"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
                         "data-testid": "toggle-export",
                         checked: export(),
                         onchange: move |event| export.set(event.checked()),
@@ -842,6 +855,10 @@ fn App() -> Element {
                     "Reset saved state"
                 }
 
+                output { "data-testid": "context-log", class: "selected",
+                    "context: [{context_log().iter().map(usize::to_string).collect::<Vec<_>>().join(\", \")}]"
+                }
+
                 output { "data-testid": "selected-keys", class: "selected",
                     "selected: [{selected().iter().map(u32::to_string).collect::<Vec<_>>().join(\", \")}]"
                 }
@@ -883,6 +900,24 @@ fn App() -> Element {
                     }
                     if detail_rows() {
                         DataGridDetail { render: detail, has_detail }
+                    }
+                    if context_menu() {
+                        // One entry of the application's, on a cell: it only says
+                        // which row it was chosen on.
+                        DataGridContextMenu::<Employee> {
+                            entries: Callback::new(move |target: ContextTarget| match target {
+                                ContextTarget::Cell { row_index, .. } => {
+                                    vec![
+                                        ContextEntry::new(
+                                            "mail",
+                                            "Write an email",
+                                            Callback::new(move |_| context_log.write().push(row_index)),
+                                        ),
+                                    ]
+                                }
+                                _ => Vec::new(),
+                            }),
+                        }
                     }
                     if export() {
                         DataGridExport::<Employee> { file_name: "employees" }
