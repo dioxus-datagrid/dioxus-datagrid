@@ -436,6 +436,7 @@ fn App() -> Element {
     let mut export = use_signal(|| false);
     let mut context_menu = use_signal(|| false);
     let mut toolbar = use_signal(|| false);
+    let mut compact = use_signal(|| false);
     let mut toolbar_log = use_signal(|| 0usize);
     let mut context_log = use_signal(Vec::<usize>::new);
     let mut rtl = use_signal(|| false);
@@ -706,6 +707,16 @@ fn App() -> Element {
                 label { class: "toggle",
                     input {
                         r#type: "checkbox",
+                        "data-testid": "toggle-compact",
+                        checked: compact(),
+                        onchange: move |event| compact.set(event.checked()),
+                    }
+                    "Cards when narrow"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
                         "data-testid": "toggle-toolbar",
                         checked: toolbar(),
                         onchange: move |event| toolbar.set(event.checked()),
@@ -886,6 +897,7 @@ fn App() -> Element {
                     overscan: overscan(),
                     virtual_columns: virtual_columns(),
                     direction: rtl().then_some(Direction::Rtl),
+                    compact_below: compact().then_some(600.0),
                     // A wide grid scrolls within a height of its own.
                     height: (virtualized() || wide()).then(|| "480px".to_owned()),
                     selection: selection(),

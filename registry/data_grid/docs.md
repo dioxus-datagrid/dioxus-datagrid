@@ -88,6 +88,7 @@ fn Users() -> Element {
 | `height` | `None` | A CSS height, such as `"480px"`, that the grid scrolls within. |
 | `overscan` | `20` | With `row_height`: extra rows rendered above and below the visible ones. |
 | `direction` | `None` | `Some(Direction::Rtl)` for right-to-left text; see "Right to left". |
+| `compact_below` | `None` | Below this width in pixels rows are cards; see "Narrow screens". |
 | `virtual_columns` | `false` | Renders only the columns in view; see "Wide grids". |
 | `column_overscan` | `2` | With `virtual_columns`: extra columns rendered on each side of the visible ones. |
 | `resizable_columns` | `true` | Lets the user resize columns by dragging a header's edge. |
@@ -385,3 +386,24 @@ Group headers carry `data-group-row` and `data-expanded`, group footers
 > loads its stylesheet from `/src/components/data_grid/style.css`. If you
 > configure a different directory in `Dioxus.toml`, adjust the `asset!` path at
 > the top of `component.rs`.
+
+## Narrow screens
+
+Give the grid a width to go below:
+
+```rust
+DataGrid { data: rows, columns, compact_below: Some(600.0) }
+```
+
+When the grid is narrower than that (its own box, not the window), every row is a card: each cell says which
+column it is, the header stays for a screen reader but goes out of sight, nothing is pinned, and nothing scrolls
+sideways. The column filters move behind a **Filters** button into a sheet that comes up from the bottom edge,
+and the form that edits a row (`EditMode::Dialog`, a new row) comes up from the bottom edge too.
+
+The arrow keys still move through the grid as a grid: down is the next row, not the next line of the card.
+
+A grid that virtualizes its rows (`row_height`) or its columns (`virtual_columns`) is never compact: a card has
+no fixed height, and a card shows every column.
+
+The look is in `style.css` under `.dg[data-compact]`, and the sheet is `.dg-sheet`. The grid only says that it is
+compact (`data-compact`) and names each cell (`data-label`); everything else is yours to change.

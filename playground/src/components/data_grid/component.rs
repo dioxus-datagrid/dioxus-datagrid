@@ -10,8 +10,8 @@
 
 use dioxus::prelude::*;
 use dioxus_datagrid::primitives::{
-    GridBody, GridColumnFilter, GridColumnPicker, GridCount, GridFilterMenu, GridFooter,
-    GridHeader, GridPagination, GridRoot, GridSearch, VirtualGridBody,
+    GridBody, GridColumnFilter, GridColumnPicker, GridCompactSheet, GridCount, GridFilterMenu,
+    GridFooter, GridHeader, GridPagination, GridRoot, GridSearch, VirtualGridBody,
 };
 use dioxus_datagrid::{
     CellSelectionMode, Column, Direction, GridLocale, GridOptions, GridRow, GridState,
@@ -104,6 +104,12 @@ pub struct DataGridProps<T: GridRow + PartialEq + 'static> {
     /// Label of the column menu. Defaults to the locale's.
     #[props(default)]
     pub column_picker_label: Option<String>,
+    /// The width, in pixels, below which rows are laid out as cards: each cell
+    /// says what it is, the header is hidden and the filters move into a sheet
+    /// behind a button. Not for a grid that virtualizes its rows or its columns.
+    /// Off by default.
+    #[props(default)]
+    pub compact_below: Option<f64>,
     /// State to start from, such as one saved from `on_state_change`. Read on
     /// the first render only; to apply state loaded later, render the grid once
     /// it is available.
@@ -141,6 +147,7 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
     options.locale = props.locale.clone();
     options.virtual_columns = props.virtual_columns.then_some(props.column_overscan);
     options.direction = props.direction;
+    options.compact_below = props.compact_below;
 
     let grid = use_grid(props.data, props.columns, options);
     use_context_provider(|| grid);
@@ -164,6 +171,25 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
     });
 
     let is_empty = grid.filtered_len() == 0;
+    let has_filters = props.column_filters || props.filter_menu;
+    // One filter for every column that can be filtered, in the sheet or above the grid.
+    let filters = rsx! {
+        for (index , column) in grid.visible_columns().into_iter().enumerate() {
+            if column.spec().is_filterable() {
+                div { key: "{column.id()}", class: "dg-filter",
+                    label {
+                        span { "{column.label()}" }
+                        if props.column_filters {
+                            GridColumnFilter { grid, column_index: index, class: "dg-search" }
+                        }
+                    }
+                    if props.filter_menu {
+                        GridFilterMenu { grid, column_index: index, class: "dg-filter-menu" }
+                    }
+                }
+            }
+        }
+    };
     let locale = props.locale.clone();
     let height_style = props
         .height
@@ -206,24 +232,11 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
             {props.children}
 
             // Outside role="grid" on purpose: a filter row inside it would count
-            // towards aria-rowcount and shift every aria-rowindex by one.
-            if props.column_filters || props.filter_menu {
-                div { class: "dg-filters",
-                    for (index , column) in grid.visible_columns().into_iter().enumerate() {
-                        if column.spec().is_filterable() {
-                            div { key: "{column.id()}", class: "dg-filter",
-                                label {
-                                    span { "{column.label()}" }
-                                    if props.column_filters {
-                                        GridColumnFilter { grid, column_index: index, class: "dg-search" }
-                                    }
-                                }
-                                if props.filter_menu {
-                                    GridFilterMenu { grid, column_index: index, class: "dg-filter-menu" }
-                                }
-                            }
-                        }
-                    }
+            // towards aria-rowcount and shift every aria-rowindex by one. On a
+            // narrow screen they are in a sheet behind a button instead.
+            if has_filters {
+                GridCompactSheet { grid, button_class: "dg-filters-open", sheet_class: "dg-sheet",
+                    div { class: "dg-filters", {filters} }
                 }
             }
 
