@@ -133,6 +133,16 @@ pub struct GridOptions {
     /// that the columns lie the same way. Set it on the grid and on the page
     /// together; changing it on a later render switches the grid over.
     pub direction: Option<Direction>,
+    /// The width, in CSS pixels, of the grid's own box below which it lays its rows
+    /// out as cards: [`GridHandle::is_compact`]. `None`, the default, never does.
+    ///
+    /// The grid cannot lay a row out as a card by itself: it says that it is
+    /// compact, puts `data-compact` on its root and the name of each column on its
+    /// cells (`data-label`), and the styling does the rest. A grid that virtualizes
+    /// its rows or its columns is never compact: a card is not as tall as a
+    /// row, and a card has no columns to leave out. Changing it on a later render
+    /// switches the grid over.
+    pub compact_below: Option<f64>,
 }
 
 /// How long a remote grid waits for typing to pause before it sends a request.
@@ -185,6 +195,14 @@ impl GridOptions {
     #[must_use]
     pub fn virtual_columns(mut self, overscan: usize) -> Self {
         self.virtual_columns = Some(overscan);
+        self
+    }
+
+    /// Lays rows out as cards when the grid is narrower than `width` pixels; see
+    /// [`compact_below`](GridOptions::compact_below).
+    #[must_use]
+    pub fn compact_below(mut self, width: f64) -> Self {
+        self.compact_below = Some(width);
         self
     }
 
@@ -316,6 +334,8 @@ pub struct GridHandle<T: GridRow + 'static> {
     virtual_columns: Signal<Option<usize>>,
     /// Which way the grid reads; see [`GridOptions::direction`].
     direction: Signal<Option<Direction>>,
+    /// The width below which rows are cards; see [`GridOptions::compact_below`].
+    compact_below: Signal<Option<f64>>,
     /// The columns to render, derived from the scroll position and the columns'
     /// widths. A memo, so that a scroll which moves no column in or out re-renders
     /// nobody: the scroll position changes with every pixel, this only when a
@@ -543,6 +563,7 @@ pub(crate) struct GridBase<T: GridRow + 'static> {
     virtual_body: Signal<Option<(f64, usize)>>,
     virtual_columns: Signal<Option<usize>>,
     direction: Signal<Option<Direction>>,
+    compact_below: Signal<Option<f64>>,
     measured_widths: Signal<Vec<(ColumnId, f64)>>,
     column_elements: Signal<Vec<(ColumnId, Rc<MountedData>)>>,
     resize: Signal<Option<ColumnResize>>,
@@ -595,6 +616,7 @@ where
     let requested_locale = options.locale.clone();
     let requested_virtual_columns = options.virtual_columns;
     let requested_direction = options.direction;
+    let requested_compact = options.compact_below;
 
     let mut mode = use_signal(|| requested_mode);
     let mut cell_mode = use_signal(|| requested_cell_mode);
@@ -605,6 +627,7 @@ where
     let mut locale = use_signal(|| requested_locale.clone());
     let mut virtual_columns = use_signal(|| requested_virtual_columns);
     let mut direction = use_signal(|| requested_direction);
+    let mut compact_below = use_signal(|| requested_compact);
 
     // Options are plain values, so a component re-rendering with different ones
     // would otherwise be ignored after the first render. This is the pattern
@@ -634,6 +657,9 @@ where
     }
     if *direction.peek() != requested_direction {
         direction.set(requested_direction);
+    }
+    if *compact_below.peek() != requested_compact {
+        compact_below.set(requested_compact);
     }
 
     let remote = sources.is_some();
@@ -668,6 +694,7 @@ where
         virtual_body: use_signal(|| None::<(f64, usize)>),
         virtual_columns,
         direction,
+        compact_below,
         measured_widths: use_signal(Vec::new),
         column_elements: use_signal(Vec::new),
         resize: use_signal(|| None::<ColumnResize>),
@@ -791,6 +818,7 @@ impl<T: GridRow + PartialEq> GridBase<T> {
             virtual_body: self.virtual_body,
             virtual_columns: self.virtual_columns,
             direction: self.direction,
+            compact_below: self.compact_below,
             column_window,
             measured_widths: self.measured_widths,
             column_elements: self.column_elements,
@@ -2041,6 +2069,23 @@ impl<T: GridRow> GridHandle<T> {
     #[must_use]
     pub fn direction(&self) -> Option<Direction> {
         *self.direction.read()
+    }
+
+    /// Whether the grid lays its rows out as cards now: it was given a width to go
+    /// below ([`GridOptions::compact_below`]) and its box is narrower than that.
+    ///
+    /// Never while its rows or its columns are virtualized, and not before the grid
+    /// has been measured.
+    #[must_use]
+    pub fn is_compact(&self) -> bool {
+        let Some(below) = *self.compact_below.read() else {
+            return false;
+        };
+        let width = self.layout.read().viewport_width;
+        width > 0.0
+            && width < below
+            && self.virtual_body.read().is_none()
+            && self.virtual_columns.read().is_none()
     }
 
     /// Whether the grid reads right to left because it was told so.

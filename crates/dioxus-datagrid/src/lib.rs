@@ -91,6 +91,7 @@ pub mod primitives;
 mod remote;
 mod row_drag;
 mod select_ui;
+mod sheet;
 mod timer;
 mod toolbar;
 

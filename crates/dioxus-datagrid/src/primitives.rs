@@ -22,6 +22,7 @@ pub use crate::group_ui::{
 };
 pub use crate::row_drag::GridRowHandle;
 pub use crate::select_ui::{GridSelectAll, GridSelectCheckbox};
+pub use crate::sheet::{GridCompactSheet, GridSheet};
 pub use crate::toolbar::{GridColumnPicker, GridCount};
 use crate::{COLUMN_RESIZE_STEP, GridHandle};
 use datagrid_core::{
@@ -285,6 +286,8 @@ pub fn GridRoot<T: GridRowKey + PartialEq + 'static>(
             // Said outright, so that the columns lie the way the keys and the mouse
             // are mirrored; left alone where the grid was not told.
             dir: grid.direction().map(datagrid_core::Direction::as_str),
+            // Rows are cards while the grid is narrow; see `GridOptions::compact_below`.
+            "data-compact": grid.is_compact().then_some("true"),
             aria_rowcount: "{row_count}",
             aria_colcount: "{column_count}",
             aria_multiselectable: (matches!(grid.selection_mode(), SelectionMode::Multi)
@@ -1080,6 +1083,11 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
     let checkbox = column.spec().is_checkbox();
     let expander = column.spec().is_expander();
     let drag_handle = column.spec().is_drag_handle();
+    // A card has no header above its values, so each one says what it is. Only a
+    // column that shows a value has a name worth saying: a checkbox does not.
+    let label = (grid.is_compact() && !(checkbox || expander || drag_handle))
+        .then(|| column.label().to_owned())
+        .filter(|label| !label.is_empty());
 
     // The row as the grid shows it: with unsaved and in-flight edits.
     let (content, tooltip) = if drag_handle {
@@ -1210,6 +1218,7 @@ pub fn GridCell<T: GridRowKey + PartialEq + 'static>(
             tabindex: if focused { "0" } else { "-1" },
             "data-align": align,
             "data-overflow": overflow,
+            "data-label": label,
             "data-editing": editing.then_some("true"),
             "data-changed": changed.then_some("true"),
             "data-cell-selected": cell_selected.then_some("true"),

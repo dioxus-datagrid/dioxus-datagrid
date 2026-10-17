@@ -378,6 +378,7 @@ pub fn GridEditDialog<T: GridRowKey + PartialEq + 'static>(
             aria_modal: "true",
             aria_labelledby: "{title_id}",
             "data-edit-dialog": "",
+            "data-compact": grid.is_compact().then_some("true"),
             onkeydown: move |event: KeyboardEvent| {
                 if event.key() == Key::Escape {
                     event.prevent_default();
@@ -471,6 +472,7 @@ pub fn GridDeleteConfirm<T: GridRowKey + PartialEq + 'static>(
             aria_modal: "true",
             aria_labelledby: "{message_id}",
             "data-delete-confirm": "",
+            "data-compact": grid.is_compact().then_some("true"),
             onkeydown: move |event: KeyboardEvent| {
                 if event.key() == Key::Escape {
                     event.prevent_default();
