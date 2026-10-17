@@ -92,6 +92,7 @@ mod remote;
 mod row_drag;
 mod select_ui;
 mod timer;
+mod toolbar;
 
 pub use attrs::merge_class;
 pub use column::{CellRenderer, Column, EditorRenderer, HeaderRenderer};

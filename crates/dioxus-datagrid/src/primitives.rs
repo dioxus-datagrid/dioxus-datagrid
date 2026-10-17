@@ -22,6 +22,7 @@ pub use crate::group_ui::{
 };
 pub use crate::row_drag::GridRowHandle;
 pub use crate::select_ui::{GridSelectAll, GridSelectCheckbox};
+pub use crate::toolbar::{GridColumnPicker, GridCount};
 use crate::{COLUMN_RESIZE_STEP, GridHandle};
 use datagrid_core::{
     CellFocus, GridRow as GridRowKey, GroupSpan, NavKey, Pinned, SelectionMode, SortDirection,
