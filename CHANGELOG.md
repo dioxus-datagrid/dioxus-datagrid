@@ -8,6 +8,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- A layout for narrow screens. `GridOptions::compact_below(width)`, or the `compact_below` prop of `data_grid`,
+  lays rows out as cards when the grid is narrower than `width` pixels: each cell says which column it is
+  (`data-label`), the header stays for a screen reader but out of sight, nothing is pinned or scrolls sideways,
+  and the column filters move behind a "Filters" button into a sheet from the bottom edge. The form that
+  edits a row comes up from the bottom edge too. It follows the width of the grid, not of the window, and
+  is off unless asked for. A grid that virtualizes its rows or its columns is never compact
+  (`docs/DECISIONS.md` ADR-0047). New: `GridHandle::is_compact`, the primitives `GridSheet` and
+  `GridCompactSheet`, `data-compact` on the grid's root and on its two dialogs; `GridLocale` gains
+  `filters` and `close`.
 - A toolbar: the registry component `data_grid_toolbar` puts the search box, the add, edit and delete buttons,
   entries of your own and, at the end, the row count and the column picker in one row above the table. Your
   entries are its `children`, so a `DataGridExport` or a plain button stands in it; every part has a prop to

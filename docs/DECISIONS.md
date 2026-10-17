@@ -1878,3 +1878,62 @@ die Bearbeiten-Knöpfe erscheinen mit dem Editor, genau einmal; Löschen wirkt a
 
 **Nicht geprüft.** Eine Toolbar mit `DataGridEditor` im Batch-Modus (Speichern und Verwerfen stehen darin,
 sind aber nicht getestet), RTL, Firefox (CI), echte Screenreader.
+
+---
+
+## ADR-0047 — Das adaptive Layout: das Gitter sagt, dass es schmal ist, das Styling macht Karten daraus
+
+**Kontext.** Phase 14 verlangt: auf schmalen Bildschirmen Zeilen als Karten, Filter und Bearbeiten als Sheet.
+Zeilen sind CSS-Subgrids einer gemeinsamen Spaltenliste (ADR-0039), die Filter ein eigener Block über der
+Tabelle, das Bearbeiten-Formular ein zentrierter Dialog.
+
+**Entscheidung.**
+
+1. **Das Gitter entscheidet, nicht eine Media-Query.** `GridOptions::compact_below(px)` (Prop `compact_below`
+   an `data_grid`): ist die Breite der Gitterbox kleiner, ist `GridHandle::is_compact()` wahr. Gemessen wird
+   das Gitter (`onresize` der Wurzel, schon da für ADR-0039), nicht das Fenster: ein Gitter in einer
+   schmalen Seitenleiste auf einem breiten Bildschirm ist genauso eng. Aus ist die Voreinstellung.
+2. **Das Gitter setzt nur Zeichen**: `data-compact` an der Wurzel, `data-label` (Spaltenname) an jeder Zelle,
+   die einen Wert zeigt (nicht an Kästchen, Aufklappern, Griffen), und `data-compact` an den beiden Dialogen
+   des Editors. Aussehen ist CSS (`.dg[data-compact]`), mit Attribut statt `@media`, damit es der Breite des
+   Gitters folgt und nicht der des Fensters.
+3. **Die Kopfzeile bleibt im Baum**, nur außer Sicht (`clip-path`, 1 px, nicht `display: none`): eine Zelle
+   ohne ihre Spaltenüberschrift im Zugänglichkeitsbaum wäre für Screenreader namenlos. Die Beschriftung vor
+   dem Wert kommt aus `attr(data-label)` in `::before`.
+4. **Die Tasten bleiben Gitter-Tasten.** Pfeil nach unten geht zur nächsten Zeile derselben Spalte, auch
+   wenn die Zellen einer Karte untereinander stehen. Gemessen, dass es so funktioniert (E2E); ob es sich auf
+   einem Telefon mit Tastatur gut anfühlt, nicht.
+5. **Nie kompakt**, wenn das Gitter Zeilen oder Spalten virtualisiert. Eine Karte hat keine feste Zeilenhöhe,
+   und Spaltenvirtualisierung lässt Spalten weg, die eine Karte zeigen muss. Das ist keine Einschränkung auf
+   Dauer: variable Zeilenhöhen stehen in Phase 15.
+6. **Die Filter in einem Sheet** (`GridCompactSheet`, `GridSheet` als Primitive): ein Knopf „Filter"
+   (`aria-haspopup="dialog"`, `aria-expanded`) öffnet ein Panel am unteren Rand. Es ist nicht modal
+   (`aria-modal="false"`): was darin steht, ist der Primitive nicht bekannt, und eine Fokusfalle braucht das
+   letzte bedienbare Element. Fokus beginnt am Schließen-Knopf, `Escape`, Schließen oder ein Tipp daneben
+   schließen es und geben den Fokus dem Knopf zurück; wird das Gitter wieder breit, schließt es sich selbst.
+   Breit steht der Filterblock wie bisher über der Tabelle.
+7. **Bearbeiten als Sheet** ist nur CSS: `.dg-edit-dialog[data-compact]` sitzt am unteren Rand, so breit wie
+   das Fenster. Der Dialog war schon modal mit Fokusfalle.
+
+**Verworfen.**
+
+- **`@media`/Container-Queries allein:** reichen für Karten, aber nicht für das Sheet (es braucht Zustand und
+  einen anderen Baum), und zwei Quellen für „schmal" laufen auseinander.
+- **Ein `<dialog>`-Element mit `showModal()`:** gäbe die Fokusfalle gratis, braucht aber `eval` (eine vierte
+  Ausnahme, ADR-0033) oder `web-sys`.
+- **Karten auch mit virtualisierten Zeilen:** bräuchte gemessene Höhen, siehe Phase 15.
+- **Pfeiltasten durch die Karte statt durch das Gitter:** eine zweite Navigation neben der ersten, für eine
+  Eingabeform (Touch), bei der Pfeile selten vorkommen.
+
+**Gemessen.** `tests/e2e/adaptive-layout.spec.ts` (18 Tests, Chromium und WebKit): Karten bei 400 px, Tabelle
+bei 1280 px, Umschalten beim Ändern der Fenstergröße in beide Richtungen, nichts ohne die Option, Kopfzeile auf
+einen Punkt geklippt aber im Baum, Pfeiltasten, nichts fixiert und kein seitliches Scrollen, Filter im Sheet
+(Position unten, so breit wie das Fenster, Filter wirkt), `Escape`/Tippen daneben/Schließen mit Fokus
+zurück, breit: Filter oben ohne Knopf, ein offenes Sheet schließt beim Verbreitern, Bearbeiten-Formular am
+unteren Rand und breit in der Mitte, nie kompakt mit virtualisierten Zeilen oder Spalten, deutsche Texte, axe
+ohne Verstöße (Karten und offenes Sheet).
+
+**Nicht geprüft.** Ein echtes Telefon (Touch-Ziele, Bildschirmtastatur, die Höhe des Sheets mit eingeblendeter
+Tastatur), ein Screenreader auf den Karten (die Beschriftung kommt aus `::before`, und nicht jeder liest sie
+vor), RTL in Karten, Gruppen- und Detailzeilen als Karten (sie haben keine Beschriftung und wurden nicht
+angesehen), Firefox (CI), Druck.

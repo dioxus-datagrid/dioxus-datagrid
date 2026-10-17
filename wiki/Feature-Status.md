@@ -38,7 +38,7 @@ The comparison is against the Syncfusion Blazor DataGrid, which is the yardstick
 | Virtualization | Rows of a fixed height: only what is in view is in the DOM, while the scrollbar, the keyboard and `aria-rowcount` cover all of them. 100,000 rows stay fluid, grouped as well. Wide grids render only the columns in view (`virtual_columns`), the pinned ones always, with a window worked out from the columns' widths. | Loading blocks while scrolling instead of paging, infinite scroll — **Phase 15**. |
 | Export and print | A button (`data_grid_export`) downloads the visible columns and every filtered row as CSV: values or the text shown, any delimiter, a byte order mark for Excel, formulas defused. Print puts the same table, header repeated, in place of the page. A grid that loads from a server exports every filtered row too, page by page, up to a limit. | Excel (waits for `rust_xlsxwriter` to use `zip` 9) — **Phase 13**. |
 | Localization | Every text the grid writes comes from a `GridLocale`: English by default, German included. Number, currency and date formats per locale. | More shipped languages; one is a table of strings away. |
-| Responsive | Touch targets, virtualization verified on an Android emulator. | Rows as cards on narrow screens, filters and editing as a sheet — **Phase 14**. |
+| Responsive | Touch targets, virtualization verified on an Android emulator. Below `compact_below` pixels rows are cards, the filters are a sheet and the edit form comes up from the bottom edge. | Cards with virtualized rows (needs variable row heights, **Phase 15**); a real phone. |
 
 ## Changing the data
 
@@ -56,9 +56,9 @@ The comparison is against the Syncfusion Blazor DataGrid, which is the yardstick
 | | Today | Gap |
 |---|---|---|
 | State | The whole grid state — sort, filters, search, page, widths, hidden columns, grouping, collapsed groups — round trips through `initial_state` and `on_state_change` with the `serde` feature. | — |
-| Accessibility | A single tab stop with a roving tabindex, the full WAI-ARIA grid pattern, and a treegrid when grouped. axe finds nothing, in light and dark. | RTL — **Phase 14**. A screen-reader field test with NVDA, JAWS and VoiceOver — **before 1.0**. |
+| Accessibility | A single tab stop with a roving tabindex, the full WAI-ARIA grid pattern, and a treegrid when grouped. axe finds nothing, in light and dark. | A screen-reader field test with NVDA, JAWS and VoiceOver — **before 1.0**. |
 | Context menu | A right click or `Shift+F10` on a cell or a header: the column menu's actions on a header, copy, select, details, edit and delete on a cell, and entries of your own (`data_grid_context_menu`). | Touch (long press) — **Phase 14**. |
-| Toolbar | One row above the table: search, add, edit and delete, the row count, the column picker, and entries of your own (`data_grid_toolbar`). | A toolbar for a narrow screen — **Phase 14**. |
+| Toolbar | One row above the table: search, add, edit and delete, the row count, the column picker, and entries of your own (`data_grid_toolbar`). | — |
 | Excel export | — | `rust_xlsxwriter` as an optional feature of `datagrid-export`, once it can be resolved again — **Phase 13**. |
 
 ## Deliberately not a goal

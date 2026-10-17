@@ -993,3 +993,14 @@ sind eine Auswahl. Ein Test, der `menuitem` suchte, fand sie nicht.
 - **Zeilen in einer Tabelle mit Seiten zählen nicht.** Der Test „Löschen wirkt auf die Zeile" zählte
   `.dg-body [role='row']` und fand vorher wie nachher fünf, weil die Seite fünf Zeilen hat, bei zwölf und bei
   elf. Er liest jetzt den Zähler („12 rows" → „11 rows").
+
+## 26. Phase 14: das adaptive Layout
+
+`tests/e2e/adaptive-layout.spec.ts` (ADR-0047), Chromium und WebKit. Zwei Annahmen des Tests waren falsch, nicht
+das Gitter:
+
+- **Ein geklippter Elternknoten hat keinen kleinen Kasten für sein Kind.** Der Test fragte nach dem
+  Begrenzungsrechteck der Spaltenüberschrift (37,6 px) und erwartete 1 px. `clip-path` auf der Kopfgruppe
+  schneidet nur, was man sieht; der Kasten der Zelle bleibt, wie er ist. Gemessen wird die Gruppe.
+- **Die Testdaten haben drei Entwickler, nicht zwei.** Der Filter auf „engineering" lässt drei von zwölf Zeilen
+  übrig.

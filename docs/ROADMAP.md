@@ -221,8 +221,8 @@ was der Browser aus dem Druck macht. Die Phase ist erst mit Excel abgeschlossen.
 
 ### Phase 14: Bedienoberfläche rundherum → 0.13.0 (M)
 
-**Stand:** RTL (ADR-0044), das Kontextmenü (ADR-0045) und die Toolbar (ADR-0046) sind gebaut, ungepusht bis zum
-Release (ADR-0019). Offen: das adaptive Layout.
+**Stand:** RTL (ADR-0044), das Kontextmenü (ADR-0045), die Toolbar (ADR-0046) und das adaptive Layout (ADR-0047) sind
+gebaut, ungepusht bis zum Release (ADR-0019). Offen: das Release als 0.13.0.
 
 - Toolbar-Komponente mit Standardaktionen (Hinzufügen, Bearbeiten, Löschen, Export, Suche,
   Spaltenauswahl) und eigenen Einträgen.
