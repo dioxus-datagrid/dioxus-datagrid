@@ -13,7 +13,7 @@ const cell = (page: Page, column: number) =>
 async function showFormattedColumns(page: Page) {
   await page.locator(".dg-columns summary").click();
   for (const name of [/^(Salary|Gehalt)$/, /^(Since|Seit)$/]) {
-    await page.locator(".dg-columns-menu label").filter({ hasText: name }).getByRole("checkbox").check();
+    await page.locator(".dg-columns [data-columns-menu] label").filter({ hasText: name }).getByRole("checkbox").check();
   }
   await page.locator(".dg-columns summary").click();
   await expect(grid(page)).toHaveAttribute("aria-colcount", "6");
