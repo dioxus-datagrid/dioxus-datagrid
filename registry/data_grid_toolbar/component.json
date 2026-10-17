@@ -1,0 +1,17 @@
+{
+  "name": "data_grid_toolbar",
+  "description": "A toolbar for data_grid: search, add, edit and delete, the row count, the column picker, and entries of your own.",
+  "authors": [
+    "Marius Linnartz"
+  ],
+  "exclude": [
+    "docs.md",
+    "component.json"
+  ],
+  "cargoDependencies": [
+    {
+      "name": "dioxus-datagrid",
+      "version": "0.12"
+    }
+  ]
+}

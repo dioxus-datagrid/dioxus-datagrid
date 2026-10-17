@@ -6,3 +6,4 @@ pub mod data_grid_editor;
 pub mod data_grid_export;
 pub mod data_grid_group_panel;
 pub mod data_grid_reorder;
+pub mod data_grid_toolbar;

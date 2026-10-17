@@ -17,6 +17,7 @@ use components::data_grid_editor::DataGridEditor;
 use components::data_grid_export::DataGridExport;
 use components::data_grid_group_panel::DataGridGroupPanel;
 use components::data_grid_reorder::DataGridReorder;
+use components::data_grid_toolbar::DataGridToolbar;
 use dioxus::prelude::*;
 use dioxus_datagrid::{
     Aggregate, CellFormat, CellSelectionMode, Column, ColumnId, ColumnWidth, ContextEntry,
@@ -434,6 +435,8 @@ fn App() -> Element {
     let mut row_drag = use_signal(|| false);
     let mut export = use_signal(|| false);
     let mut context_menu = use_signal(|| false);
+    let mut toolbar = use_signal(|| false);
+    let mut toolbar_log = use_signal(|| 0usize);
     let mut context_log = use_signal(Vec::<usize>::new);
     let mut rtl = use_signal(|| false);
     let mut wide = use_signal(|| false);
@@ -703,6 +706,16 @@ fn App() -> Element {
                 label { class: "toggle",
                     input {
                         r#type: "checkbox",
+                        "data-testid": "toggle-toolbar",
+                        checked: toolbar(),
+                        onchange: move |event| toolbar.set(event.checked()),
+                    }
+                    "Toolbar"
+                }
+
+                label { class: "toggle",
+                    input {
+                        r#type: "checkbox",
                         "data-testid": "toggle-context-menu",
                         checked: context_menu(),
                         onchange: move |event| context_menu.set(event.checked()),
@@ -879,13 +892,15 @@ fn App() -> Element {
                     cell_selection: cell_selection(),
                     column_filters: true,
                     filter_menu: true,
+                    // The toolbar component brings its own search box and picker.
+                    searchable: !toolbar(),
                     search_placeholder: if german() { "Alle Spalten durchsuchen" } else { "Search all columns" },
                     on_selection_change: move |keys: Vec<u32>| {
                         let mut keys = keys;
                         keys.sort_unstable();
                         selected.set(keys);
                     },
-                    column_picker: true,
+                    column_picker: !toolbar(),
                     reorderable_columns: reorder(),
                     initial_state: initial_state.unwrap_or_else(default_state),
                     on_state_change: move |state: GridState| save_state(&state),
@@ -900,6 +915,19 @@ fn App() -> Element {
                     }
                     if detail_rows() {
                         DataGridDetail { render: detail, has_detail }
+                    }
+                    if toolbar() {
+                        DataGridToolbar::<Employee> {
+                            search_placeholder: if german() { "Alle Spalten durchsuchen" } else { "Search all columns" },
+                            DataGridExport::<Employee> { file_name: "employees" }
+                            button {
+                                r#type: "button",
+                                "data-testid": "toolbar-refresh",
+                                onclick: move |_| *toolbar_log.write() += 1,
+                                "Refresh"
+                            }
+                        }
+                        output { "data-testid": "toolbar-log", class: "selected", "refreshed: {toolbar_log()}" }
                     }
                     if context_menu() {
                         // One entry of the application's, on a cell: it only says
@@ -919,7 +947,7 @@ fn App() -> Element {
                             }),
                         }
                     }
-                    if export() {
+                    if export() && !toolbar() {
                         DataGridExport::<Employee> { file_name: "employees" }
                     }
                     if row_drag() {
@@ -931,6 +959,7 @@ fn App() -> Element {
                     if let Some(mode) = edit_mode() {
                         DataGridEditor {
                             mode,
+                            toolbar: !toolbar(),
                             on_save: save,
                             on_create: create,
                             on_delete: delete,

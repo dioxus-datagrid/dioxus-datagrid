@@ -1,0 +1,97 @@
+//! A toolbar for `data_grid`, composed from what the `dioxus-datagrid` crate
+//! already draws: the search box, the add, edit and delete buttons, the row
+//! count and the column picker.
+//!
+//! This file is yours once `dx components add` copies it in. What each part
+//! does lives in the crate; this component puts them in one row, adds your own
+//! entries between them and styles it.
+
+use dioxus::prelude::*;
+use dioxus_datagrid::primitives::{GridColumnPicker, GridCount, GridEditToolbar, GridSearch};
+use dioxus_datagrid::{GridHandle, GridRow, merge_class};
+
+const STYLE: Asset = asset!("/src/components/data_grid_toolbar/style.css");
+
+/// Props for [`DataGridToolbar`].
+#[derive(Props, Clone, PartialEq)]
+pub struct DataGridToolbarProps {
+    /// Whether to show the search box.
+    #[props(default = true)]
+    pub search: bool,
+    /// Placeholder for the search box. Defaults to the locale's.
+    #[props(default)]
+    pub search_placeholder: Option<String>,
+    /// Whether to show the buttons to add, edit and delete rows. They appear
+    /// only where a `DataGridEditor` made the grid editable; give that one
+    /// `toolbar: false`, or its buttons are there twice.
+    #[props(default = true)]
+    pub actions: bool,
+    /// Whether to show how many rows there are and how many are selected.
+    #[props(default = true)]
+    pub count: bool,
+    /// Whether to show the list that shows and hides columns.
+    #[props(default = true)]
+    pub column_picker: bool,
+    /// Entries of your own, such as `DataGridExport` or a button: they stand
+    /// after the grid's actions.
+    pub children: Element,
+    #[props(extends = GlobalAttributes)]
+    pub attributes: Vec<Attribute>,
+}
+
+/// A row of actions above the `DataGrid` around it.
+///
+/// Give the grid `searchable: false` and `column_picker: false` when you use
+/// this, or they are there twice.
+///
+/// ```rust,ignore
+/// DataGrid { data: people, columns, searchable: false, column_picker: false,
+///     DataGridEditor { toolbar: false, on_save, on_delete, new_row }
+///     DataGridToolbar {
+///         DataGridExport { file_name: "people" }
+///         button { onclick: move |_| refresh(), "Refresh" }
+///     }
+/// }
+/// ```
+#[component]
+pub fn DataGridToolbar<T: GridRow + PartialEq + 'static>(props: DataGridToolbarProps) -> Element {
+    // Put there by `DataGrid`; outside one there is nothing to act on.
+    let Some(grid) = try_use_context::<GridHandle<T>>() else {
+        return rsx! {};
+    };
+    let label = grid.locale().read().toolbar.to_string();
+
+    // A `class` of the caller's joins this one rather than fighting it.
+    let mut attributes = props.attributes.clone();
+    let class = merge_class(&mut attributes, "dg-toolbar-bar");
+
+    rsx! {
+        document::Link { rel: "stylesheet", href: STYLE }
+
+        // A group, not a `toolbar`: that role promises arrow keys between its
+        // controls, and a search box and a disclosure in it would fight them.
+        div { class, role: "group", aria_label: label, ..attributes,
+            div { class: "dg-toolbar-start",
+                if props.search {
+                    GridSearch {
+                        grid,
+                        class: "dg-search",
+                        placeholder: props.search_placeholder.clone(),
+                    }
+                }
+                if props.actions {
+                    GridEditToolbar { grid, class: "dg-edit-toolbar" }
+                }
+                {props.children}
+            }
+            div { class: "dg-toolbar-end",
+                if props.count {
+                    GridCount { grid, class: "dg-count" }
+                }
+                if props.column_picker {
+                    GridColumnPicker { grid, class: "dg-columns" }
+                }
+            }
+        }
+    }
+}

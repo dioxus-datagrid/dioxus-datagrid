@@ -30,6 +30,7 @@ project by `dx components add` and is yours to change from then on.
 | [`registry/data_grid_detail`](registry/data_grid_detail) | Detail rows: a row opens a second one under itself, holding anything you render. |
 | [`registry/data_grid_reorder`](registry/data_grid_reorder) | Row reordering: drag a row by its handle, or move it with `Alt+Shift+Arrow`. |
 | [`registry/data_grid_context_menu`](registry/data_grid_context_menu) | A context menu: right click or `Shift+F10` on a cell or a header, with the grid's own entries and yours. |
+| [`registry/data_grid_toolbar`](registry/data_grid_toolbar) | One row above the table: search, add, edit and delete, the row count, the column picker, and entries of your own. |
 | [`registry/data_grid_export`](registry/data_grid_export) | Export: download the rows as CSV, with the columns and the order the grid shows. |
 
 ## Installation

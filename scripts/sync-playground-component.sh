@@ -14,7 +14,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 for component in data_grid data_grid_editor data_grid_group_panel data_grid_column_menu \
-                 data_grid_detail data_grid_reorder data_grid_export data_grid_context_menu; do
+                 data_grid_detail data_grid_reorder data_grid_export data_grid_context_menu data_grid_toolbar; do
   source_dir="$repo_root/registry/$component"
   target_dir="$repo_root/playground/src/components/$component"
   mkdir -p "$target_dir"

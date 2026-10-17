@@ -8,7 +8,7 @@
 
 use dioxus::prelude::*;
 use dioxus_datagrid::primitives::{
-    GridBody, GridColumnFilter, GridFilterMenu, GridFooter, GridHeader, GridPagination, GridRoot,
+    GridBody, GridColumnFilter, GridColumnPicker, GridCount, GridFilterMenu, GridFooter, GridHeader, GridPagination, GridRoot,
     GridSearch, VirtualGridBody,
 };
 use dioxus_datagrid::{
@@ -140,7 +140,7 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
     options.virtual_columns = props.virtual_columns.then_some(props.column_overscan);
     options.direction = props.direction;
 
-    let mut grid = use_grid(props.data, props.columns, options);
+    let grid = use_grid(props.data, props.columns, options);
     use_context_provider(|| grid);
 
     let on_state_change = props.on_state_change;
@@ -163,8 +163,6 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
 
     let is_empty = grid.filtered_len() == 0;
     let locale = props.locale.clone();
-    let pickable = grid.pickable_columns();
-    let last_visible = grid.visible_column_count() <= 1;
     let height_style = props
         .height
         .as_deref()
@@ -192,29 +190,12 @@ pub fn DataGrid<T: GridRow + PartialEq + 'static>(props: DataGridProps<T>) -> El
                             placeholder: props.search_placeholder.clone(),
                         }
                     }
-                    span { class: "dg-count",
-                        "{locale.row_count(grid.filtered_len())}"
-                        if grid.selected_count() > 0 {
-                            ", {locale.selected_count(grid.selected_count())}"
-                        }
-                    }
+                    GridCount { grid, class: "dg-count" }
                     if props.column_picker {
-                        details { class: "dg-columns",
-                            summary { {props.column_picker_label.clone().unwrap_or_else(|| locale.columns.to_string())} }
-                            div { class: "dg-columns-menu",
-                                for (id , label , visible) in pickable {
-                                    label { key: "{id}",
-                                        input {
-                                            r#type: "checkbox",
-                                            checked: visible,
-                                            // The grid refuses to hide its last column.
-                                            disabled: visible && last_visible,
-                                            onchange: move |event| grid.set_column_hidden(id.clone(), !event.checked()),
-                                        }
-                                        "{label}"
-                                    }
-                                }
-                            }
+                        GridColumnPicker {
+                            grid,
+                            class: "dg-columns",
+                            label: props.column_picker_label.clone(),
                         }
                     }
                 }

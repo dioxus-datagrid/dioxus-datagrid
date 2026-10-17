@@ -16,6 +16,7 @@ use components::data_grid_detail::DataGridDetail;
 use components::data_grid_editor::DataGridEditor;
 use components::data_grid_export::DataGridExport;
 use components::data_grid_group_panel::DataGridGroupPanel;
+use components::data_grid_toolbar::DataGridToolbar;
 use components::data_grid_reorder::DataGridReorder;
 use dioxus::prelude::*;
 use dioxus_datagrid::{
@@ -89,6 +90,7 @@ fn App() -> Element {
             DataGridColumnMenu::<User> {}
             DataGridExport::<User> { file_name: "users" }
             DataGridContextMenu::<User> {}
+            DataGridToolbar::<User> {}
             DataGridDetail {
                 render: move |user: User| rsx! {
                     div { "{user.name} is {user.age}" }
