@@ -1,3 +1,4 @@
+#![cfg(feature = "csv")]
 //! CSV from a real grid's table: what a spreadsheet will meet.
 
 #![allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::panic)]

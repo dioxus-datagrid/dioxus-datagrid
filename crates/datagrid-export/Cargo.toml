@@ -1,8 +1,8 @@
 [package]
 name = "datagrid-export"
 version = "0.13.0"
-description = "Writes a data grid's rows as CSV or an HTML table to print, from the table datagrid-core builds."
-keywords = ["datagrid", "table", "export", "csv"]
+description = "Writes a data grid's rows as CSV, Excel or an HTML table to print, from the table datagrid-core builds."
+keywords = ["datagrid", "table", "export", "csv", "xlsx"]
 categories = ["data-structures", "encoding"]
 readme = "README.md"
 edition.workspace = true
@@ -13,6 +13,19 @@ authors.workspace = true
 
 [dependencies]
 datagrid-core.workspace = true
+# Only for the `xlsx` feature.
+rust_xlsxwriter = { version = "0.100", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# In a browser `SystemTime::now()` panics, and a workbook is stamped with the time
+# it was made: with this the time comes from JavaScript (`docs/VERIFICATION.md` §27).
+rust_xlsxwriter = { version = "0.100", optional = true, features = ["wasm"] }
+
+[dev-dependencies]
+# For the tests of dates, which build them.
+chrono = { version = "0.4.45", default-features = false }
+# Reads back what `xlsx` wrote. the inflater `rust_xlsxwriter` already brings.
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [features]
 default = ["csv", "html"]
@@ -20,7 +33,12 @@ default = ["csv", "html"]
 csv = []
 # An HTML table, for printing; no dependency either.
 html = []
-# Dates and times as cell values, written in ISO 8601.
+# An Excel workbook (`.xlsx`): typed cells with their number formats, the
+# header frozen, groups as outlines. Needs `rust_xlsxwriter`.
+xlsx = ["dep:rust_xlsxwriter"]
+# Dates and times as cell values. Not needed to write them: a date reaches the
+# writers as a value whenever `datagrid-core` was built with `chrono`, and features
+# add up across a build. This only turns that on from here.
 chrono = ["datagrid-core/chrono"]
 
 [lints]

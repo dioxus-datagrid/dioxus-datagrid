@@ -11,9 +11,10 @@ dependencies costs nothing to anyone who does not ask for it.
 |---|---|---|
 | `csv` (default) | CSV: RFC 4180, a semicolon or any delimiter, a byte order mark for Excel, text that would run as a formula defused | none |
 | `html` (default) | an HTML table to print or to put in a page, every cell escaped, the header repeated on every printed sheet | none |
-| `chrono` | dates and times written in ISO 8601 | `chrono`, through `datagrid-core` |
+| `xlsx` | an Excel workbook: numbers, booleans and dates as such, a column's number format, the header frozen, groups as an outline, aggregates | `rust_xlsxwriter` (`zip`, `flate2` and a few small ones) |
+| `chrono` | turns on `datagrid-core`'s `chrono`, so that dates are values; the writers read them with or without this feature | `chrono`, through `datagrid-core` |
 
-Excel and PDF are planned (see the roadmap) and will be features of their own.
+PDF is not a format here: the browser makes one from the printed HTML table.
 
 ```rust
 use datagrid_core::{CellValue, ColumnSpec, ExportScope, GridLocale, GridState, export_table};
@@ -32,6 +33,9 @@ let table = export_table(
 );
 assert_eq!(to_csv(&table, &CsvOptions::default()), "name,age\r\nZoe,31\r\n");
 ```
+
+With the `xlsx` feature, `to_xlsx(&table, &XlsxOptions::default())` writes the same table as the bytes of an
+`.xlsx` file. In a browser, `rust_xlsxwriter` is built with its `wasm` feature automatically.
 
 ## License
 

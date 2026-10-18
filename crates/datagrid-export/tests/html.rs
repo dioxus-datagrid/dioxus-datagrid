@@ -1,3 +1,4 @@
+#![cfg(feature = "html")]
 //! The HTML table: what a page will print, and that no cell can write markup.
 
 #![allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::panic)]

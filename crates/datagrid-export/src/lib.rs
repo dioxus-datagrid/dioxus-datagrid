@@ -4,7 +4,8 @@
 //! visible columns in the order the grid lays them out and the rows as sorted,
 //! filtered and grouped. This crate only writes it: each format is a feature, so
 //! that the ones with heavy dependencies cost nothing to anyone who does not
-//! ask for them. CSV needs no dependency at all.
+//! ask for them. CSV and HTML need no dependency at all; Excel (`xlsx`) needs
+//! `rust_xlsxwriter`.
 //!
 //! ```
 //! use datagrid_core::{
@@ -40,9 +41,14 @@
 mod csv;
 #[cfg(feature = "html")]
 mod html;
+#[cfg(feature = "xlsx")]
+mod xlsx;
 
 #[cfg(feature = "csv")]
 pub use csv::{CsvOptions, CsvValues, LineEnding, to_csv};
 
 #[cfg(feature = "html")]
 pub use html::{HtmlOptions, PRINT_CSS, to_html};
+
+#[cfg(feature = "xlsx")]
+pub use xlsx::{XlsxError, XlsxOptions, to_xlsx};
