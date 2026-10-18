@@ -248,6 +248,8 @@ pub struct GridLocale {
     pub export_label: Cow<'static, str>,
     /// The button that downloads the rows as a CSV file.
     pub export_csv: Cow<'static, str>,
+    /// The button that downloads the grid as an Excel workbook.
+    pub export_xlsx: Cow<'static, str>,
     /// The button that prints the grid.
     pub print: Cow<'static, str>,
     /// Accessible name of the context menu.
@@ -402,6 +404,7 @@ impl GridLocale {
             totals: Cow::Borrowed("Totals"),
             export_label: Cow::Borrowed("Export"),
             export_csv: Cow::Borrowed("Export as CSV"),
+            export_xlsx: Cow::Borrowed("Export as Excel"),
             print: Cow::Borrowed("Print"),
             context_menu: Cow::Borrowed("Context menu"),
             toolbar: Cow::Borrowed("Table actions"),
@@ -534,6 +537,7 @@ impl GridLocale {
             totals: Cow::Borrowed("Gesamt"),
             export_label: Cow::Borrowed("Export"),
             export_csv: Cow::Borrowed("Als CSV exportieren"),
+            export_xlsx: Cow::Borrowed("Als Excel exportieren"),
             print: Cow::Borrowed("Drucken"),
             context_menu: Cow::Borrowed("Kontextmenü"),
             toolbar: Cow::Borrowed("Tabellenaktionen"),
