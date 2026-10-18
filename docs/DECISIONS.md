@@ -1565,6 +1565,8 @@ Bibliotheken nach (ADR A4: eigene Crate, Features, vor dem Hinzufügen nachfrage
   yanked"). Upstream weiß es: `jmcnamara/rust_xlsxwriter#205`, am 16.10.2026 eröffnet, offen. Wir
   warten darauf, statt `zip` selbst zu schreiben oder eine Gabel zu hängen, die sich nicht
   veröffentlichen ließe. Die Abhängigkeit steht deshalb **nicht** in `Cargo.toml`.
+- **Nachtrag (18.10.2026): aufgehoben.** `rust_xlsxwriter` 0.100.0 (17.10.) verlangt `zip ^9.0`, und `zip` 9.0.5
+  ist nutzbar; auch `zip` 8.0 bis 8.6 sind inzwischen nicht mehr zurückgezogen. Gebaut in ADR-0048.
 
 ---
 
@@ -1937,3 +1939,82 @@ ohne Verstöße (Karten und offenes Sheet).
 Tastatur), ein Screenreader auf den Karten (die Beschriftung kommt aus `::before`, und nicht jeder liest sie
 vor), RTL in Karten, Gruppen- und Detailzeilen als Karten (sie haben keine Beschriftung und wurden nicht
 angesehen), Firefox (CI), Druck.
+
+---
+
+## ADR-0048 — Excel: typisierte Zellen mit Zahlenformat, aus demselben Modell wie das CSV
+
+**Kontext.** ADR-0040 hatte Excel (`rust_xlsxwriter`, Feature `xlsx`) freigegeben und dann blockiert gefunden;
+am 17.10.2026 erschien `rust_xlsxwriter` 0.100.0 mit `zip ^9.0`. Es löst sich auf (17 Knoten im Baum, MSRV 1.88
+wie unsere). Die Roadmap verlangt „Excel mit Formatierung, Gruppen und Aggregaten".
+
+**Entscheidung.**
+
+1. **`datagrid_export::to_xlsx(&table, &XlsxOptions) -> Result<Vec<u8>, XlsxError>`** hinter dem Feature `xlsx`
+   (nicht in `default`), aus demselben `ExportTable` wie CSV und HTML. Die Fehlerart ist ein eigener Typ, nicht
+   der von `rust_xlsxwriter`: dessen Version soll nicht Teil unserer API sein.
+2. **Zellen sind typisiert**: Zahl, Wahrheitswert, Datum, Text, damit eine Spalte in Excel summiert, sortiert und
+   filtert. Text ist immer Text (`write_string`), nie eine Formel; die Entschärfung des CSV (`guard_formulas`)
+   entfällt, und ein Test schreibt `=SUM(1,2)` und `@cmd|…` und prüft, dass das Blatt keine `<f>`-Zelle hat.
+   Eine Ganzzahl über 2^53 und ein Float, der keine Zahl ist, werden als der gezeigte Text geschrieben; Excel kann
+   sie nicht halten.
+3. **Das Zahlenformat bleibt erhalten** (`CellFormat` → Excel-Format): `#,##0.00`, `0.0%`, ein Währungszeichen
+   vor oder nach der Zahl **so, wie das Gitter es setzte** (gelesen aus dem ersten Zelltext der Spalte; das
+   Modell kennt die Locale nicht), ein Datumsmuster (`%d.%m.%Y` → `dd.mm.yyyy`, Wörter in Anführungszeichen,
+   was Excel nicht kennt, fällt auf ISO zurück). Excel zeigt es in der Sprache dessen, der die Datei öffnet.
+4. **Gruppen als Gliederung**: die Zeile einer Gruppe ist fett und nach Ebene eingerückt, ihre Zeilen (mit den
+   Aggregaten) eine Excel-Gliederung, die sich einklappen lässt, mit dem Knopf auf der Überschrift
+   (`group_symbols_above`). Eine geschlossene Gruppe trägt ihre Aggregate in der Überschriftzeile.
+5. **Aggregate**: eine Aggregatzeile ist fett. Hat eine Spalte **ein** Aggregat mit Zahl, ist es eine Zahl im Format
+   der Spalte (ein `Count` eine ganze Zahl, ein eigenes `Custom` ohne Einheit); mehrere sind Text wie im CSV
+   (`Sum 7; Count 2`). **Die erste Spalte ist immer Text**, mit dem Namen des Aggregats („Count 3"), weil eine
+   nackte `3` unter „Name" nicht sagt, dass sie eine Anzahl ist (das zeigte erst ein Blick in eine echte Datei,
+   VERIFICATION §27). Die Summenzeile beginnt mit dem „Totals" der Locale.
+6. **Kopf**: fett über einer Linie, eingefroren, mit einem Filter, aber nur bei einer Tabelle aus lauter
+   Datenzeilen (ein Filter würde sonst eine Gruppenüberschrift oder die Summen mit ausblenden). Spalten unter
+   Spaltengruppen bekommen eine Kopfzeile je Ebene, über die Spalten der Gruppe verbunden. Spaltenbreiten aus
+   den ersten 1000 Zeilen, zwischen 8 und 60 Zeichen.
+7. **Daten durch Methoden, nicht durch Varianten**: `Value::date_parts()` und `Value::iso_date()` im Kern. Die
+   Varianten `Value::Date` und `DateTime` gibt es nur mit dem Feature `chrono` des **Kerns**; Features addieren
+   sich über einen Build, ein Schreiber mit einem eigenen `chrono`-Feature sah deshalb Daten nicht, sobald die
+   Anwendung `dioxus-datagrid/chrono` hatte, aber nicht `datagrid-export/chrono` (gemessen: das Datum stand als
+   Text in der Datei, VERIFICATION §27). Jetzt schreiben CSV und Excel Daten, wann immer der Kern sie hat; das
+   Feature `chrono` von `datagrid-export` bleibt als Schalter, tut aber nichts Eigenes mehr.
+8. **Das Speichern von Bytes**: `dioxus_datagrid::save_bytes(name, mime, &[u8])`, derselbe Weg wie `save_file`
+   (ADR-0041, dieselbe `document::eval`-Stelle, kein vierter Fall): ein Blob und ein geklickter Link, die Bytes
+   als Base64 über den Kanal (er trägt JSON), im Skript mit `atob` entschlüsselt. Der Kodierer ist 15 Zeilen
+   und gegen die Testvektoren aus RFC 4648 geprüft.
+9. **Im Browser braucht `rust_xlsxwriter` sein Feature `wasm`**: ohne es ruft die Crate `SystemTime::now()` auf,
+   das in `wasm32-unknown-unknown` abbricht (`RuntimeError: unreachable`), sobald ein Arbeitsbuch angelegt
+   wird, weil es mit der Erstellzeit versehen wird. Das Feature steht in einer **zielabhängigen** Abhängigkeit
+   (`[target.'cfg(target_arch = "wasm32")'.dependencies]`), sodass nur der Browser-Build `js-sys` und
+   `wasm-bindgen` dazunimmt.
+10. **`data_grid_export`** hat einen Knopf „Als Excel exportieren" (`excel`, an) und `xlsx: XlsxOptions`; ein
+    Fehler (mehr Zeilen als ein Blatt hat) wird gesagt statt verschluckt.
+
+**Verworfen.**
+
+- **Eine Datei per `write_formula` mit echten SUBTOTAL-Formeln für die Aggregate.** Ein Aggregat ist, was das
+  Gitter berechnet hat, mit seiner Rundung und seinen Filtern; eine Formel würde nachrechnen, was die Datei
+  nicht kennt, und im Zweifel etwas anderes sagen als der Schirm.
+- **Mehrere Blätter** (je Gruppe eines). Ein Blatt ist, was der Schirm zeigt; wer mehr will, baut den
+  `ExportTable` selbst.
+- **Excel-Zahlenformat aus dem *gezeigten Text* abzuleiten.** Das Modell hat `CellFormat`; der Text ist nur
+  für das Währungszeichen und seine Seite nötig, die das Format nicht sagt.
+- **`chrono` als Abhängigkeit von `datagrid-export`** für Datumsteile. Siehe 7: die Methoden im Kern sind kleiner
+  und haben das Feature-Problem nicht.
+
+**Gemessen.** `crates/datagrid-export/tests/xlsx.rs` (30 Tests), die Datei entpackt und gelesen: Zelltypen,
+Zahlenformate (Währung vor und nach der Zahl, Prozent, Datumsmuster), Ausrichtung, fetter eingefrorener Kopf, Filter
+nur bei reinen Datenzeilen, Spaltenbreite, Gliederung (einfach und verschachtelt), geschlossene Gruppe, Summenzeile,
+Zählung als ganze Zahl, mehrere Aggregate als Text, verbundene Kopfzeilen, Tabellenname, leere Tabelle, Text, der
+wie eine Formel aussieht, Markup, 40 000 Zeichen in einer Zelle, Daten und Datumsmuster.
+`tests/e2e/export-xlsx.spec.ts` (11 Tests, Chromium und WebKit): der Download kommt im Browser an und wird mit
+**ExcelJS** gelesen, einer anderen Bibliothek als der, die schreibt. Alle gefilterten Zeilen, Sortierung, Zahlen als
+Zahlen, Währungsformat, Datum als `Date`, versteckte Spalten fehlen, Gruppen mit Gliederung und Summen, deutsche
+Überschriften. Das Arbeitsbuch öffnet dort; **in Excel selbst wurde keine Datei geöffnet.**
+
+**Nicht geprüft.** Excel, LibreOffice und Numbers (kein Zugriff; ExcelJS ist keine Garantie, dass Excel die Datei
+ohne Reparaturmeldung öffnet), eine Datei mit 100 000 Zeilen (Dauer und Speicher im Browser), der Desktop-Build
+(`save_bytes` im WebView), ein Blatt mit mehr als 1.048.576 Zeilen (der Fehlerweg ist im Code, nicht durchlaufen),
+Gruppen tiefer als sieben Ebenen (Excel zeichnet nur sieben; tiefere sind ohne Gliederung).

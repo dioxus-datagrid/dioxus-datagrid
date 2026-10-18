@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Excel export. `datagrid_export::to_xlsx` (feature `xlsx`) writes the table an export builds as a workbook:
+  numbers, booleans and dates as such, so a column sums and sorts in Excel; a column's number format (grouping,
+  decimals, percent, a currency symbol before or after the number as the grid put it, a date pattern); the
+  header in bold, kept in view and filterable; groups as an outline Excel can fold, with their aggregates and
+  the totals; one header row per level of column group. Text is always text, never a formula, so nothing
+  needs defusing as in a CSV. `dioxus_datagrid::save_bytes` hands a binary file to the browser like
+  `save_file` does a text one, and `data_grid_export` gains an "Export as Excel" button (`excel`, `xlsx`
+  options; `GridLocale::export_xlsx`) (`docs/DECISIONS.md` ADR-0048). Read back with ExcelJS in Chromium and
+  WebKit; not opened in Excel itself.
+- `Value::date_parts` and `Value::iso_date` in `datagrid-core`, and the type `DateParts`: a way to read a date
+  without `chrono`.
+
+### Fixed
+
+- A date reached the CSV and Excel writers as the text shown, not as a date, when the application enabled
+  `chrono` for `dioxus-datagrid` but not for `datagrid-export` (features add up across a build, and the
+  writers looked for a variant of their own feature). They read dates through `Value::date_parts` and
+  `iso_date` now, so `chrono` on `datagrid-export` is no longer needed for dates.
+
 ## [0.13.0] - 2026-10-17
 
 The UI around the grid: Phase 14. A context menu, a toolbar, right-to-left text and a layout for narrow

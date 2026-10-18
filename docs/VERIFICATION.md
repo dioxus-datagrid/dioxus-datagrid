@@ -1004,3 +1004,29 @@ das Gitter:
   schneidet nur, was man sieht; der Kasten der Zelle bleibt, wie er ist. Gemessen wird die Gruppe.
 - **Die Testdaten haben drei Entwickler, nicht zwei.** Der Filter auf „engineering" lässt drei von zwölf Zeilen
   übrig.
+
+## 27. Excel
+
+`crates/datagrid-export/tests/xlsx.rs` und `tests/e2e/export-xlsx.spec.ts` (ADR-0048). Vier Dinge, die erst das
+Messen zeigte:
+
+- **`rust_xlsxwriter` bricht im Browser ab.** Der erste E2E-Lauf lief in „Page crashed" (WebKit) und
+  `RuntimeError: unreachable` (Chromium): ein Arbeitsbuch wird mit der Erstellzeit angelegt, und
+  `SystemTime::now()` existiert in `wasm32-unknown-unknown` nicht. Die Crate hat dafür ein Feature `wasm`
+  (`js_sys::Date::now()`), das nur dort aktiv sein darf: `[target.'cfg(target_arch = "wasm32")'.dependencies]`.
+  Quelle: `rust_xlsxwriter-0.100.0/src/datetime.rs`, `system_now`. Danach liefen 20 von 22, der Rest siehe unten.
+- **Ein Datum, das als Text ankam.** Der Test „ein Datum ist ein Datum" fand `"10/14/2011"` statt eines `Date`.
+  Das Spielfeld hatte `dioxus-datagrid/chrono`, der Schreiber aber sein eigenes `chrono`-Feature nicht;
+  Features addieren sich, und `Value::Date` gibt es mit dem des Kerns. Der Schreiber sah die Variante also nicht.
+  Behoben, indem er Daten über `Value::date_parts()` liest (ADR-0048, 7); dasselbe galt für das CSV (`iso_date`).
+- **Eine nackte Zahl in der Namensspalte.** Ein Blick in eine gruppierte Datei (ExcelJS, Zeile für Zeile) zeigte
+  `3` unter „Name" in der Fußzeile jeder Gruppe, ein Count ohne Wort. Die erste Spalte einer Aggregatzeile ist
+  seitdem Text („Count 3"), die Summenzeile verbindet „Totals" mit einem Doppelpunkt wie das CSV.
+- **`exceljs` brachte eine Warnung mit.** `npm audit`: `uuid <11.1.1` (mittel, Puffergrenzen bei `v3/v5/v6` mit
+  `buf`). Gelesen wird nur, was wir selbst geschrieben haben, und kein Produktivcode hängt daran; trotzdem ist
+  `uuid` in `tests/e2e/package.json` per `overrides` auf `^11.1.1` gehoben (0 Warnungen; ExcelJS liest und
+  schreibt damit weiterhin).
+
+Außerdem aufgefallen, nicht Teil dieses Schritts: `cargo test -p datagrid-export --no-default-features` scheiterte
+schon vorher (die Testdateien für CSV und HTML waren nicht an ihr Feature gebunden, und das Doctest in `lib.rs`
+nimmt CSV an). Die Testdateien sind jetzt gebunden; das Doctest bleibt.

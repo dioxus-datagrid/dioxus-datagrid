@@ -207,10 +207,9 @@ im Treegrid-Muster; 100.000 Zeilen gruppiert und virtualisiert flüssig.
 
 ### Phase 13: Export und Druck → 0.12.0 (M)
 
-**Stand:** in 0.12.0 ohne Excel veröffentlicht. CSV, Druck als Tabelle (ADR-0042), Download ohne
-`web-sys` (ADR-0041) und der Remote-Export (ADR-0043) sind fertig; Excel ist offen, weil
-`rust_xlsxwriter` auf `zip` 8 besteht, dessen Versionen alle zurückgezogen sind (ADR-0040). PDF ist,
-was der Browser aus dem Druck macht. Die Phase ist erst mit Excel abgeschlossen.
+**Stand:** abgeschlossen. CSV, Druck als Tabelle (ADR-0042), Download ohne `web-sys` (ADR-0041), der
+Remote-Export (ADR-0043) und Excel (ADR-0048) sind gebaut; Excel kam nach 0.12.0, als `rust_xlsxwriter` auf
+`zip` 9 umgestiegen war (ADR-0040). PDF ist, was der Browser aus dem Druck macht.
 
 - `datagrid-export` (A4): CSV ohne Abhängigkeit; Excel mit Formatierung, Gruppen und Aggregaten;
   PDF.

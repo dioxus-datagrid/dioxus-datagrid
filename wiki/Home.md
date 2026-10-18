@@ -11,7 +11,7 @@ against rows in memory or against a server.
 | | |
 |---|---|
 | Latest release | **0.13.0** — the UI around the grid: a context menu, a toolbar, right-to-left text, rows as cards on narrow screens (crates.io, docs.rs) |
-| Next | Phase 15, large and live data. Excel export follows as a minor release once `rust_xlsxwriter` can be resolved again |
+| Next | Phase 15, large and live data. Excel export is built and goes out with the next release |
 | Long game | [Roadmap to 1.0](Roadmap.md) — parity with the Syncfusion Blazor DataGrid on the features people actually use |
 
 Every phase ends in a release, so you can stop on any version and have something whole.
