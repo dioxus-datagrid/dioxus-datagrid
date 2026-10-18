@@ -188,11 +188,9 @@ impl Writer<'_> {
             // showed for it is the best there is.
             Some(Value::Float(number)) if number.is_finite() => number.to_string(),
             Some(Value::Bool(flag)) => flag.to_string(),
-            #[cfg(feature = "chrono")]
-            Some(Value::Date(date)) => date.to_string(),
-            #[cfg(feature = "chrono")]
-            Some(Value::DateTime(date)) => date.to_string(),
-            Some(_) => shown.to_owned(),
+            // A date in ISO 8601, which is what a program reads; the text shown is
+            // in the locale's pattern.
+            Some(other) => other.iso_date().unwrap_or_else(|| shown.to_owned()),
         }
     }
 

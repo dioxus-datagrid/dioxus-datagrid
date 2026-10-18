@@ -92,7 +92,7 @@ pub use export::{
     ExportAggregate, ExportCell, ExportColumn, ExportRow, ExportScope, ExportTable, export_table,
     layout_order,
 };
-pub use filter::{ColumnFilter, Condition, FilterOp, Value, ValueKind};
+pub use filter::{ColumnFilter, Condition, DateParts, FilterOp, Value, ValueKind};
 
 /// The name [`Value`] had while only filters used it.
 #[deprecated(since = "0.7.0", note = "renamed to `Value`")]

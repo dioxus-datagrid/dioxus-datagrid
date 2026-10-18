@@ -131,7 +131,81 @@ impl Hash for Value {
     }
 }
 
+/// The parts of a date, or a date and time, with no date library in the way.
+///
+/// What [`Value::date_parts`] hands a writer that needs to put a date into a
+/// format of its own, such as a spreadsheet, without depending on `chrono`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DateParts {
+    /// The year, in the proleptic Gregorian calendar.
+    pub year: i32,
+    /// The month, 1 to 12.
+    pub month: u8,
+    /// The day of the month, 1 to 31.
+    pub day: u8,
+    /// Hour, minute and second, for a value that has a time of day.
+    pub time: Option<(u8, u8, u8)>,
+}
+
 impl Value {
+    /// The parts of a date or a date and time, or `None` for any other value.
+    ///
+    /// Always `None` without the `chrono` feature, since there are no dates
+    /// then. Because it is a method rather than a variant to match, code that
+    /// writes dates works whether or not it was built with `chrono` itself:
+    /// features add up across the crates of a build, and a writer should not need
+    /// to ask for the one its caller already has.
+    #[must_use]
+    pub fn date_parts(&self) -> Option<DateParts> {
+        #[cfg(feature = "chrono")]
+        {
+            use chrono::{Datelike, Timelike};
+            let narrow = |part: u32| u8::try_from(part).ok();
+            let (date, time) = match self {
+                Self::Date(date) => (*date, None),
+                Self::DateTime(date_time) => (date_time.date(), Some(date_time.time())),
+                _ => return None,
+            };
+            let time = match time {
+                Some(time) => Some((
+                    narrow(time.hour())?,
+                    narrow(time.minute())?,
+                    narrow(time.second())?,
+                )),
+                None => None,
+            };
+            Some(DateParts {
+                year: date.year(),
+                month: narrow(date.month())?,
+                day: narrow(date.day())?,
+                time,
+            })
+        }
+        #[cfg(not(feature = "chrono"))]
+        {
+            None
+        }
+    }
+
+    /// A date or a date and time in ISO 8601, `2026-10-16` or `2026-10-16 18:00:00`,
+    /// or `None` for any other value (and for every value without the `chrono`
+    /// feature). See [`date_parts`](Self::date_parts) for why this is a method.
+    #[must_use]
+    pub fn iso_date(&self) -> Option<String> {
+        #[cfg(feature = "chrono")]
+        {
+            match self {
+                Self::Date(date) => Some(date.to_string()),
+                Self::DateTime(date_time) => Some(date_time.to_string()),
+                _ => None,
+            }
+        }
+        #[cfg(not(feature = "chrono"))]
+        {
+            None
+        }
+    }
+
     /// Takes an owned copy of a cell value. `None` for [`CellValue::None`],
     /// which a filter expresses with [`FilterOp::IsEmpty`] instead.
     #[must_use]
