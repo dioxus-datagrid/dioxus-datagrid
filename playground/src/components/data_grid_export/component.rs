@@ -8,12 +8,15 @@
 //! filtered and grouped — is worked out by `dioxus-datagrid`; how CSV is written
 //! is `datagrid-export`'s. This component only puts a button in front of them.
 
-use datagrid_export::{CsvOptions, HtmlOptions, to_csv, to_html};
+use datagrid_export::{CsvOptions, HtmlOptions, XlsxOptions, to_csv, to_html, to_xlsx};
 use dioxus::prelude::*;
 use dioxus_datagrid::{
     DEFAULT_EXPORT_ROWS, ExportError, ExportScope, ExportTable, GridHandle, GridRow, merge_class,
-    print_html, save_file,
+    print_html, save_bytes, save_file,
 };
+
+/// The media type of an `.xlsx` file.
+const XLSX_MIME: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 const STYLE: Asset = asset!("/src/components/data_grid_export/style.css");
 
@@ -33,6 +36,15 @@ pub struct DataGridExportProps {
     /// order mark, whether it holds values or the text shown.
     #[props(default)]
     pub csv: CsvOptions,
+    /// Whether to show a button that downloads an Excel workbook: numbers, dates
+    /// and booleans as such, a column's number format, the header kept in view,
+    /// groups as an outline.
+    #[props(default = true)]
+    pub excel: bool,
+    /// How the workbook is written: the name of its sheet, a filter on the
+    /// header, whether columns are sized to what they hold.
+    #[props(default)]
+    pub xlsx: XlsxOptions,
     /// Whether to show a button that prints the same rows as a table, with its
     /// header repeated on every sheet.
     #[props(default = true)]
@@ -60,11 +72,12 @@ pub fn DataGridExport<T: GridRow + PartialEq + 'static>(props: DataGridExportPro
     };
 
     let locale = grid.locale();
-    let (label, csv_label, print_label) = {
+    let (label, csv_label, xlsx_label, print_label) = {
         let locale = locale.read();
         (
             locale.export_label.to_string(),
             locale.export_csv.to_string(),
+            locale.export_xlsx.to_string(),
             locale.print.to_string(),
         )
     };
@@ -77,6 +90,8 @@ pub fn DataGridExport<T: GridRow + PartialEq + 'static>(props: DataGridExportPro
     let scope = props.scope;
     let max_rows = props.max_rows;
     let options = props.csv.clone();
+    let xlsx_options = props.xlsx.clone();
+    let xlsx_name = props.file_name.clone();
 
     // Runs `then` with the table, once there is one. A server's rows take a
     // while to arrive, so this waits for them, and says what went wrong if they
@@ -118,6 +133,18 @@ pub fn DataGridExport<T: GridRow + PartialEq + 'static>(props: DataGridExportPro
         }));
     };
 
+    let export_xlsx = move |_| {
+        let file_name = xlsx_name.clone();
+        let options = xlsx_options.clone();
+        export.call(Callback::new(move |table: ExportTable| {
+            // A table too big for a sheet is said, not dropped.
+            match to_xlsx(&table, &options) {
+                Ok(bytes) => save_bytes(&format!("{file_name}.xlsx"), XLSX_MIME, &bytes),
+                Err(error) => problem.set(Some(locale.read().export_failed(&error.to_string()))),
+            }
+        }));
+    };
+
     let print_table = move |_| {
         export.call(Callback::new(|table: ExportTable| {
             let options = HtmlOptions {
@@ -147,6 +174,15 @@ pub fn DataGridExport<T: GridRow + PartialEq + 'static>(props: DataGridExportPro
                 disabled: busy(),
                 onclick: export_csv,
                 "{csv_label}"
+            }
+            if props.excel {
+                button {
+                    r#type: "button",
+                    "data-export": "xlsx",
+                    disabled: busy(),
+                    onclick: export_xlsx,
+                    "{xlsx_label}"
+                }
             }
             if props.print {
                 button {

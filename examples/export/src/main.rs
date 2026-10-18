@@ -9,12 +9,12 @@
 //! Run it with `dx serve --package example-export` for web, or add
 //! `--platform desktop` for a desktop window.
 
-use datagrid_export::{CsvOptions, CsvValues, HtmlOptions, to_csv, to_html};
+use datagrid_export::{CsvOptions, CsvValues, HtmlOptions, XlsxOptions, to_csv, to_html, to_xlsx};
 use dioxus::prelude::*;
 use dioxus_datagrid::primitives::{GridBody, GridFooter, GridHeader, GridRoot, GridSearch};
 use dioxus_datagrid::{
     Aggregate, CellAlign, CellFormat, Column, ExportScope, GridOptions, GridRow, GridState,
-    print_html, save_file, use_grid,
+    print_html, save_bytes, save_file, use_grid,
 };
 
 const STYLE: Asset = asset!("/assets/grid.css");
@@ -166,6 +166,23 @@ fn App() -> Element {
                 button {
                     r#type: "button",
                     onclick: move |_| {
+                        // A workbook, not a text file: numbers stay numbers, the salary
+                        // keeps its currency format, the departments are an outline.
+                        if let Some(table) = grid.export_table(ExportScope::Filtered)
+                            && let Ok(workbook) = to_xlsx(&table, &XlsxOptions::default())
+                        {
+                            save_bytes(
+                                "people.xlsx",
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                &workbook,
+                            );
+                        }
+                    },
+                    "Download Excel"
+                }
+                button {
+                    r#type: "button",
+                    onclick: move |_| {
                         if let Some(table) = grid.export_table(ExportScope::Filtered) {
                             let options = HtmlOptions {
                                 caption: Some("People".to_owned()),
@@ -183,7 +200,7 @@ fn App() -> Element {
                         checked: for_excel(),
                         onchange: move |event| for_excel.set(event.checked()),
                     }
-                    " For Excel (semicolon, byte order mark)"
+                    " CSV for Excel (semicolon, byte order mark)"
                 }
                 label {
                     input {

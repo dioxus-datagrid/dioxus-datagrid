@@ -1,7 +1,7 @@
 # data_grid_export
 
-Export for [`data_grid`](../data_grid/docs.md): buttons that download the rows as a CSV file and
-print them.
+Export for [`data_grid`](../data_grid/docs.md): buttons that download the rows as a CSV file or an Excel
+workbook, and print them.
 
 ## Usage
 
@@ -24,11 +24,24 @@ left out; a column that draws a cell of its own markup but has no `value` writes
 
 | Prop | Default | |
 |---|---|---|
-| `file_name` | `"export"` | The name of the file, without `.csv`. |
+| `file_name` | `"export"` | The name of the file, without `.csv` or `.xlsx`. |
 | `scope` | `ExportScope::Filtered` | `Filtered` is every row that passes the filters, on every page, with every group open. `View` is the page on screen, groups as shown. |
 | `max_rows` | `100_000` | The most rows to take from a server. |
 | `csv` | `CsvOptions::default()` | How the CSV is written, see below. |
+| `excel` | `true` | Shows the button that downloads an Excel workbook. |
+| `xlsx` | `XlsxOptions::default()` | How the workbook is written: its sheet name, a filter on the header, column widths, the outline. |
 | `print` | `true` | Shows the button that prints the rows. |
+
+## Excel
+
+The workbook holds what the CSV holds, as cells that Excel can work with: numbers, booleans and dates as
+such, each column in its number format (`#,##0.00`, a percent, a currency symbol where the grid put it, a date
+pattern), the header in bold and kept in view, and, where the grid is grouped, each group as an outline that
+folds, with its aggregates and the totals. Text is text: nothing in a cell is ever run as a formula.
+
+It needs the `xlsx` feature of `datagrid-export`, which this component's `component.json` turns on. To go
+without it, delete the button, the `export_xlsx` handler and the `xlsx` feature from your `Cargo.toml`.
+Excel is the one format here that brings a library of its own (`rust_xlsxwriter` and `zip`).
 
 ## A grid that loads its rows from a server
 

@@ -11,7 +11,7 @@ dioxus.workspace = true
 # Two dependencies, as an application needs: the grid, and what writes its rows
 # as a file. `dioxus-datagrid` re-exports the core crate's types.
 dioxus-datagrid.workspace = true
-datagrid-export.workspace = true
+datagrid-export = { workspace = true, features = ["xlsx"] }
 
 [features]
 default = ["web"]

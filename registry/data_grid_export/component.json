@@ -1,6 +1,6 @@
 {
   "name": "data_grid_export",
-  "description": "Export for data_grid: download the rows as a CSV file.",
+  "description": "Export for data_grid: download the rows as a CSV file or an Excel workbook, or print them.",
   "authors": [
     "Marius Linnartz"
   ],
@@ -18,7 +18,8 @@
       "version": "0.13",
       "features": [
         "csv",
-        "html"
+        "html",
+        "xlsx"
       ]
     }
   ]
