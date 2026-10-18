@@ -19,10 +19,18 @@ use dioxus::prelude::*;
 /// Hands a file to the browser, or the webview, as a download.
 ///
 /// A `Blob` and a link with the `download` attribute, clicked. The name is only a
-/// suggestion; the browser decides where the file goes and may ask.
+/// suggestion; the browser decides where the file goes and may ask. Binary
+/// content arrives as base64 and is decoded here: the channel carries JSON, which
+/// has no bytes.
 const SAVE_FILE: &str = r#"
-    const [name, type, text] = await dioxus.recv();
-    const blob = new Blob([text], { type });
+    const [name, type, data, binary] = await dioxus.recv();
+    let part = data;
+    if (binary) {
+        const raw = atob(data);
+        part = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) part[i] = raw.charCodeAt(i);
+    }
+    const blob = new Blob([part], { type });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -51,10 +59,87 @@ pub fn save_file(file_name: &str, mime: &str, content: String) {
     let mime = mime.to_owned();
     spawn(async move {
         let eval = document::eval(SAVE_FILE);
-        if eval.send((name, mime, content)).is_ok() {
+        if eval.send((name, mime, content, false)).is_ok() {
             let _ = eval.join::<bool>().await;
         }
     });
+}
+
+/// Offers `content` to the user as a file called `file_name`, for a format that is
+/// bytes rather than text, such as an Excel workbook.
+///
+/// Like [`save_file`], and the same ADR-0041 way out: the bytes travel over the
+/// eval channel as base64, since the channel carries JSON.
+///
+/// ```rust,ignore
+/// let workbook = datagrid_export::to_xlsx(&table, &XlsxOptions::default())?;
+/// save_bytes(
+///     "people.xlsx",
+///     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+///     &workbook,
+/// );
+/// ```
+pub fn save_bytes(file_name: &str, mime: &str, content: &[u8]) {
+    let name = file_name.to_owned();
+    let mime = mime.to_owned();
+    let encoded = base64(content);
+    spawn(async move {
+        let eval = document::eval(SAVE_FILE);
+        if eval.send((name, mime, encoded, true)).is_ok() {
+            let _ = eval.join::<bool>().await;
+        }
+    });
+}
+
+/// Standard base64, with padding, as `atob` reads it.
+fn base64(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let group = (u32::from(chunk.first().copied().unwrap_or(0)) << 16)
+            | (u32::from(chunk.get(1).copied().unwrap_or(0)) << 8)
+            | u32::from(chunk.get(2).copied().unwrap_or(0));
+        for shift in [18, 12, 6, 0] {
+            let index = usize::try_from((group >> shift) & 0x3f).unwrap_or(0);
+            out.push(char::from(ALPHABET.get(index).copied().unwrap_or(b'=')));
+        }
+        // The bytes a short last chunk lacks are padding, not zeros.
+        let missing = 3 - chunk.len();
+        for _ in 0..missing {
+            out.pop();
+        }
+        out.extend(std::iter::repeat_n('=', missing));
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::base64;
+
+    #[test]
+    fn base64_matches_the_rfc_4648_vectors() {
+        for (plain, encoded) in [
+            ("", ""),
+            ("f", "Zg=="),
+            ("fo", "Zm8="),
+            ("foo", "Zm9v"),
+            ("foob", "Zm9vYg=="),
+            ("fooba", "Zm9vYmE="),
+            ("foobar", "Zm9vYmFy"),
+        ] {
+            assert_eq!(base64(plain.as_bytes()), encoded);
+        }
+    }
+
+    #[test]
+    fn base64_carries_every_byte_value() {
+        let all: Vec<u8> = (0..=255).collect();
+        let encoded = base64(&all);
+        assert_eq!(encoded.len(), 344);
+        assert!(encoded.starts_with("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8g"));
+        assert!(encoded.ends_with("/P3+/w=="));
+    }
 }
 
 /// How many rows [`GridHandle::export_all`] asks a server for at a time.
