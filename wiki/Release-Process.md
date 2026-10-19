@@ -39,6 +39,7 @@ never done on someone's behalf.
 
 | Version | Phase |
 |---|---|
+| 0.13.1 | Excel export: `to_xlsx` in `datagrid-export` (feature `xlsx`), `save_bytes`, the Excel button of `data_grid_export` |
 | 0.13.0 | The UI around the grid: a context menu, a toolbar, right-to-left text, rows as cards on narrow screens; `data_grid_context_menu`, `data_grid_toolbar` |
 | 0.12.0 | Export and print: `datagrid-export` with CSV and an HTML table, `save_file` and `print_html`, the rows of a server grid, `data_grid_export`, `examples/export` |
 | 0.11.0 | Wide grids: column virtualization; a paste says which rows did not fit; `class` merges, `SortState` and the rest re-exported, `Fraction` columns keep a floor |

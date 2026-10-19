@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-10-19
+
+Excel export, which completes Phase 13: `rust_xlsxwriter` 0.100 moved to `zip` 9, so it resolves again
+(`docs/DECISIONS.md` ADR-0040, ADR-0048). Additive: nothing in 0.13.0 changes, so this is a patch release.
+
+`data_grid_export` needs the new `datagrid-export` feature and `save_bytes`, so its `component.json` asks for
+`0.13.1`; the other registry components still ask for `0.13`.
+
 ### Added
 
 - Excel export. `datagrid_export::to_xlsx` (feature `xlsx`) writes the table an export builds as a workbook:
@@ -555,7 +563,8 @@ The first release.
 - The `data_grid` component, installable with `dx components add data_grid`, styled entirely with
   the dx-components theme variables, with optional search, per-column filters and paging.
 
-[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.13.1...HEAD
+[0.13.1]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/dioxus-datagrid/dioxus-datagrid/compare/v0.10.0...v0.11.0

@@ -11,11 +11,11 @@
   "cargoDependencies": [
     {
       "name": "dioxus-datagrid",
-      "version": "0.13"
+      "version": "0.13.1"
     },
     {
       "name": "datagrid-export",
-      "version": "0.13",
+      "version": "0.13.1",
       "features": [
         "csv",
         "html",
